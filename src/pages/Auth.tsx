@@ -8,26 +8,16 @@ import { toast } from "sonner";
 import { LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
 import logoWhite from "@/assets/logo-walk-white-bg.jpg";
 
+import walkIcon from "@/assets/walk-icon-watermark.jpeg";
+
 const WatermarkW = () => (
   <div className="fixed inset-0 flex items-center justify-center pointer-events-none select-none z-0">
-    <svg
-      viewBox="0 0 200 200"
-      className="w-[85vw] h-[85vw] max-w-[650px] max-h-[650px] opacity-[0.04]"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Circle */}
-      <circle cx="100" cy="100" r="80" stroke="hsl(40, 65%, 50%)" strokeWidth="5" fill="none" />
-      {/* W icon — stylized like Walk logo */}
-      <path
-        d="M70 65 C70 65, 72 130, 85 130 C98 130, 100 90, 100 90 C100 90, 102 130, 115 130 C128 130, 130 65, 130 65"
-        stroke="hsl(40, 65%, 50%)"
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
+    <img
+      src={walkIcon}
+      alt=""
+      className="w-[70vw] max-w-[500px] opacity-[0.06]"
+      draggable={false}
+    />
   </div>
 );
 
