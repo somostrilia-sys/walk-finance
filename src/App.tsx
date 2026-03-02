@@ -11,6 +11,8 @@ import CompanyModules from "./pages/CompanyModules";
 import CompanyDashboard from "./pages/CompanyDashboard";
 import FluxoCaixa from "./pages/FluxoCaixa";
 import ConciliacaoBancaria from "./pages/ConciliacaoBancaria";
+import AreaSocio from "./pages/AreaSocio";
+import BranchDashboard from "./pages/BranchDashboard";
 import ModulePage from "./pages/ModulePage";
 import NotFound from "./pages/NotFound";
 
@@ -30,6 +32,8 @@ const App = () => (
             <Route path="/empresa/:companyId/dashboard" element={<ProtectedRoute><CompanyDashboard /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/fluxo-caixa" element={<ProtectedRoute><FluxoCaixa /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/conciliacao" element={<ProtectedRoute><ConciliacaoBancaria /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/area-socio" element={<ProtectedRoute><AreaSocio /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/area-socio/:branchId" element={<ProtectedRoute><BranchDashboard /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/:moduleId" element={<ProtectedRoute><ModulePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

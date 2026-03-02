@@ -116,6 +116,47 @@ export type Database = {
           },
         ]
       }
+      branches: {
+        Row: {
+          city: string | null
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           accent_color: string | null
