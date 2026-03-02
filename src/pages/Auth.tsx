@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
+import logoWalk from "@/assets/logo-walk-holding.png";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -46,90 +47,73 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl font-bold text-primary-foreground">SF</span>
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Sistema Financeiro</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isLogin ? "Entre na sua conta" : "Crie sua conta"}
+    <div className="min-h-screen flex">
+      {/* Left panel — brand */}
+      <div className="hidden lg:flex lg:w-1/2 navy-gradient items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
+        <div className="relative z-10 text-center">
+          <img src={logoWalk} alt="Walk Holding Corporation" className="w-80 mx-auto mb-8 drop-shadow-2xl" />
+          <div className="brand-divider w-32 mx-auto mb-6" />
+          <p className="text-[hsl(0,0%,100%,0.7)] text-sm max-w-sm mx-auto leading-relaxed">
+            Sistema Financeiro Integrado — Gestão centralizada e inteligente para todas as empresas do grupo.
           </p>
         </div>
+      </div>
 
-        <div className="hub-card-base p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Nome completo</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Seu nome"
-                  required={!isLogin}
-                />
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
-                "Processando..."
-              ) : isLogin ? (
-                <>
-                  <LogIn className="w-4 h-4 mr-2" /> Entrar
-                </>
-              ) : (
-                <>
-                  <UserPlus className="w-4 h-4 mr-2" /> Criar conta
-                </>
-              )}
-            </Button>
-          </form>
-
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-primary hover:underline"
-            >
-              {isLogin ? "Não tem conta? Cadastre-se" : "Já tem conta? Faça login"}
-            </button>
+      {/* Right panel — form */}
+      <div className="flex-1 flex items-center justify-center px-6 bg-background">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8 lg:hidden">
+            <img src={logoWalk} alt="Walk Holding" className="w-48 mx-auto mb-4 rounded-xl p-3 navy-gradient" />
           </div>
+          <div className="lg:text-left text-center mb-8">
+            <h1 className="text-2xl font-bold text-foreground">
+              {isLogin ? "Bem-vindo de volta" : "Crie sua conta"}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isLogin ? "Acesse o sistema financeiro" : "Preencha os dados para começar"}
+            </p>
+          </div>
+
+          <div className="hub-card-base p-6 sm:p-8">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {!isLogin && (
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Nome completo</Label>
+                  <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Seu nome" required={!isLogin} />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" required />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <div className="relative">
+                  <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full h-11" disabled={loading}>
+                {loading ? "Processando..." : isLogin ? (<><LogIn className="w-4 h-4 mr-2" /> Entrar</>) : (<><UserPlus className="w-4 h-4 mr-2" /> Criar conta</>)}
+              </Button>
+            </form>
+
+            <div className="mt-5 text-center">
+              <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-accent-foreground hover:underline font-medium">
+                {isLogin ? "Não tem conta? Cadastre-se" : "Já tem conta? Faça login"}
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground text-center mt-6">
+            Walk Holding Corporation © {new Date().getFullYear()}
+          </p>
         </div>
       </div>
     </div>

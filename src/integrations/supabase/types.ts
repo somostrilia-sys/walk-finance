@@ -118,27 +118,36 @@ export type Database = {
       }
       companies: {
         Row: {
+          accent_color: string | null
           created_at: string
           id: string
           initials: string
+          logo_dark_url: string | null
           logo_url: string | null
           name: string
+          primary_color: string | null
           updated_at: string
         }
         Insert: {
+          accent_color?: string | null
           created_at?: string
           id?: string
           initials: string
+          logo_dark_url?: string | null
           logo_url?: string | null
           name: string
+          primary_color?: string | null
           updated_at?: string
         }
         Update: {
+          accent_color?: string | null
           created_at?: string
           id?: string
           initials?: string
+          logo_dark_url?: string | null
           logo_url?: string | null
           name?: string
+          primary_color?: string | null
           updated_at?: string
         }
         Relationships: []
