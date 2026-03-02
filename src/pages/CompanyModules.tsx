@@ -1,6 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useCompanyModules, useCompanies } from "@/hooks/useFinancialData";
 import HubCard from "@/components/HubCard";
+import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import { Loader2 } from "lucide-react";
 
@@ -20,29 +21,20 @@ const CompanyModules = () => {
   const { companyId } = useParams();
   const { data: companies } = useCompanies();
   const { data: modules, isLoading } = useCompanyModules(companyId);
-
   const company = companies?.find((c) => c.id === companyId);
 
   if (!company && !isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Empresa não encontrada.</p>
-      </div>
+      <AppLayout>
+        <div className="flex items-center justify-center py-20">
+          <p className="text-muted-foreground">Empresa não encontrada.</p>
+        </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Company brand bar */}
-      {company && (
-        <div
-          className="h-1.5"
-          style={{
-            background: `linear-gradient(90deg, ${company.primary_color || "hsl(var(--primary))"}, ${company.accent_color || "hsl(var(--accent))"})`
-          }}
-        />
-      )}
-
+    <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageHeader
           title={company?.name || "Empresa"}
@@ -53,7 +45,7 @@ const CompanyModules = () => {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-accent" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : modules && modules.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -83,7 +75,7 @@ const CompanyModules = () => {
           </div>
         )}
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

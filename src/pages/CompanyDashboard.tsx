@@ -1,11 +1,12 @@
 import { useParams } from "react-router-dom";
 import { useCompanies, useFinancialTransactions } from "@/hooks/useFinancialData";
+import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, AlertTriangle } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, AlertTriangle } from "lucide-react";
 import { formatCurrency } from "@/data/mockData";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell,
   AreaChart, Area,
 } from "recharts";
 
@@ -26,7 +27,6 @@ const CompanyDashboard = () => {
   const entradas = transactions?.filter((t) => t.type === "entrada").reduce((s, t) => s + Number(t.amount), 0) || 0;
   const saidas = transactions?.filter((t) => t.type === "saida").reduce((s, t) => s + Number(t.amount), 0) || 0;
   const saldo = entradas - saidas;
-  const totalTx = transactions?.length || 0;
   const pendentes = transactions?.filter((t) => t.status === "pendente").length || 0;
 
   // Group by date for area chart
@@ -44,14 +44,12 @@ const CompanyDashboard = () => {
   });
   const chartData = Array.from(dateMap.values()).slice(-30);
 
-  // Pie chart by status
   const statusData = [
     { name: "Confirmado", value: transactions?.filter((t) => t.status === "confirmado").length || 0 },
     { name: "Pendente", value: transactions?.filter((t) => t.status === "pendente").length || 0 },
     { name: "Cancelado", value: transactions?.filter((t) => t.status === "cancelado").length || 0 },
   ].filter((d) => d.value > 0);
 
-  // Category breakdown
   const catMap = new Map<string, number>();
   transactions?.filter((t) => t.type === "saida").forEach((t) => {
     const catName = (t.expense_categories as any)?.name || "Sem categoria";
@@ -60,7 +58,7 @@ const CompanyDashboard = () => {
   const categoryData = Array.from(catMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageHeader title="Dashboard" subtitle={company?.name} showBack />
 
@@ -68,41 +66,24 @@ const CompanyDashboard = () => {
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
           <>
-            {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="hub-card-base p-5">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground uppercase">Faturamento</span>
-                  <TrendingUp className="w-4 h-4 status-positive" />
+              {[
+                { label: "Faturamento", value: formatCurrency(entradas), icon: TrendingUp, status: "positive" as const },
+                { label: "Despesas", value: formatCurrency(saidas), icon: TrendingDown, status: "danger" as const },
+                { label: "Saldo", value: formatCurrency(saldo), icon: DollarSign, status: (saldo >= 0 ? "positive" : "danger") as "positive" | "danger" },
+                { label: "Pendentes", value: String(pendentes), icon: AlertTriangle, status: (pendentes > 0 ? "warning" : "positive") as "warning" | "positive" },
+              ].map((kpi) => (
+                <div key={kpi.label} className="hub-card-base p-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</span>
+                    <kpi.icon className={`w-4 h-4 status-${kpi.status}`} />
+                  </div>
+                  <span className={`text-xl font-bold status-${kpi.status}`}>{kpi.value}</span>
                 </div>
-                <span className="text-xl font-bold status-positive">{formatCurrency(entradas)}</span>
-              </div>
-              <div className="hub-card-base p-5">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground uppercase">Despesas</span>
-                  <TrendingDown className="w-4 h-4 status-danger" />
-                </div>
-                <span className="text-xl font-bold status-danger">{formatCurrency(saidas)}</span>
-              </div>
-              <div className="hub-card-base p-5">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground uppercase">Saldo</span>
-                  <DollarSign className={`w-4 h-4 ${saldo >= 0 ? "status-positive" : "status-danger"}`} />
-                </div>
-                <span className={`text-xl font-bold ${saldo >= 0 ? "status-positive" : "status-danger"}`}>{formatCurrency(saldo)}</span>
-              </div>
-              <div className="hub-card-base p-5">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground uppercase">Pendentes</span>
-                  <AlertTriangle className={`w-4 h-4 ${pendentes > 0 ? "status-warning" : "status-positive"}`} />
-                </div>
-                <span className={`text-xl font-bold ${pendentes > 0 ? "status-warning" : "text-foreground"}`}>{pendentes}</span>
-              </div>
+              ))}
             </div>
 
-            {/* Charts row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* Area chart - fluxo acumulado */}
               <div className="hub-card-base p-5">
                 <h3 className="text-sm font-semibold text-foreground mb-4">Fluxo de Caixa Acumulado</h3>
                 <div className="h-56">
@@ -122,7 +103,6 @@ const CompanyDashboard = () => {
                 </div>
               </div>
 
-              {/* Pie chart - status */}
               <div className="hub-card-base p-5">
                 <h3 className="text-sm font-semibold text-foreground mb-4">Lançamentos por Status</h3>
                 <div className="h-56">
@@ -130,9 +110,7 @@ const CompanyDashboard = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={statusData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                          {statusData.map((_, i) => (
-                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                          ))}
+                          {statusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                         </Pie>
                         <Tooltip />
                       </PieChart>
@@ -144,7 +122,6 @@ const CompanyDashboard = () => {
               </div>
             </div>
 
-            {/* Category breakdown */}
             {categoryData.length > 0 && (
               <div className="hub-card-base p-5">
                 <h3 className="text-sm font-semibold text-foreground mb-4">Top 5 Categorias de Despesa</h3>
@@ -164,7 +141,7 @@ const CompanyDashboard = () => {
           </>
         )}
       </div>
-    </div>
+    </AppLayout>
   );
 };
 
