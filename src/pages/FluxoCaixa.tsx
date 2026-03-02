@@ -1,5 +1,6 @@
 import { useParams } from "react-router-dom";
 import { useCompanies, useFinancialTransactions } from "@/hooks/useFinancialData";
+import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import { Loader2, TrendingUp, TrendingDown, DollarSign, Plus } from "lucide-react";
 import { formatCurrency } from "@/data/mockData";
@@ -13,15 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const FluxoCaixa = () => {
   const { companyId } = useParams();
@@ -32,12 +25,7 @@ const FluxoCaixa = () => {
   const company = companies?.find((c) => c.id === companyId);
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    type: "entrada" as "entrada" | "saida",
-    description: "",
-    amount: "",
-    date: new Date().toISOString().split("T")[0],
-  });
+  const [form, setForm] = useState({ type: "entrada" as "entrada" | "saida", description: "", amount: "", date: new Date().toISOString().split("T")[0] });
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,13 +34,8 @@ const FluxoCaixa = () => {
     setSubmitting(true);
     try {
       const { error } = await supabase.from("financial_transactions").insert({
-        company_id: companyId,
-        type: form.type,
-        description: form.description,
-        amount: parseFloat(form.amount),
-        date: form.date,
-        status: "confirmado",
-        created_by: user.id,
+        company_id: companyId, type: form.type, description: form.description,
+        amount: parseFloat(form.amount), date: form.date, status: "confirmado", created_by: user.id,
       });
       if (error) throw error;
       toast.success("Lançamento adicionado!");
@@ -70,7 +53,6 @@ const FluxoCaixa = () => {
   const saidas = transactions?.filter((t) => t.type === "saida").reduce((s, t) => s + Number(t.amount), 0) || 0;
   const saldo = entradas - saidas;
 
-  // Group by date for chart
   const dateMap = new Map<string, { date: string; entradas: number; saidas: number }>();
   transactions?.forEach((t) => {
     const d = t.date;
@@ -82,20 +64,16 @@ const FluxoCaixa = () => {
   const chartData = Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date)).slice(-15);
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-6">
           <PageHeader title="Fluxo de Caixa" subtitle={company?.name} showBack />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="w-4 h-4 mr-1" /> Novo Lançamento
-              </Button>
+              <Button size="sm"><Plus className="w-4 h-4 mr-1" /> Novo Lançamento</Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Novo Lançamento</DialogTitle>
-              </DialogHeader>
+              <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
@@ -119,9 +97,7 @@ const FluxoCaixa = () => {
                   <Label>Data</Label>
                   <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
                 </div>
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? "Salvando..." : "Salvar"}
-                </Button>
+                <Button type="submit" className="w-full" disabled={submitting}>{submitting ? "Salvando..." : "Salvar"}</Button>
               </form>
             </DialogContent>
           </Dialog>
@@ -131,34 +107,22 @@ const FluxoCaixa = () => {
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
           <>
-            {/* KPIs */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              <div className="hub-card-base p-5">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Entradas</span>
-                  <TrendingUp className="w-4 h-4 status-positive" />
+              {[
+                { label: "Entradas", value: formatCurrency(entradas), icon: TrendingUp, status: "positive" },
+                { label: "Saídas", value: formatCurrency(saidas), icon: TrendingDown, status: "danger" },
+                { label: "Saldo", value: formatCurrency(saldo), icon: DollarSign, status: saldo >= 0 ? "positive" : "danger" },
+              ].map((kpi) => (
+                <div key={kpi.label} className="hub-card-base p-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</span>
+                    <kpi.icon className={`w-4 h-4 status-${kpi.status}`} />
+                  </div>
+                  <span className={`text-2xl font-bold status-${kpi.status}`}>{kpi.value}</span>
                 </div>
-                <span className="text-2xl font-bold status-positive">{formatCurrency(entradas)}</span>
-              </div>
-              <div className="hub-card-base p-5">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Saídas</span>
-                  <TrendingDown className="w-4 h-4 status-danger" />
-                </div>
-                <span className="text-2xl font-bold status-danger">{formatCurrency(saidas)}</span>
-              </div>
-              <div className="hub-card-base p-5">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Saldo</span>
-                  <DollarSign className={`w-4 h-4 ${saldo >= 0 ? "status-positive" : "status-danger"}`} />
-                </div>
-                <span className={`text-2xl font-bold ${saldo >= 0 ? "status-positive" : "status-danger"}`}>
-                  {formatCurrency(saldo)}
-                </span>
-              </div>
+              ))}
             </div>
 
-            {/* Chart */}
             {chartData.length > 0 && (
               <div className="hub-card-base p-5 mb-6">
                 <h3 className="text-sm font-semibold text-foreground mb-4">Movimentação diária</h3>
@@ -177,7 +141,6 @@ const FluxoCaixa = () => {
               </div>
             )}
 
-            {/* Transactions table */}
             <div className="hub-card-base overflow-hidden">
               <div className="p-4 border-b border-border">
                 <h3 className="text-sm font-semibold text-foreground">Lançamentos</h3>
@@ -186,7 +149,7 @@ const FluxoCaixa = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-border bg-muted/30">
+                      <tr className="border-b border-border bg-secondary/50">
                         <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Data</th>
                         <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Descrição</th>
                         <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Tipo</th>
@@ -196,7 +159,7 @@ const FluxoCaixa = () => {
                     </thead>
                     <tbody>
                       {transactions.map((t) => (
-                        <tr key={t.id} className="border-b border-border/50 hover:bg-muted/20">
+                        <tr key={t.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                           <td className="py-2.5 px-4 text-foreground">{new Date(t.date).toLocaleDateString("pt-BR")}</td>
                           <td className="py-2.5 px-4 text-foreground">{t.description}</td>
                           <td className="py-2.5 px-4">
@@ -226,7 +189,7 @@ const FluxoCaixa = () => {
           </>
         )}
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

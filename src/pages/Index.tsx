@@ -1,39 +1,15 @@
-import { useAuth } from "@/hooks/useAuth";
 import { useCompanies } from "@/hooks/useFinancialData";
 import HubCard from "@/components/HubCard";
 import TVDashboard from "@/components/TVDashboard";
-import { LogOut, Loader2 } from "lucide-react";
-import logoWhite from "@/assets/logo-walk-white-bg.jpg";
+import AppLayout from "@/components/AppLayout";
+import { Loader2 } from "lucide-react";
 
 const Index = () => {
-  const { user, signOut } = useAuth();
   const { data: companies, isLoading } = useCompanies();
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top bar */}
-      <div className="border-b border-border bg-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img src={logoWhite} alt="Walk Holding" className="h-10 w-auto" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {user?.email}
-            </span>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Sair</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
+    <AppLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Heading */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground">Empresas do Grupo</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -41,10 +17,9 @@ const Index = () => {
           </p>
         </div>
 
-        {/* Company Cards */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-accent" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : companies && companies.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
@@ -69,25 +44,10 @@ const Index = () => {
           </div>
         )}
 
-        {/* Dashboard divider */}
         <div className="brand-divider mb-8" />
-
-        {/* TV Dashboard */}
         <TVDashboard />
       </div>
-
-      {/* Footer */}
-      <div className="border-t border-border mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            Walk Holding Corporation © {new Date().getFullYear()}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Sistema Financeiro Integrado v1.1
-          </p>
-        </div>
-      </div>
-    </div>
+    </AppLayout>
   );
 };
 
