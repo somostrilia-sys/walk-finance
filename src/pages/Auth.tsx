@@ -8,19 +8,6 @@ import { toast } from "sonner";
 import { LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
 import logoWhite from "@/assets/logo-walk-white-bg.jpg";
 
-import walkIcon from "@/assets/walk-icon-watermark.jpeg";
-
-const WatermarkW = () => (
-  <div className="fixed inset-0 flex items-center justify-center pointer-events-none select-none z-0">
-    <img
-      src={walkIcon}
-      alt=""
-      className="w-[70vw] max-w-[500px] opacity-[0.06]"
-      draggable={false}
-    />
-  </div>
-);
-
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -60,75 +47,78 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-background relative overflow-hidden">
-      {/* Watermark W */}
-      <WatermarkW />
-
-      {/* Left panel — brand (desktop) */}
-      <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-12 relative border-r border-border">
-        <div className="relative z-10 text-center">
-          <img src={logoWhite} alt="Walk Holding Corporation" className="w-[32rem] mx-auto mb-10" />
-          <div className="brand-divider w-40 mx-auto mb-6" />
-          <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">
-            Sistema Financeiro Integrado — Gestão centralizada e inteligente para todas as empresas do grupo.
-          </p>
-        </div>
-      </div>
-
-      {/* Right panel — form */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
-        <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="flex justify-center mb-6 lg:hidden pt-6">
-            <img src={logoWhite} alt="Walk Holding" className="w-80 max-w-[85vw]" />
-          </div>
-
-          <div className="text-center lg:text-left mb-8">
-            <h1 className="text-2xl font-bold text-foreground">
-              {isLogin ? "Bem-vindo de volta" : "Crie sua conta"}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {isLogin ? "Acesse o sistema financeiro" : "Preencha os dados para começar"}
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Desktop: split layout */}
+      <div className="flex flex-1">
+        {/* Left — navy brand panel (desktop only) */}
+        <div className="hidden lg:flex lg:w-[45%] navy-gradient items-center justify-center p-16 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M20 20.5V18H0v-2h20v-2l2 3.25L20 20.5zM0 20h2v20H0V20z'/%3E%3C/g%3E%3C/svg%3E\")" }} />
+          <div className="relative z-10 text-center max-w-md">
+            <img src={logoWhite} alt="Walk Holding Corporation" className="w-72 mx-auto mb-10 brightness-0 invert" />
+            <div className="brand-divider w-24 mx-auto mb-6" />
+            <p className="text-[hsl(0,0%,100%,0.65)] text-sm leading-relaxed">
+              Sistema Financeiro Integrado<br />
+              Gestão centralizada e inteligente para todas as empresas do grupo.
             </p>
           </div>
+        </div>
 
-          <div className="rounded-xl border border-border p-6 sm:p-8 bg-card shadow-sm">
-            <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Right — form */}
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+          <div className="w-full max-w-sm">
+            {/* Logo */}
+            <div className="flex justify-center mb-10">
+              <img src={logoWhite} alt="Walk Holding" className="h-14" />
+            </div>
+
+            {/* Title */}
+            <div className="text-center mb-8">
+              <h1 className="text-xl font-bold text-foreground">
+                {isLogin ? "Bem-vindo de volta" : "Crie sua conta"}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1.5">
+                {isLogin ? "Acesse o sistema financeiro" : "Preencha os dados para começar"}
+              </p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="fullName">Nome completo</Label>
                   <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Seu nome" required={!isLogin} />
                 </div>
               )}
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="email">E-mail</Label>
                 <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" required />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="password">Senha</Label>
                 <div className="relative">
                   <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-11" disabled={loading}>
+              <Button type="submit" className="w-full h-11 mt-2" disabled={loading}>
                 {loading ? "Processando..." : isLogin ? (<><LogIn className="w-4 h-4 mr-2" /> Entrar</>) : (<><UserPlus className="w-4 h-4 mr-2" /> Criar conta</>)}
               </Button>
             </form>
 
-            <div className="mt-5 text-center">
+            <div className="mt-6 text-center">
               <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-primary hover:underline font-medium">
                 {isLogin ? "Não tem conta? Cadastre-se" : "Já tem conta? Faça login"}
               </button>
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground text-center mt-8">
+          {/* Footer */}
+          <p className="text-xs text-muted-foreground mt-auto pt-8">
             Walk Holding Corporation © {new Date().getFullYear()}
           </p>
         </div>
