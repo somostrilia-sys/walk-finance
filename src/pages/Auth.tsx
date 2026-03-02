@@ -9,21 +9,23 @@ import { LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
 import logoWhite from "@/assets/logo-walk-white-bg.jpg";
 
 const WatermarkW = () => (
-  <svg
-    viewBox="0 0 200 200"
-    className="absolute bottom-0 right-0 w-[60vw] lg:w-[30vw] opacity-[0.04] pointer-events-none select-none"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path
-      d="M40 40 L70 160 L100 80 L130 160 L160 40"
-      stroke="hsl(213, 55%, 23%)"
-      strokeWidth="18"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+  <div className="fixed inset-0 flex items-center justify-center pointer-events-none select-none z-0">
+    <svg
+      viewBox="0 0 200 200"
+      className="w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] opacity-[0.035]"
       fill="none"
-    />
-  </svg>
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M40 40 L70 160 L100 80 L130 160 L160 40"
+        stroke="hsl(213, 55%, 23%)"
+        strokeWidth="14"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  </div>
 );
 
 const Auth = () => {
@@ -84,8 +86,8 @@ const Auth = () => {
       <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <div className="flex justify-center mb-10 lg:hidden">
-            <img src={logoWhite} alt="Walk Holding" className="w-72" />
+          <div className="flex justify-center mb-6 lg:hidden pt-6">
+            <img src={logoWhite} alt="Walk Holding" className="w-80 max-w-[85vw]" />
           </div>
 
           <div className="text-center lg:text-left mb-8">
