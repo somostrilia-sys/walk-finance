@@ -51,7 +51,7 @@ const Auth = () => {
       {/* Left panel — brand */}
       <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-12 relative bg-background border-r border-border">
         <div className="relative z-10 text-center">
-          <img src={logoWhite} alt="Walk Holding Corporation" className="w-96 mx-auto mb-8" />
+          <img src={logoWhite} alt="Walk Holding Corporation" className="w-[28rem] mx-auto mb-8" />
           <div className="brand-divider w-32 mx-auto mb-6" />
           <p className="text-muted-foreground text-sm max-w-sm mx-auto leading-relaxed">
             Sistema Financeiro Integrado — Gestão centralizada e inteligente para todas as empresas do grupo.
@@ -63,7 +63,7 @@ const Auth = () => {
       <div className="flex-1 flex items-center justify-center px-6 bg-background">
         <div className="w-full max-w-md">
           <div className="text-center mb-8 lg:hidden">
-            <img src={logoWhite} alt="Walk Holding" className="w-48 mx-auto mb-4" />
+            <img src={logoWhite} alt="Walk Holding" className="w-56 mx-auto mb-4" />
           </div>
           <div className="lg:text-left text-center mb-8">
             <h1 className="text-2xl font-bold text-foreground">
