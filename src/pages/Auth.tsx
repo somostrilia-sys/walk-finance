@@ -55,7 +55,7 @@ const Auth = () => {
         <div className="hidden lg:flex lg:w-[45%] navy-gradient items-center justify-center p-16 relative overflow-hidden">
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M20 20.5V18H0v-2h20v-2l2 3.25L20 20.5zM0 20h2v20H0V20z'/%3E%3C/g%3E%3C/svg%3E\")" }} />
           <div className="relative z-10 text-center max-w-md">
-            <img src={logoDark} alt="Walk Holding Corporation" className="w-72 mx-auto mb-10" />
+            <img src={logoDark} alt="Grupo Objetivo" className="w-72 mx-auto mb-10" />
             <div className="brand-divider w-24 mx-auto mb-6" />
             <p className="text-[hsl(0,0%,100%,0.65)] text-sm leading-relaxed">
               Sistema Financeiro Integrado<br />
