@@ -2,8 +2,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCompanies } from "@/hooks/useFinancialData";
 import HubCard from "@/components/HubCard";
 import TVDashboard from "@/components/TVDashboard";
-import { LogOut, Loader2, Settings } from "lucide-react";
-import logoWalk from "@/assets/logo-walk-holding.png";
+import { LogOut, Loader2 } from "lucide-react";
+import logoWhite from "@/assets/logo-walk-white-bg.jpg";
 
 const Index = () => {
   const { user, signOut } = useAuth();
@@ -11,19 +11,19 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top bar with branding */}
-      <div className="navy-gradient">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+      {/* Top bar */}
+      <div className="border-b border-border bg-card">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <img src={logoWalk} alt="Walk Holding" className="h-10 w-auto" />
+            <img src={logoWhite} alt="Walk Holding" className="h-10 w-auto" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-[hsl(0,0%,100%,0.7)] hidden sm:block">
+            <span className="text-sm text-muted-foreground hidden sm:block">
               {user?.email}
             </span>
             <button
               onClick={signOut}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-[hsl(0,0%,100%,0.7)] hover:text-[hsl(0,0%,100%)] hover:bg-[hsl(0,0%,100%,0.1)] transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Sair</span>
