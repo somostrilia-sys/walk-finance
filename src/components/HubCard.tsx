@@ -6,6 +6,8 @@ interface HubCardProps {
   title: string;
   icon?: string;
   initials?: string;
+  logoUrl?: string | null;
+  brandColor?: string | null;
   subtitle?: string;
   to: string;
   statusBadge?: "positive" | "warning" | "danger";
@@ -25,23 +27,30 @@ const iconMap: Record<string, LucideIcon> = {
   Send: Icons.Send,
 };
 
-const HubCard = ({ title, icon, initials, subtitle, to, statusBadge, statusLabel, delay = 0 }: HubCardProps) => {
+const HubCard = ({ title, icon, initials, logoUrl, brandColor, subtitle, to, statusBadge, statusLabel, delay = 0 }: HubCardProps) => {
   const navigate = useNavigate();
   const IconComponent = icon ? iconMap[icon] : null;
 
   return (
     <button
       onClick={() => navigate(to)}
-      className="hub-card-base flex flex-col items-center justify-center p-6 aspect-square text-center gap-3 animate-fade-in"
+      className="hub-card-base flex flex-col items-center justify-center p-6 aspect-square text-center gap-3 animate-fade-in group"
       style={{ animationDelay: `${delay * 60}ms` }}
     >
       {IconComponent ? (
-        <div className="w-14 h-14 rounded-xl bg-accent flex items-center justify-center">
-          <IconComponent className="w-7 h-7 text-accent-foreground" />
+        <div className="w-14 h-14 rounded-xl gold-gradient flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+          <IconComponent className="w-7 h-7 text-[hsl(0,0%,100%)]" />
+        </div>
+      ) : logoUrl ? (
+        <div className="w-14 h-14 rounded-xl overflow-hidden border border-border/50">
+          <img src={logoUrl} alt={title} className="w-full h-full object-cover" />
         </div>
       ) : initials ? (
-        <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center">
-          <span className="text-lg font-bold text-primary-foreground">{initials}</span>
+        <div
+          className="w-14 h-14 rounded-xl flex items-center justify-center shadow-sm"
+          style={{ backgroundColor: brandColor || "hsl(var(--primary))" }}
+        >
+          <span className="text-lg font-bold text-[hsl(0,0%,100%)]">{initials}</span>
         </div>
       ) : null}
 

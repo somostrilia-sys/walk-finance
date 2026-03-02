@@ -6,38 +6,39 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 30% 12%;
+    /* Walk Holding — Navy Blue & Gold */
+    --background: 216 30% 96%;
+    --foreground: 213 40% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 30% 12%;
+    --card-foreground: 213 40% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 30% 12%;
+    --popover-foreground: 213 40% 14%;
 
-    --primary: 215 70% 38%;
+    --primary: 213 55% 23%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 16% 93%;
-    --secondary-foreground: 220 30% 12%;
+    --secondary: 216 20% 92%;
+    --secondary-foreground: 213 40% 14%;
 
-    --muted: 220 16% 93%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 216 18% 93%;
+    --muted-foreground: 213 15% 48%;
 
-    --accent: 215 70% 95%;
-    --accent-foreground: 215 70% 30%;
+    --accent: 38 65% 48%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 16% 90%;
-    --input: 220 16% 90%;
-    --ring: 215 70% 38%;
+    --border: 216 20% 89%;
+    --input: 216 20% 89%;
+    --ring: 213 55% 23%;
 
     --radius: 0.75rem;
 
-    /* Semaphore colors */
-    --status-positive: 152 60% 42%;
+    /* Semaphore */
+    --status-positive: 152 55% 40%;
     --status-positive-foreground: 0 0% 100%;
     --status-warning: 38 92% 50%;
     --status-warning-foreground: 0 0% 100%;
@@ -45,17 +46,21 @@
     --status-danger-foreground: 0 0% 100%;
 
     /* Chart */
-    --chart-1: 215 70% 38%;
-    --chart-2: 152 60% 42%;
-    --chart-3: 38 92% 50%;
+    --chart-1: 213 55% 23%;
+    --chart-2: 38 65% 48%;
+    --chart-3: 152 55% 40%;
     --chart-4: 0 72% 51%;
     --chart-5: 262 52% 50%;
 
     /* Hub card */
     --hub-card: 0 0% 100%;
-    --hub-card-hover: 215 70% 97%;
-    --hub-card-shadow: 220 30% 80%;
-    --hub-card-icon: 215 70% 38%;
+    --hub-card-hover: 213 30% 97%;
+    --hub-card-shadow: 213 30% 75%;
+    --hub-card-icon: 38 65% 48%;
+
+    /* Brand gold gradient */
+    --gold-start: 38 65% 48%;
+    --gold-end: 40 70% 55%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -68,38 +73,38 @@
   }
 
   .dark {
-    --background: 220 25% 8%;
-    --foreground: 220 15% 92%;
+    --background: 213 45% 7%;
+    --foreground: 216 20% 92%;
 
-    --card: 220 25% 12%;
-    --card-foreground: 220 15% 92%;
+    --card: 213 40% 11%;
+    --card-foreground: 216 20% 92%;
 
-    --popover: 220 25% 12%;
-    --popover-foreground: 220 15% 92%;
+    --popover: 213 40% 11%;
+    --popover-foreground: 216 20% 92%;
 
-    --primary: 215 70% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 38 65% 48%;
+    --primary-foreground: 213 40% 10%;
 
-    --secondary: 220 20% 18%;
-    --secondary-foreground: 220 15% 92%;
+    --secondary: 213 30% 16%;
+    --secondary-foreground: 216 20% 92%;
 
-    --muted: 220 20% 18%;
-    --muted-foreground: 220 10% 55%;
+    --muted: 213 30% 16%;
+    --muted-foreground: 213 15% 55%;
 
-    --accent: 215 50% 18%;
-    --accent-foreground: 215 70% 75%;
+    --accent: 213 35% 18%;
+    --accent-foreground: 38 65% 60%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 20% 20%;
-    --input: 220 20% 20%;
-    --ring: 215 70% 55%;
+    --border: 213 30% 18%;
+    --input: 213 30% 18%;
+    --ring: 38 65% 48%;
 
-    --hub-card: 220 25% 14%;
-    --hub-card-hover: 215 30% 18%;
-    --hub-card-shadow: 220 30% 5%;
-    --hub-card-icon: 215 70% 55%;
+    --hub-card: 213 40% 13%;
+    --hub-card-hover: 213 35% 16%;
+    --hub-card-shadow: 213 40% 4%;
+    --hub-card-icon: 38 65% 48%;
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -126,13 +131,21 @@
 @layer utilities {
   .hub-card-base {
     @apply bg-card rounded-xl border border-border/50 transition-all duration-200 cursor-pointer;
-    box-shadow: 0 1px 3px hsl(var(--hub-card-shadow) / 0.15);
+    box-shadow: 0 1px 3px hsl(var(--hub-card-shadow) / 0.12);
   }
 
   .hub-card-base:hover {
-    @apply border-primary/20;
-    box-shadow: 0 8px 24px hsl(var(--hub-card-shadow) / 0.2);
-    transform: translateY(-2px);
+    @apply border-accent/30;
+    box-shadow: 0 8px 28px hsl(var(--hub-card-shadow) / 0.18);
+    transform: translateY(-3px);
+  }
+
+  .gold-gradient {
+    background: linear-gradient(135deg, hsl(var(--gold-start)), hsl(var(--gold-end)));
+  }
+
+  .navy-gradient {
+    background: linear-gradient(135deg, hsl(213 55% 18%), hsl(213 55% 28%));
   }
 
   .status-positive {
@@ -157,5 +170,10 @@
 
   .status-badge-danger {
     @apply bg-[hsl(var(--status-danger)/0.1)] text-[hsl(var(--status-danger))];
+  }
+
+  .brand-divider {
+    @apply h-0.5 rounded-full;
+    background: linear-gradient(90deg, transparent, hsl(var(--gold-start)), transparent);
   }
 }
