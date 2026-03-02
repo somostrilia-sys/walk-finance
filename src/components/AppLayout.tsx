@@ -15,7 +15,7 @@ const AppLayout = ({ children, companyBar }: AppLayoutProps) => {
       {/* Top navbar */}
       <header className="sticky top-0 z-40" style={{ background: "linear-gradient(135deg, #1a2744 0%, #243554 100%)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <img src={logoDark} alt="Walk Holding" className="h-10" />
+          <img src={logoDark} alt="Grupo Objetivo" className="h-10" />
           <div className="flex items-center gap-3">
             <span className="text-xs text-white/70 hidden sm:block">{user?.email}</span>
             <button
@@ -47,7 +47,7 @@ const AppLayout = ({ children, companyBar }: AppLayoutProps) => {
       {/* Footer */}
       <footer className="border-t border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Walk Holding Corporation © {new Date().getFullYear()}</p>
+          <p className="text-xs text-muted-foreground">Grupo Objetivo © {new Date().getFullYear()}</p>
           <p className="text-xs text-muted-foreground">v1.1</p>
         </div>
       </footer>
