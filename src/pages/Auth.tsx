@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { LogIn, UserPlus, Eye, EyeOff, Lock } from "lucide-react";
+import WalkLogo from "@/components/WalkLogo";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -71,21 +72,9 @@ const Auth = () => {
       />
 
       <div className="relative z-10 w-full max-w-sm flex flex-col items-center">
-        {/* Logo — large, transparent bg, navy on white */}
+        {/* Logo — large */}
         <div className="mb-6 flex flex-col items-center select-none">
-          {/* Icon */}
-          <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-3">
-            <path d="M36 6L62 20V52L36 66L10 52V20L36 6Z" stroke="#1a365d" strokeWidth="2.5" fill="none" />
-            <path d="M36 14L54 24V48L36 58L18 48V24L36 14Z" stroke="#d4a853" strokeWidth="1.5" fill="none" />
-            <text x="36" y="41" textAnchor="middle" fill="#1a365d" fontFamily="DM Sans, sans-serif" fontWeight="700" fontSize="18">W</text>
-          </svg>
-          {/* Text */}
-          <h2 className="text-[28px] font-extrabold tracking-[0.18em] text-[#1a365d] leading-none">
-            WALK
-          </h2>
-          <p className="text-[11px] tracking-[0.32em] text-[#1a365d]/60 font-medium mt-1">
-            HOLDING CORPORATION
-          </p>
+          <WalkLogo width={280} />
         </div>
 
         {/* Subtitle + gold divider */}
