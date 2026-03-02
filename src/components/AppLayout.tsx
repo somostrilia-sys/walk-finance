@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut } from "lucide-react";
+import WalkLogo from "@/components/WalkLogo";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -14,10 +15,7 @@ const AppLayout = ({ children, companyBar }: AppLayoutProps) => {
       {/* Top navbar */}
       <header className="sticky top-0 z-40" style={{ background: "linear-gradient(135deg, #1a2744 0%, #243554 100%)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold tracking-tight text-[hsl(0,0%,100%)]">GRUPO</span>
-            <span className="text-lg font-bold tracking-tight text-[hsl(43,76%,55%)]">WALK</span>
-          </div>
+          <WalkLogo width={160} className="brightness-0 invert" />
           <div className="flex items-center gap-3">
             <span className="text-xs text-white/70 hidden sm:block">{user?.email}</span>
             <button
