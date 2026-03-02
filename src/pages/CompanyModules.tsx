@@ -9,12 +9,16 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   dashboard: { icon: "BarChart3", description: "Visão geral da empresa", label: "Dashboard" },
   conciliacao: { icon: "Landmark", description: "Extratos, conciliação e pagamentos", label: "Conciliação Bancária" },
   "fluxo-caixa": { icon: "Wallet", description: "Controle diário de entradas e saídas", label: "Fluxo de Caixa" },
-  folha: { icon: "ClipboardList", description: "Pagamentos e comissionamento", label: "Folha e Comissões" },
-  categorizacao: { icon: "FolderOpen", description: "Classificação de despesas", label: "Categorização" },
-  sinistros: { icon: "AlertTriangle", description: "Gestão de sinistralidade", label: "Sinistros e Riscos" },
-  projecao: { icon: "TrendingUp", description: "Planejamento e cenários", label: "Projeção Financeira" },
-  impostos: { icon: "Receipt", description: "Gestão tributária e NF", label: "Impostos e Fiscal" },
+  categorizacao: { icon: "FolderOpen", description: "Classificação de despesas", label: "Categorização de Despesas" },
   faturamento: { icon: "Send", description: "Boletos, faturas e inadimplência", label: "Faturamento e Cobrança" },
+  folha: { icon: "FileText", description: "Folha de pagamento e comissionamento", label: "Folha e Comissões" },
+  sinistros: { icon: "ShieldAlert", description: "Gestão de sinistralidade e riscos", label: "Sinistros e Riscos" },
+  "gestao-fiscal": { icon: "Calculator", description: "Gestão tributária e obrigações fiscais", label: "Gestão Fiscal" },
+  projecao: { icon: "LineChart", description: "Projeção e planejamento financeiro", label: "Projeção e Planejamento Financeiro" },
+  impostos: { icon: "Receipt", description: "Impostos, tributos e NF", label: "Impostos e Fiscal" },
+  "integracao-erp": { icon: "RefreshCw", description: "Sincronização com ERP SGA", label: "Integração ERP SGA" },
+  "integracao-assistencia": { icon: "Headphones", description: "Integração com Assistência 24h", label: "Integração Assistência 24h" },
+  "area-socio": { icon: "UserCircle", description: "Portal do sócio e parceiro", label: "Área do Sócio" },
 };
 
 const CompanyModules = () => {
