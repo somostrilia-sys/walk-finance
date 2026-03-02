@@ -68,7 +68,7 @@ const Auth = () => {
           <div className="w-full max-w-sm">
             {/* Logo */}
             <div className="flex justify-center mb-10">
-              <img src={logoWhite} alt="Walk Holding" className="h-14" />
+              <img src={logoWhite} alt="Walk Holding" className="w-72 max-w-[80vw]" />
             </div>
 
             {/* Title */}
