@@ -8,6 +8,24 @@ import { toast } from "sonner";
 import { LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
 import logoWhite from "@/assets/logo-walk-white-bg.jpg";
 
+const WatermarkW = () => (
+  <svg
+    viewBox="0 0 200 200"
+    className="absolute bottom-0 right-0 w-[60vw] lg:w-[30vw] opacity-[0.04] pointer-events-none select-none"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M40 40 L70 160 L100 80 L130 160 L160 40"
+      stroke="hsl(213, 55%, 23%)"
+      strokeWidth="18"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    />
+  </svg>
+);
+
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -47,25 +65,30 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-background">
-      {/* Left panel — brand */}
-      <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-12 relative bg-background border-r border-border">
+    <div className="min-h-screen flex bg-background relative overflow-hidden">
+      {/* Watermark W */}
+      <WatermarkW />
+
+      {/* Left panel — brand (desktop) */}
+      <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-12 relative border-r border-border">
         <div className="relative z-10 text-center">
-          <img src={logoWhite} alt="Walk Holding Corporation" className="w-[28rem] mx-auto mb-8" />
-          <div className="brand-divider w-32 mx-auto mb-6" />
-          <p className="text-muted-foreground text-sm max-w-sm mx-auto leading-relaxed">
+          <img src={logoWhite} alt="Walk Holding Corporation" className="w-[32rem] mx-auto mb-10" />
+          <div className="brand-divider w-40 mx-auto mb-6" />
+          <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">
             Sistema Financeiro Integrado — Gestão centralizada e inteligente para todas as empresas do grupo.
           </p>
         </div>
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center px-6 bg-background">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
         <div className="w-full max-w-md">
-          <div className="flex justify-center mb-8 lg:hidden">
-            <img src={logoWhite} alt="Walk Holding" className="w-64 mx-auto" />
+          {/* Mobile logo */}
+          <div className="flex justify-center mb-10 lg:hidden">
+            <img src={logoWhite} alt="Walk Holding" className="w-72" />
           </div>
-          <div className="lg:text-left text-center mb-8">
+
+          <div className="text-center lg:text-left mb-8">
             <h1 className="text-2xl font-bold text-foreground">
               {isLogin ? "Bem-vindo de volta" : "Crie sua conta"}
             </h1>
@@ -110,7 +133,7 @@ const Auth = () => {
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground text-center mt-6">
+          <p className="text-xs text-muted-foreground text-center mt-8">
             Walk Holding Corporation © {new Date().getFullYear()}
           </p>
         </div>
