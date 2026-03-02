@@ -4,7 +4,7 @@ import {
 import { dashboardData, companies, formatCurrency } from "@/data/mockData";
 import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Maximize2, Minimize2 } from "lucide-react";
 import { useState } from "react";
-import logoWalk from "@/assets/logo-walk-holding.png";
+import logoWhite from "@/assets/logo-walk-white-bg.jpg";
 
 const KpiCard = ({
   label, value, status, icon: Icon,
@@ -35,7 +35,7 @@ const TVDashboard = () => {
     <div className={`${fullscreen ? "fixed inset-0 z-50 navy-gradient p-8 overflow-auto" : ""}`}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          {fullscreen && <img src={logoWalk} alt="Walk Holding" className="h-10 w-auto" />}
+          {fullscreen && <img src={logoWhite} alt="Walk Holding" className="h-10 w-auto" />}
           <div>
             <h2 className={`text-xl font-bold ${fullscreen ? "text-[hsl(0,0%,100%)]" : "text-foreground"}`}>Dashboard Geral</h2>
             <p className={`text-sm ${fullscreen ? "text-[hsl(0,0%,100%,0.6)]" : "text-muted-foreground"}`}>Visão consolidada — Março 2026</p>

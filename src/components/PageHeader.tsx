@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import logoWalk from "@/assets/logo-walk-holding.png";
+import logoWhite from "@/assets/logo-walk-white-bg.jpg";
 
 interface PageHeaderProps {
   title: string;
@@ -32,7 +32,7 @@ const PageHeader = ({ title, subtitle, showBack = false, companyLogo }: PageHead
           <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
         )}
       </div>
-      <img src={logoWalk} alt="Walk Holding" className="h-8 w-auto opacity-40 hidden sm:block" />
+      <img src={logoWhite} alt="Walk Holding" className="h-8 w-auto opacity-40 hidden sm:block" />
     </div>
   );
 };
