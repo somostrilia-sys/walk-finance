@@ -1,10 +1,20 @@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { dashboardData, companies, formatCurrency } from "@/data/mockData";
+import { formatCurrency } from "@/data/mockData";
+import { useCompanies } from "@/hooks/useFinancialData";
 import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Maximize2, Minimize2 } from "lucide-react";
 import { useState } from "react";
-import logoWhite from "@/assets/logo-walk-white-bg.jpg";
+import logoDark from "@/assets/logo-walk-dark-bg.png";
+
+const monthlyEvolution = [
+  { month: "Out", receita: 820000, despesa: 710000 },
+  { month: "Nov", receita: 870000, despesa: 735000 },
+  { month: "Dez", receita: 915000, despesa: 760000 },
+  { month: "Jan", receita: 945000, despesa: 780000 },
+  { month: "Fev", receita: 970000, despesa: 768000 },
+  { month: "Mar", receita: 998000, despesa: 778000 },
+];
 
 const KpiCard = ({
   label, value, status, icon: Icon,
@@ -29,13 +39,26 @@ const KpiCard = ({
 
 const TVDashboard = () => {
   const [fullscreen, setFullscreen] = useState(false);
-  const { totalRevenue, totalExpenses, projectedBalance, monthlyEvolution } = dashboardData;
+  const { data: companies } = useCompanies();
+
+  const totalRevenue = 998000;
+  const totalExpenses = 778000;
+  const projectedBalance = totalRevenue - totalExpenses;
+
+  // Generate mock revenue/balance per company
+  const companyCards = (companies || []).map((c, i) => {
+    const revenues = [285000, 195000, 145000, 120000, 155000, 98000];
+    const expenses = [210000, 150000, 118000, 105000, 120000, 75000];
+    const rev = revenues[i] || 100000;
+    const exp = expenses[i] || 80000;
+    return { ...c, revenue: rev, expenses: exp, balance: rev - exp };
+  });
 
   const content = (
     <div className={`${fullscreen ? "fixed inset-0 z-50 navy-gradient p-8 overflow-auto" : ""}`}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          {fullscreen && <img src={logoWhite} alt="Walk Holding" className="h-10 w-auto" />}
+          {fullscreen && <img src={logoDark} alt="Grupo Objetivo" className="h-10 w-auto" />}
           <div>
             <h2 className={`text-xl font-bold ${fullscreen ? "text-[hsl(0,0%,100%)]" : "text-foreground"}`}>Dashboard Geral</h2>
             <p className={`text-sm ${fullscreen ? "text-[hsl(0,0%,100%,0.6)]" : "text-muted-foreground"}`}>Visão consolidada — Março 2026</p>
@@ -78,40 +101,40 @@ const TVDashboard = () => {
       {/* Company Mini Cards */}
       <div>
         <h3 className={`text-sm font-semibold mb-3 ${fullscreen ? "text-[hsl(0,0%,100%)]" : "text-foreground"}`}>Resumo por Empresa</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {companies.map((company) => {
-            const balance = company.revenue - company.expenses;
-            return (
-              <div key={company.id} className={`p-4 rounded-xl ${fullscreen ? "bg-[hsl(0,0%,100%,0.08)] border border-[hsl(0,0%,100%,0.1)]" : "hub-card-base"}`}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-lg gold-gradient flex items-center justify-center flex-shrink-0 shadow-sm">
-                    <span className="text-xs font-bold text-[hsl(0,0%,100%)]">{company.initials}</span>
-                  </div>
-                  <span className={`text-sm font-medium truncate ${fullscreen ? "text-[hsl(0,0%,100%)]" : "text-card-foreground"}`}>{company.name}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {companyCards.map((company) => (
+            <div key={company.id} className={`p-4 rounded-xl ${fullscreen ? "bg-[hsl(0,0%,100%,0.08)] border border-[hsl(0,0%,100%,0.1)]" : "hub-card-base"}`}>
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm"
+                  style={{ backgroundColor: company.primary_color || "hsl(var(--primary))" }}
+                >
+                  <span className="text-xs font-bold text-[hsl(0,0%,100%)]">{company.initials}</span>
                 </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className={fullscreen ? "text-[hsl(0,0%,100%,0.5)]" : "text-muted-foreground"}>Faturamento</span>
-                    <span className={`font-medium ${fullscreen ? "text-[hsl(0,0%,100%)]" : "text-foreground"}`}>{formatCurrency(company.revenue)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className={fullscreen ? "text-[hsl(0,0%,100%,0.5)]" : "text-muted-foreground"}>Saldo</span>
-                    <span className={`font-semibold flex items-center gap-1 status-${company.status}`}>
-                      {balance > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                      {formatCurrency(Math.abs(balance))}
-                    </span>
-                  </div>
+                <span className={`text-sm font-medium truncate ${fullscreen ? "text-[hsl(0,0%,100%)]" : "text-card-foreground"}`}>{company.name}</span>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className={fullscreen ? "text-[hsl(0,0%,100%,0.5)]" : "text-muted-foreground"}>Faturamento</span>
+                  <span className={`font-medium ${fullscreen ? "text-[hsl(0,0%,100%)]" : "text-foreground"}`}>{formatCurrency(company.revenue)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className={fullscreen ? "text-[hsl(0,0%,100%,0.5)]" : "text-muted-foreground"}>Saldo</span>
+                  <span className={`font-semibold flex items-center gap-1 ${company.balance > 0 ? "status-positive" : "status-danger"}`}>
+                    {company.balance > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                    {formatCurrency(Math.abs(company.balance))}
+                  </span>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Fullscreen footer */}
       {fullscreen && (
         <div className="mt-8 text-center">
-          <p className="text-xs text-[hsl(0,0%,100%,0.3)]">Walk Holding Corporation — Atualizado automaticamente</p>
+          <p className="text-xs text-[hsl(0,0%,100%,0.3)]">Grupo Objetivo © 2026 — Atualizado automaticamente</p>
         </div>
       )}
     </div>
