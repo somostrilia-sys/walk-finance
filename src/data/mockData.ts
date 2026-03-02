@@ -55,12 +55,16 @@ export const modules: Module[] = [
   { id: "dashboard", name: "Dashboard", icon: "BarChart3", path: "dashboard", description: "Visão geral da empresa" },
   { id: "conciliacao", name: "Conciliação Bancária", icon: "Landmark", path: "conciliacao", description: "Extratos, conciliação e pagamentos" },
   { id: "fluxo-caixa", name: "Fluxo de Caixa", icon: "Wallet", path: "fluxo-caixa", description: "Controle diário de entradas e saídas" },
-  { id: "folha", name: "Folha e Comissões", icon: "ClipboardList", path: "folha", description: "Pagamentos e comissionamento" },
-  { id: "categorizacao", name: "Categorização", icon: "FolderOpen", path: "categorizacao", description: "Classificação de despesas" },
-  { id: "sinistros", name: "Sinistros e Riscos", icon: "AlertTriangle", path: "sinistros", description: "Gestão de sinistralidade" },
-  { id: "projecao", name: "Projeção Financeira", icon: "TrendingUp", path: "projecao", description: "Planejamento e cenários" },
-  { id: "impostos", name: "Impostos e Fiscal", icon: "Receipt", path: "impostos", description: "Gestão tributária e NF" },
+  { id: "categorizacao", name: "Categorização de Despesas", icon: "FolderOpen", path: "categorizacao", description: "Classificação de despesas" },
   { id: "faturamento", name: "Faturamento e Cobrança", icon: "Send", path: "faturamento", description: "Boletos, faturas e inadimplência" },
+  { id: "folha", name: "Folha e Comissões", icon: "FileText", path: "folha", description: "Folha de pagamento e comissionamento" },
+  { id: "sinistros", name: "Sinistros e Riscos", icon: "ShieldAlert", path: "sinistros", description: "Gestão de sinistralidade e riscos" },
+  { id: "gestao-fiscal", name: "Gestão Fiscal", icon: "Calculator", path: "gestao-fiscal", description: "Gestão tributária e obrigações fiscais" },
+  { id: "projecao", name: "Projeção e Planejamento Financeiro", icon: "LineChart", path: "projecao", description: "Projeção e planejamento financeiro" },
+  { id: "impostos", name: "Impostos e Fiscal", icon: "Receipt", path: "impostos", description: "Impostos, tributos e NF" },
+  { id: "integracao-erp", name: "Integração ERP SGA", icon: "RefreshCw", path: "integracao-erp", description: "Sincronização com ERP SGA" },
+  { id: "integracao-assistencia", name: "Integração Assistência 24h", icon: "Headphones", path: "integracao-assistencia", description: "Integração com Assistência 24h" },
+  { id: "area-socio", name: "Área do Sócio", icon: "UserCircle", path: "area-socio", description: "Portal do sócio e parceiro" },
 ];
 
 export const dashboardData = {

@@ -9,11 +9,15 @@ const moduleNames: Record<string, string> = {
   conciliacao: "Conciliação Bancária",
   "fluxo-caixa": "Fluxo de Caixa",
   folha: "Folha e Comissões",
-  categorizacao: "Categorização",
+  categorizacao: "Categorização de Despesas",
   sinistros: "Sinistros e Riscos",
-  projecao: "Projeção Financeira",
+  projecao: "Projeção e Planejamento Financeiro",
   impostos: "Impostos e Fiscal",
   faturamento: "Faturamento e Cobrança",
+  "gestao-fiscal": "Gestão Fiscal",
+  "integracao-erp": "Integração ERP SGA",
+  "integracao-assistencia": "Integração Assistência 24h",
+  "area-socio": "Área do Sócio",
 };
 
 const ModulePage = () => {
