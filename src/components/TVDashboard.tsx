@@ -61,7 +61,7 @@ const TVDashboard = () => {
           {fullscreen && (
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold tracking-tight text-[hsl(0,0%,100%)]">GRUPO</span>
-              <span className="text-lg font-bold tracking-tight text-[hsl(43,76%,55%)]">OBJETIVO</span>
+              <span className="text-lg font-bold tracking-tight text-[hsl(43,76%,55%)]">WALK</span>
             </div>
           )}
           <div>
@@ -139,7 +139,7 @@ const TVDashboard = () => {
       {/* Fullscreen footer */}
       {fullscreen && (
         <div className="mt-8 text-center">
-          <p className="text-xs text-[hsl(0,0%,100%,0.3)]">Grupo Objetivo © 2026 — Atualizado automaticamente</p>
+          <p className="text-xs text-[hsl(0,0%,100%,0.3)]">Grupo Walk © 2026 — Atualizado automaticamente</p>
         </div>
       )}
     </div>

@@ -16,7 +16,7 @@ const AppLayout = ({ children, companyBar }: AppLayoutProps) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold tracking-tight text-[hsl(0,0%,100%)]">GRUPO</span>
-            <span className="text-lg font-bold tracking-tight text-[hsl(43,76%,55%)]">OBJETIVO</span>
+            <span className="text-lg font-bold tracking-tight text-[hsl(43,76%,55%)]">WALK</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-white/70 hidden sm:block">{user?.email}</span>
@@ -49,7 +49,7 @@ const AppLayout = ({ children, companyBar }: AppLayoutProps) => {
       {/* Footer */}
       <footer className="border-t border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Grupo Objetivo © {new Date().getFullYear()}</p>
+          <p className="text-xs text-muted-foreground">Grupo Walk © {new Date().getFullYear()}</p>
           <p className="text-xs text-muted-foreground">v1.1</p>
         </div>
       </footer>
