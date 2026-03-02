@@ -62,8 +62,8 @@ const Auth = () => {
       {/* Right panel — form */}
       <div className="flex-1 flex items-center justify-center px-6 bg-background">
         <div className="w-full max-w-md">
-          <div className="text-center mb-8 lg:hidden">
-            <img src={logoWhite} alt="Walk Holding" className="w-56 mx-auto mb-4" />
+          <div className="flex justify-center mb-8 lg:hidden">
+            <img src={logoWhite} alt="Walk Holding" className="w-64 mx-auto" />
           </div>
           <div className="lg:text-left text-center mb-8">
             <h1 className="text-2xl font-bold text-foreground">
