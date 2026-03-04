@@ -32,6 +32,9 @@ const iconMap: Record<string, LucideIcon> = {
   RefreshCw: Icons.RefreshCw,
   Headphones: Icons.Headphones,
   UserCircle: Icons.UserCircle,
+  Users: Icons.Users,
+  ArrowDownCircle: Icons.ArrowDownCircle,
+  ArrowUpCircle: Icons.ArrowUpCircle,
 };
 
 const HubCard = ({ title, icon, initials, logoUrl, brandColor, subtitle, to, statusBadge, statusLabel, delay = 0 }: HubCardProps) => {
