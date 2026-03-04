@@ -17,12 +17,11 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   projecao: { icon: "LineChart", description: "Projeção e planejamento financeiro", label: "Projeção e Planejamento" },
   faturamento: { icon: "Send", description: "Boletos, faturas e inadimplência", label: "Faturamento e Cobrança" },
   // Módulos exclusivos Objetivo Auto e Truck
-  dashboard: { icon: "BarChart3", description: "Visão geral da empresa", label: "Dashboard" },
-  sinistros: { icon: "ShieldAlert", description: "Gestão de sinistralidade e riscos", label: "Sinistros e Riscos" },
-  "gestao-fiscal": { icon: "Calculator", description: "Gestão tributária e obrigações fiscais", label: "Gestão Fiscal" },
-  "integracao-erp": { icon: "RefreshCw", description: "Sincronização com ERP SGA", label: "Integração ERP SGA" },
-  "integracao-assistencia": { icon: "Headphones", description: "Integração com Assistência 24h", label: "Integração Assistência 24h" },
-  "area-socio": { icon: "UserCircle", description: "Portal do sócio e parceiro", label: "Área do Sócio" },
+  "area-socio": { icon: "UserCircle", description: "Visão geral financeira e indicadores", label: "Área do Sócio" },
+  "calendario-financeiro": { icon: "Calendar", description: "Controle de pagamentos e alertas de vencimento", label: "Calendário Financeiro" },
+  "gestao-fiscal": { icon: "Calculator", description: "Alertas de pagamentos sem nota fiscal", label: "Gestão Fiscal Inteligente" },
+  dashboard: { icon: "BarChart3", description: "Visão estratégica da empresa", label: "Dashboard do Sócio" },
+  "centro-custos": { icon: "Target", description: "Gestão de custos por evento", label: "Centro de Custos por Evento" },
 };
 
 const CompanyModules = () => {
