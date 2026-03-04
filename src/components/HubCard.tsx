@@ -32,6 +32,8 @@ const iconMap: Record<string, LucideIcon> = {
   RefreshCw: Icons.RefreshCw,
   Headphones: Icons.Headphones,
   UserCircle: Icons.UserCircle,
+  Calendar: Icons.Calendar,
+  Target: Icons.Target,
   Users: Icons.Users,
   ArrowDownCircle: Icons.ArrowDownCircle,
   ArrowUpCircle: Icons.ArrowUpCircle,
