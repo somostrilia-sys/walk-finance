@@ -14,6 +14,7 @@ import ConciliacaoBancaria from "./pages/ConciliacaoBancaria";
 import AreaSocio from "./pages/AreaSocio";
 import BranchDashboard from "./pages/BranchDashboard";
 import ModulePage from "./pages/ModulePage";
+import ModuloComercial from "./pages/ModuloComercial";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/empresa/:companyId/conciliacao" element={<ProtectedRoute><ConciliacaoBancaria /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/area-socio" element={<ProtectedRoute><AreaSocio /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/area-socio/:branchId" element={<ProtectedRoute><BranchDashboard /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/comercial" element={<ProtectedRoute><ModuloComercial /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/:moduleId" element={<ProtectedRoute><ModulePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
