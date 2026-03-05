@@ -21,6 +21,7 @@ import FolhaAdm from "./pages/FolhaAdm";
 import ContratacoesDemissoes from "./pages/ContratacoesDemissoes";
 import CalendarioFinanceiro from "./pages/CalendarioFinanceiro";
 import DashboardSocio from "./pages/DashboardSocio";
+import GestaoFiscal from "./pages/GestaoFiscal";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/empresa/:companyId/folha-adm" element={<ProtectedRoute><FolhaAdm /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/contratacoes-demissoes" element={<ProtectedRoute><ContratacoesDemissoes /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/calendario-financeiro" element={<ProtectedRoute><CalendarioFinanceiro /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/gestao-fiscal" element={<ProtectedRoute><GestaoFiscal /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/:moduleId" element={<ProtectedRoute><ModulePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
