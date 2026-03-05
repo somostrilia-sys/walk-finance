@@ -19,6 +19,8 @@ import FluxoCaixaDiario from "./pages/FluxoCaixaDiario";
 import ProgramacaoPagamentos from "./pages/ProgramacaoPagamentos";
 import FolhaAdm from "./pages/FolhaAdm";
 import ContratacoesDemissoes from "./pages/ContratacoesDemissoes";
+import CalendarioFinanceiro from "./pages/CalendarioFinanceiro";
+import DashboardSocio from "./pages/DashboardSocio";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,7 +36,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/empresa/:companyId" element={<ProtectedRoute><CompanyModules /></ProtectedRoute>} />
-            <Route path="/empresa/:companyId/dashboard" element={<ProtectedRoute><CompanyDashboard /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/dashboard" element={<ProtectedRoute><DashboardSocio /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/fluxo-caixa" element={<ProtectedRoute><FluxoCaixa /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/conciliacao" element={<ProtectedRoute><ConciliacaoBancaria /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/area-socio" element={<ProtectedRoute><AreaSocio /></ProtectedRoute>} />
@@ -44,6 +46,7 @@ const App = () => (
             <Route path="/empresa/:companyId/programacao-pagamentos" element={<ProtectedRoute><ProgramacaoPagamentos /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/folha-adm" element={<ProtectedRoute><FolhaAdm /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/contratacoes-demissoes" element={<ProtectedRoute><ContratacoesDemissoes /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/calendario-financeiro" element={<ProtectedRoute><CalendarioFinanceiro /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/:moduleId" element={<ProtectedRoute><ModulePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
