@@ -18,6 +18,13 @@ const moduleNames: Record<string, string> = {
   "integracao-erp": "Integração ERP SGA",
   "integracao-assistencia": "Integração Assistência 24h",
   "area-socio": "Área do Sócio",
+  "calendario-financeiro": "Calendário Financeiro",
+  "centro-custos": "Centro de Custos por Evento",
+  "folha-adm": "Folha de Pagamento ADM",
+  comercial: "Módulo Comercial",
+  "fluxo-caixa-diario": "Fluxo de Caixa Diário",
+  "programacao-pagamentos": "Programação de Pagamentos",
+  "contratacoes-demissoes": "Contratações e Demissões",
 };
 
 const ModulePage = () => {
