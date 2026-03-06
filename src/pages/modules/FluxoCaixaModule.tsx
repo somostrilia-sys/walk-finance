@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
+import ModuleStatCard from "@/components/ModuleStatCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -86,21 +87,14 @@ const FluxoCaixaModule = () => {
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="module-page">
         <PageHeader title="Fluxo de Caixa" subtitle="Análise por conta bancária e período" showBack companyLogo={company?.logo_url} />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: "Saldo Inicial", value: formatCurrency(saldoInicial), icon: <Wallet className="w-5 h-5" />, color: "text-[hsl(var(--chart-1))]", bg: "bg-[hsl(var(--chart-1)/0.1)]" },
-            { label: "Entradas", value: formatCurrency(totalEntradas), icon: <TrendingUp className="w-5 h-5" />, color: "text-[hsl(var(--status-positive))]", bg: "bg-[hsl(var(--status-positive)/0.1)]" },
-            { label: "Saídas", value: formatCurrency(totalSaidas), icon: <TrendingDown className="w-5 h-5" />, color: "text-[hsl(var(--status-danger))]", bg: "bg-[hsl(var(--status-danger)/0.1)]" },
-            { label: "Saldo Final", value: formatCurrency(saldoFinal), icon: <ArrowRightLeft className="w-5 h-5" />, color: saldoFinal >= 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]", bg: saldoFinal >= 0 ? "bg-[hsl(var(--status-positive)/0.1)]" : "bg-[hsl(var(--status-danger)/0.1)]" },
-          ].map((s, i) => (
-            <Card key={i}><CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center ${s.color}`}>{s.icon}</div>
-              <div><p className="text-xs text-muted-foreground">{s.label}</p><p className="text-lg font-bold">{s.value}</p></div>
-            </CardContent></Card>
-          ))}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
+          <ModuleStatCard label="Saldo Inicial" value={formatCurrency(saldoInicial)} icon={<Wallet className="w-4 h-4" />} />
+          <ModuleStatCard label="Entradas" value={formatCurrency(totalEntradas)} icon={<TrendingUp className="w-4 h-4" />} />
+          <ModuleStatCard label="Saídas" value={formatCurrency(totalSaidas)} icon={<TrendingDown className="w-4 h-4" />} />
+          <ModuleStatCard label="Saldo Final" value={formatCurrency(saldoFinal)} icon={<ArrowRightLeft className="w-4 h-4" />} />
         </div>
 
         {/* Filters */}

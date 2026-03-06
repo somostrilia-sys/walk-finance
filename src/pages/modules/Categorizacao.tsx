@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
+import ModuleStatCard from "@/components/ModuleStatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,15 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { FolderOpen, Plus, Pencil, Trash2, ChevronRight, TrendingUp, TrendingDown, Download, Filter } from "lucide-react";
-import { formatCurrency } from "@/data/mockData";
 
 interface Categoria {
-  id: string;
-  nome: string;
-  tipo: "receita" | "despesa";
-  classificacao: "direta" | "indireta";
-  grupo: string;
-  subcategorias: string[];
+  id: string; nome: string; tipo: "receita" | "despesa"; classificacao: "direta" | "indireta"; grupo: string; subcategorias: string[];
 }
 
 const categoriasIniciais: Categoria[] = [
@@ -138,15 +133,13 @@ const Categorizacao = () => {
       setCategorias(prev => [...prev, { ...form, id: Date.now().toString(), subcategorias: [] }]);
       toast({ title: "Categoria cadastrada" });
     }
-    setModalOpen(false);
-    setEditId(null);
+    setModalOpen(false); setEditId(null);
     setForm({ nome: "", tipo: "despesa", classificacao: "direta", grupo: "" });
   };
 
   const handleEdit = (cat: Categoria) => {
     setForm({ nome: cat.nome, tipo: cat.tipo, classificacao: cat.classificacao, grupo: cat.grupo });
-    setEditId(cat.id);
-    setModalOpen(true);
+    setEditId(cat.id); setModalOpen(true);
   };
 
   const handleDelete = (id: string) => {
@@ -156,26 +149,17 @@ const Categorizacao = () => {
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="module-page">
         <PageHeader title="Categorização" subtitle="Gestão de categorias de receitas e despesas" showBack companyLogo={company?.logo_url} />
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: "Total Receitas", value: totalReceitas, icon: <TrendingUp className="w-5 h-5" />, color: "text-[hsl(var(--status-positive))]", bg: "bg-[hsl(var(--status-positive)/0.1)]" },
-            { label: "Total Despesas", value: totalDespesas, icon: <TrendingDown className="w-5 h-5" />, color: "text-[hsl(var(--status-danger))]", bg: "bg-[hsl(var(--status-danger)/0.1)]" },
-            { label: "Diretas", value: totalDiretas, icon: <FolderOpen className="w-5 h-5" />, color: "text-[hsl(var(--chart-1))]", bg: "bg-[hsl(var(--chart-1)/0.1)]" },
-            { label: "Indiretas", value: totalIndiretas, icon: <Filter className="w-5 h-5" />, color: "text-[hsl(var(--chart-5))]", bg: "bg-[hsl(var(--chart-5)/0.1)]" },
-          ].map((s, i) => (
-            <Card key={i}><CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center ${s.color}`}>{s.icon}</div>
-              <div><p className="text-xs text-muted-foreground">{s.label}</p><p className="text-xl font-bold">{s.value}</p></div>
-            </CardContent></Card>
-          ))}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
+          <ModuleStatCard label="Total Receitas" value={totalReceitas} icon={<TrendingUp className="w-4 h-4" />} />
+          <ModuleStatCard label="Total Despesas" value={totalDespesas} icon={<TrendingDown className="w-4 h-4" />} />
+          <ModuleStatCard label="Diretas" value={totalDiretas} icon={<FolderOpen className="w-4 h-4" />} />
+          <ModuleStatCard label="Indiretas" value={totalIndiretas} icon={<Filter className="w-4 h-4" />} />
         </div>
 
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="module-toolbar">
           <Input placeholder="Buscar categoria..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
           <Select value={filtroTipo} onValueChange={setFiltroTipo}>
             <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
@@ -200,20 +184,20 @@ const Categorizacao = () => {
             <DialogContent>
               <DialogHeader><DialogTitle>{editId ? "Editar Categoria" : "Nova Categoria"}</DialogTitle></DialogHeader>
               <div className="space-y-4 pt-2">
-                <div><label className="text-sm font-medium">Nome</label><Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Nome</label><Input className="mt-1" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} /></div>
                 <div><label className="text-sm font-medium">Tipo</label>
                   <Select value={form.tipo} onValueChange={v => setForm(f => ({ ...f, tipo: v as any }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="receita">Receita</SelectItem><SelectItem value="despesa">Despesa</SelectItem></SelectContent>
                   </Select></div>
                 <div><label className="text-sm font-medium">Classificação</label>
                   <Select value={form.classificacao} onValueChange={v => setForm(f => ({ ...f, classificacao: v as any }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="direta">Direta</SelectItem><SelectItem value="indireta">Indireta</SelectItem></SelectContent>
                   </Select></div>
                 <div><label className="text-sm font-medium">Grupo</label>
                   <Select value={form.grupo} onValueChange={v => setForm(f => ({ ...f, grupo: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Selecione o grupo" /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione o grupo" /></SelectTrigger>
                     <SelectContent>{grupos.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
                   </Select></div>
                 <Button onClick={handleSave} className="w-full">{editId ? "Salvar Alterações" : "Cadastrar"}</Button>
@@ -222,27 +206,28 @@ const Categorizacao = () => {
           </Dialog>
         </div>
 
-        {/* Grouped categories */}
         <Tabs defaultValue="agrupado">
-          <TabsList className="mb-4"><TabsTrigger value="agrupado">Por Grupo</TabsTrigger><TabsTrigger value="lista">Lista Completa</TabsTrigger></TabsList>
+          <TabsList className="mb-5"><TabsTrigger value="agrupado">Por Grupo</TabsTrigger><TabsTrigger value="lista">Lista Completa</TabsTrigger></TabsList>
           <TabsContent value="agrupado">
-            <div className="space-y-4">
+            <div className="space-y-3">
               {Object.entries(grouped).map(([grupo, cats]) => (
-                <Card key={grupo}>
-                  <CardHeader className="py-3 px-4"><CardTitle className="text-sm flex items-center gap-2">
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    {grupo}
-                    <Badge variant="secondary" className="ml-2">{cats.length}</Badge>
-                    <Badge className={cats[0].tipo === "receita" ? "status-badge-positive" : "status-badge-danger"}>{cats[0].tipo === "receita" ? "Receita" : "Despesa"}</Badge>
-                    <Badge variant="outline">{cats[0].classificacao === "direta" ? "Direta" : "Indireta"}</Badge>
-                  </CardTitle></CardHeader>
-                  <CardContent className="px-4 pb-3">
+                <Card key={grupo} className="overflow-hidden">
+                  <CardHeader className="py-3 px-5 bg-muted/30 border-b border-border/40">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      {grupo}
+                      <span className="text-xs font-normal text-muted-foreground ml-1">{cats.length}</span>
+                      <Badge variant="outline" className="ml-auto text-[10px] font-medium">{cats[0].tipo === "receita" ? "Receita" : "Despesa"}</Badge>
+                      <Badge variant="outline" className="text-[10px] font-medium">{cats[0].classificacao === "direta" ? "Direta" : "Indireta"}</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-5 py-3">
                     <div className="flex flex-wrap gap-2">
                       {cats.map(c => (
-                        <div key={c.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-sm group">
+                        <div key={c.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border/60 bg-background text-sm group hover:border-border transition-colors">
                           <span>{c.nome}</span>
-                          <button onClick={() => handleEdit(c)} className="opacity-0 group-hover:opacity-100 transition-opacity"><Pencil className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" /></button>
-                          <button onClick={() => handleDelete(c.id)} className="opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" /></button>
+                          <button onClick={() => handleEdit(c)} className="opacity-0 group-hover:opacity-100 transition-opacity ml-1"><Pencil className="w-3 h-3 text-muted-foreground hover:text-foreground" /></button>
+                          <button onClick={() => handleDelete(c.id)} className="opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" /></button>
                         </div>
                       ))}
                     </div>
@@ -254,19 +239,19 @@ const Categorizacao = () => {
           <TabsContent value="lista">
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow>
-                  <TableHead>Nome</TableHead><TableHead>Tipo</TableHead><TableHead>Classificação</TableHead><TableHead>Grupo</TableHead><TableHead className="w-20">Ações</TableHead>
+                <TableHeader><TableRow className="bg-muted/30">
+                  <TableHead className="font-semibold">Nome</TableHead><TableHead className="font-semibold">Tipo</TableHead><TableHead className="font-semibold">Classificação</TableHead><TableHead className="font-semibold">Grupo</TableHead><TableHead className="w-20 font-semibold">Ações</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {filtered.map(c => (
-                    <TableRow key={c.id}>
+                  {filtered.map((c, i) => (
+                    <TableRow key={c.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
                       <TableCell className="font-medium">{c.nome}</TableCell>
-                      <TableCell><Badge className={c.tipo === "receita" ? "status-badge-positive" : "status-badge-danger"}>{c.tipo === "receita" ? "Receita" : "Despesa"}</Badge></TableCell>
-                      <TableCell><Badge variant="outline">{c.classificacao}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className="text-[10px]">{c.tipo === "receita" ? "Receita" : "Despesa"}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className="text-[10px]">{c.classificacao}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground">{c.grupo}</TableCell>
-                      <TableCell><div className="flex gap-1">
-                        <button onClick={() => handleEdit(c)}><Pencil className="w-4 h-4 text-muted-foreground hover:text-foreground" /></button>
-                        <button onClick={() => handleDelete(c.id)}><Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" /></button>
+                      <TableCell><div className="flex gap-1.5">
+                        <button onClick={() => handleEdit(c)}><Pencil className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" /></button>
+                        <button onClick={() => handleDelete(c.id)}><Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" /></button>
                       </div></TableCell>
                     </TableRow>
                   ))}

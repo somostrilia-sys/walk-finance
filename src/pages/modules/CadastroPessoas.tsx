@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
+import ModuleStatCard from "@/components/ModuleStatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -12,15 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Users, UserPlus, Building2, Wrench, Search, Download, CreditCard, FileText, Landmark } from "lucide-react";
+import { Users, UserPlus, Building2, Wrench, Search, Download, FileText, Landmark } from "lucide-react";
 
-interface Cliente {
-  id: string; razaoSocial: string; cpfCnpj: string; tipoServico: string; condicaoPagamento: string;
-}
-interface Prestador {
-  id: string; razaoSocial: string; cpfCnpj: string; banco: string; agencia: string; conta: string;
-  tipoServico: string; telefone: string; email: string; formaPagamento: string;
-}
+interface Cliente { id: string; razaoSocial: string; cpfCnpj: string; tipoServico: string; condicaoPagamento: string; }
+interface Prestador { id: string; razaoSocial: string; cpfCnpj: string; banco: string; agencia: string; conta: string; tipoServico: string; telefone: string; email: string; formaPagamento: string; }
 
 const mockClientes: Cliente[] = [
   { id: "1", razaoSocial: "Auto Center São Paulo Ltda", cpfCnpj: "12.345.678/0001-90", tipoServico: "Assistência 24h", condicaoPagamento: "30 dias" },
@@ -60,47 +56,36 @@ const CadastroPessoas = () => {
   const handleAddCliente = () => {
     if (!formCliente.razaoSocial) return toast({ title: "Preencha o nome", variant: "destructive" });
     setClientes(prev => [...prev, { ...formCliente, id: Date.now().toString() }]);
-    setModalCliente(false);
-    setFormCliente({ razaoSocial: "", cpfCnpj: "", tipoServico: "", condicaoPagamento: "" });
+    setModalCliente(false); setFormCliente({ razaoSocial: "", cpfCnpj: "", tipoServico: "", condicaoPagamento: "" });
     toast({ title: "Cliente cadastrado com sucesso" });
   };
 
   const handleAddPrestador = () => {
     if (!formPrestador.razaoSocial) return toast({ title: "Preencha o nome", variant: "destructive" });
     setPrestadores(prev => [...prev, { ...formPrestador, id: Date.now().toString() }]);
-    setModalPrestador(false);
-    setFormPrestador({ razaoSocial: "", cpfCnpj: "", banco: "", agencia: "", conta: "", tipoServico: "", telefone: "", email: "", formaPagamento: "" });
+    setModalPrestador(false); setFormPrestador({ razaoSocial: "", cpfCnpj: "", banco: "", agencia: "", conta: "", tipoServico: "", telefone: "", email: "", formaPagamento: "" });
     toast({ title: "Prestador cadastrado com sucesso" });
   };
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="module-page">
         <PageHeader title="Cadastro de Pessoas" subtitle="Clientes, prestadores e vínculos financeiros" showBack companyLogo={company?.logo_url} />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: "Clientes", value: clientes.length, icon: <Building2 className="w-5 h-5" />, color: "text-[hsl(var(--chart-1))]", bg: "bg-[hsl(var(--chart-1)/0.1)]" },
-            { label: "Prestadores", value: prestadores.length, icon: <Wrench className="w-5 h-5" />, color: "text-[hsl(var(--chart-2))]", bg: "bg-[hsl(var(--chart-2)/0.1)]" },
-            { label: "Total Cadastros", value: clientes.length + prestadores.length, icon: <Users className="w-5 h-5" />, color: "text-[hsl(var(--status-positive))]", bg: "bg-[hsl(var(--status-positive)/0.1)]" },
-            { label: "Atalhos", value: "3 módulos", icon: <CreditCard className="w-5 h-5" />, color: "text-[hsl(var(--chart-5))]", bg: "bg-[hsl(var(--chart-5)/0.1)]" },
-          ].map((s, i) => (
-            <Card key={i}><CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center ${s.color}`}>{s.icon}</div>
-              <div><p className="text-xs text-muted-foreground">{s.label}</p><p className="text-xl font-bold">{s.value}</p></div>
-            </CardContent></Card>
-          ))}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
+          <ModuleStatCard label="Clientes" value={clientes.length} icon={<Building2 className="w-4 h-4" />} />
+          <ModuleStatCard label="Prestadores" value={prestadores.length} icon={<Wrench className="w-4 h-4" />} />
+          <ModuleStatCard label="Total Cadastros" value={clientes.length + prestadores.length} icon={<Users className="w-4 h-4" />} />
+          <ModuleStatCard label="Atalhos" value="3 módulos" icon={<FileText className="w-4 h-4" />} />
         </div>
 
-        {/* Quick links */}
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-5">
           <Button variant="outline" size="sm" onClick={() => window.location.href = `/empresa/${companyId}/contas-pagar`}><FileText className="w-4 h-4 mr-1" />Contas a Pagar</Button>
           <Button variant="outline" size="sm" onClick={() => window.location.href = `/empresa/${companyId}/contas-receber`}><FileText className="w-4 h-4 mr-1" />Contas a Receber</Button>
           <Button variant="outline" size="sm" onClick={() => window.location.href = `/empresa/${companyId}/conciliacao`}><Landmark className="w-4 h-4 mr-1" />Conciliação Bancária</Button>
         </div>
 
-        {/* Search + actions */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="module-toolbar">
           <div className="relative max-w-xs flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar por nome ou CPF/CNPJ..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" /></div>
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Relatório exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
@@ -109,21 +94,17 @@ const CadastroPessoas = () => {
             <DialogContent>
               <DialogHeader><DialogTitle>Novo Cliente</DialogTitle></DialogHeader>
               <div className="space-y-3 pt-2">
-                <div><label className="text-sm font-medium">Razão Social / Nome</label><Input value={formCliente.razaoSocial} onChange={e => setFormCliente(f => ({ ...f, razaoSocial: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">CNPJ ou CPF</label><Input value={formCliente.cpfCnpj} onChange={e => setFormCliente(f => ({ ...f, cpfCnpj: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Razão Social / Nome</label><Input className="mt-1" value={formCliente.razaoSocial} onChange={e => setFormCliente(f => ({ ...f, razaoSocial: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">CNPJ ou CPF</label><Input className="mt-1" value={formCliente.cpfCnpj} onChange={e => setFormCliente(f => ({ ...f, cpfCnpj: e.target.value }))} /></div>
                 <div><label className="text-sm font-medium">Tipo de Serviço</label>
                   <Select value={formCliente.tipoServico} onValueChange={v => setFormCliente(f => ({ ...f, tipoServico: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      {["Assistência 24h", "Consultoria", "Equipamentos", "Endereço Fiscal", "Gestão de Empresas"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>{["Assistência 24h", "Consultoria", "Equipamentos", "Endereço Fiscal", "Gestão de Empresas"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select></div>
                 <div><label className="text-sm font-medium">Condição de Pagamento</label>
                   <Select value={formCliente.condicaoPagamento} onValueChange={v => setFormCliente(f => ({ ...f, condicaoPagamento: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      {["À vista", "15 dias", "30 dias", "30/60 dias", "Mensal"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>{["À vista", "15 dias", "30 dias", "30/60 dias", "Mensal"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select></div>
                 <Button onClick={handleAddCliente} className="w-full">Cadastrar Cliente</Button>
               </div>
@@ -134,17 +115,17 @@ const CadastroPessoas = () => {
             <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>Novo Prestador</DialogTitle></DialogHeader>
               <div className="grid grid-cols-2 gap-3 pt-2">
-                <div className="col-span-2"><label className="text-sm font-medium">Razão Social / Nome</label><Input value={formPrestador.razaoSocial} onChange={e => setFormPrestador(f => ({ ...f, razaoSocial: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">CNPJ ou CPF</label><Input value={formPrestador.cpfCnpj} onChange={e => setFormPrestador(f => ({ ...f, cpfCnpj: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Tipo de Serviço</label><Input value={formPrestador.tipoServico} onChange={e => setFormPrestador(f => ({ ...f, tipoServico: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Telefone</label><Input value={formPrestador.telefone} onChange={e => setFormPrestador(f => ({ ...f, telefone: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">E-mail</label><Input value={formPrestador.email} onChange={e => setFormPrestador(f => ({ ...f, email: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Banco</label><Input value={formPrestador.banco} onChange={e => setFormPrestador(f => ({ ...f, banco: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Agência</label><Input value={formPrestador.agencia} onChange={e => setFormPrestador(f => ({ ...f, agencia: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Conta</label><Input value={formPrestador.conta} onChange={e => setFormPrestador(f => ({ ...f, conta: e.target.value }))} /></div>
+                <div className="col-span-2"><label className="text-sm font-medium">Razão Social / Nome</label><Input className="mt-1" value={formPrestador.razaoSocial} onChange={e => setFormPrestador(f => ({ ...f, razaoSocial: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">CNPJ ou CPF</label><Input className="mt-1" value={formPrestador.cpfCnpj} onChange={e => setFormPrestador(f => ({ ...f, cpfCnpj: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Tipo de Serviço</label><Input className="mt-1" value={formPrestador.tipoServico} onChange={e => setFormPrestador(f => ({ ...f, tipoServico: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Telefone</label><Input className="mt-1" value={formPrestador.telefone} onChange={e => setFormPrestador(f => ({ ...f, telefone: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">E-mail</label><Input className="mt-1" value={formPrestador.email} onChange={e => setFormPrestador(f => ({ ...f, email: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Banco</label><Input className="mt-1" value={formPrestador.banco} onChange={e => setFormPrestador(f => ({ ...f, banco: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Agência</label><Input className="mt-1" value={formPrestador.agencia} onChange={e => setFormPrestador(f => ({ ...f, agencia: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Conta</label><Input className="mt-1" value={formPrestador.conta} onChange={e => setFormPrestador(f => ({ ...f, conta: e.target.value }))} /></div>
                 <div><label className="text-sm font-medium">Forma de Pagamento</label>
                   <Select value={formPrestador.formaPagamento} onValueChange={v => setFormPrestador(f => ({ ...f, formaPagamento: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>{["PIX", "Transferência", "Boleto", "Dinheiro"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select></div>
                 <div className="col-span-2"><Button onClick={handleAddPrestador} className="w-full">Cadastrar Prestador</Button></div>
@@ -154,13 +135,13 @@ const CadastroPessoas = () => {
         </div>
 
         <Tabs defaultValue="clientes">
-          <TabsList className="mb-4"><TabsTrigger value="clientes">Clientes ({filteredClientes.length})</TabsTrigger><TabsTrigger value="prestadores">Prestadores ({filteredPrestadores.length})</TabsTrigger></TabsList>
+          <TabsList className="mb-5"><TabsTrigger value="clientes">Clientes ({filteredClientes.length})</TabsTrigger><TabsTrigger value="prestadores">Prestadores ({filteredPrestadores.length})</TabsTrigger></TabsList>
           <TabsContent value="clientes">
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Razão Social</TableHead><TableHead>CPF/CNPJ</TableHead><TableHead>Serviço</TableHead><TableHead>Pagamento</TableHead></TableRow></TableHeader>
-                <TableBody>{filteredClientes.map(c => (
-                  <TableRow key={c.id}><TableCell className="font-medium">{c.razaoSocial}</TableCell><TableCell className="text-muted-foreground">{c.cpfCnpj}</TableCell><TableCell><Badge variant="secondary">{c.tipoServico}</Badge></TableCell><TableCell>{c.condicaoPagamento}</TableCell></TableRow>
+                <TableHeader><TableRow className="bg-muted/30"><TableHead className="font-semibold">Razão Social</TableHead><TableHead className="font-semibold">CPF/CNPJ</TableHead><TableHead className="font-semibold">Serviço</TableHead><TableHead className="font-semibold">Pagamento</TableHead></TableRow></TableHeader>
+                <TableBody>{filteredClientes.map((c, i) => (
+                  <TableRow key={c.id} className={i % 2 === 0 ? "" : "bg-muted/20"}><TableCell className="font-medium">{c.razaoSocial}</TableCell><TableCell className="text-muted-foreground">{c.cpfCnpj}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{c.tipoServico}</Badge></TableCell><TableCell>{c.condicaoPagamento}</TableCell></TableRow>
                 ))}</TableBody>
               </Table>
             </CardContent></Card>
@@ -168,9 +149,9 @@ const CadastroPessoas = () => {
           <TabsContent value="prestadores">
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Razão Social</TableHead><TableHead>CPF/CNPJ</TableHead><TableHead>Serviço</TableHead><TableHead>Telefone</TableHead><TableHead>Banco</TableHead><TableHead>Pagamento</TableHead></TableRow></TableHeader>
-                <TableBody>{filteredPrestadores.map(p => (
-                  <TableRow key={p.id}><TableCell className="font-medium">{p.razaoSocial}</TableCell><TableCell className="text-muted-foreground">{p.cpfCnpj}</TableCell><TableCell><Badge variant="secondary">{p.tipoServico}</Badge></TableCell><TableCell>{p.telefone}</TableCell><TableCell>{p.banco}</TableCell><TableCell><Badge variant="outline">{p.formaPagamento}</Badge></TableCell></TableRow>
+                <TableHeader><TableRow className="bg-muted/30"><TableHead className="font-semibold">Razão Social</TableHead><TableHead className="font-semibold">CPF/CNPJ</TableHead><TableHead className="font-semibold">Serviço</TableHead><TableHead className="font-semibold">Telefone</TableHead><TableHead className="font-semibold">Banco</TableHead><TableHead className="font-semibold">Pagamento</TableHead></TableRow></TableHeader>
+                <TableBody>{filteredPrestadores.map((p, i) => (
+                  <TableRow key={p.id} className={i % 2 === 0 ? "" : "bg-muted/20"}><TableCell className="font-medium">{p.razaoSocial}</TableCell><TableCell className="text-muted-foreground">{p.cpfCnpj}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{p.tipoServico}</Badge></TableCell><TableCell>{p.telefone}</TableCell><TableCell>{p.banco}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{p.formaPagamento}</Badge></TableCell></TableRow>
                 ))}</TableBody>
               </Table>
             </CardContent></Card>
