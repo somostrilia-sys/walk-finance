@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
+import ModuleStatCard from "@/components/ModuleStatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -51,21 +52,14 @@ const ProjecaoPlanejamento = () => {
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="module-page">
         <PageHeader title="Projeção e Planejamento" subtitle="Visão estratégica e previsão financeira" showBack companyLogo={company?.logo_url} />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: "Receita Projetada (Ano)", value: formatCurrency(receitaProj.reduce((s, r) => s + r.projetado, 0) * fatorCenario), icon: <TrendingUp className="w-5 h-5" />, color: "text-[hsl(var(--status-positive))]", bg: "bg-[hsl(var(--status-positive)/0.1)]" },
-            { label: "Despesa Projetada (Ano)", value: formatCurrency(despesaProj.reduce((s, d) => s + d.total, 0)), icon: <TrendingDown className="w-5 h-5" />, color: "text-[hsl(var(--status-danger))]", bg: "bg-[hsl(var(--status-danger)/0.1)]" },
-            { label: "Saldo Projetado 90d", value: formatCurrency(fluxoProj[2].saldo * fatorCenario), icon: <Wallet className="w-5 h-5" />, color: "text-[hsl(var(--status-warning))]", bg: "bg-[hsl(var(--status-warning)/0.1)]" },
-            { label: "Cenário Ativo", value: cenario.charAt(0).toUpperCase() + cenario.slice(1), icon: <Sparkles className="w-5 h-5" />, color: "text-[hsl(var(--chart-5))]", bg: "bg-[hsl(var(--chart-5)/0.1)]" },
-          ].map((s, i) => (
-            <Card key={i}><CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center ${s.color}`}>{s.icon}</div>
-              <div><p className="text-xs text-muted-foreground">{s.label}</p><p className="text-lg font-bold">{s.value}</p></div>
-            </CardContent></Card>
-          ))}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
+          <ModuleStatCard label="Receita Projetada (Ano)" value={formatCurrency(receitaProj.reduce((s, r) => s + r.projetado, 0) * fatorCenario)} icon={<TrendingUp className="w-4 h-4" />} />
+          <ModuleStatCard label="Despesa Projetada (Ano)" value={formatCurrency(despesaProj.reduce((s, d) => s + d.total, 0))} icon={<TrendingDown className="w-4 h-4" />} />
+          <ModuleStatCard label="Saldo Projetado 90d" value={formatCurrency(fluxoProj[2].saldo * fatorCenario)} icon={<Wallet className="w-4 h-4" />} />
+          <ModuleStatCard label="Cenário Ativo" value={cenario.charAt(0).toUpperCase() + cenario.slice(1)} icon={<Sparkles className="w-4 h-4" />} />
         </div>
 
         <div className="flex items-center gap-3 mb-6">
