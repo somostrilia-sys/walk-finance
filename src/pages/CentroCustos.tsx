@@ -40,18 +40,18 @@ const unidades = ["Barueri", "Osasco", "Alphaville", "Carapicuíba", "Jandira"];
 const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 const tipoColors: Record<TipoEvento, string> = {
-  "Colisão": "#3B82F6",
-  "Roubo": "#EF4444",
-  "Furto": "#F97316",
-  "Incêndio": "#EAB308",
-  "Vendaval": "#8B5CF6",
-  "Periférico": "#22C55E",
+  "Colisão": "#6B8EC4",
+  "Roubo": "#C4706B",
+  "Furto": "#C49A6B",
+  "Incêndio": "#C4B86B",
+  "Vendaval": "#8B7EC4",
+  "Periférico": "#6BC49A",
 };
 
 const statusConfig: Record<StatusEvento, { badgeClass: string }> = {
-  "Aberto": { badgeClass: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-  "Em Análise": { badgeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
-  "Indenizado": { badgeClass: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+  "Aberto": { badgeClass: "bg-blue-100/10 text-blue-300 border-blue-400/20" },
+  "Em Análise": { badgeClass: "bg-amber-100/10 text-amber-300 border-amber-400/20" },
+  "Indenizado": { badgeClass: "bg-emerald-100/10 text-emerald-300 border-emerald-400/20" },
   "Encerrado": { badgeClass: "bg-muted text-muted-foreground border-border" },
 };
 
@@ -138,7 +138,7 @@ function genProjection() {
   return [...hist, ...proj];
 }
 
-const chartTooltipStyle = { backgroundColor: "#1A1F36", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", fontSize: 12 };
+const chartTooltipStyle = { backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--foreground))", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.15)" };
 
 /* ════════════════════════════════════════ */
 const CentroCustos = () => {
@@ -273,14 +273,14 @@ const CentroCustos = () => {
               <CardHeader><CardTitle className="text-base">Custo por Tipo de Evento — Últimos 12 Meses</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={360}>
-                  <BarChart data={monthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                    <XAxis dataKey="mes" tick={{ fill: "#94a3b8", fontSize: 12 }} />
-                    <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
-                    <Legend />
+                  <BarChart data={monthlyData} barCategoryGap="12%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                    <XAxis dataKey="mes" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={{ stroke: "hsl(var(--border))" }} tickLine={false} />
+                    <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }} />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
                     {tiposEvento.map((t) => (
-                      <Bar key={t} dataKey={t} stackId="a" fill={tipoColors[t]} radius={t === "Periférico" ? [4, 4, 0, 0] : undefined} />
+                      <Bar key={t} dataKey={t} stackId="a" fill={tipoColors[t]} radius={t === "Periférico" ? [3, 3, 0, 0] : undefined} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
@@ -292,11 +292,11 @@ const CentroCustos = () => {
               <Card className="border-border">
                 <CardHeader><CardTitle className="text-base">Distribuição por Tipo</CardTitle></CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={280}>
+                  <ResponsiveContainer width="100%" height={300}>
                     <RePieChart>
-                      <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                      <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={105} innerRadius={50} paddingAngle={2} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}>
                         {pieData.map((entry) => (
-                          <Cell key={entry.name} fill={tipoColors[entry.name as TipoEvento] || "#666"} />
+                          <Cell key={entry.name} fill={tipoColors[entry.name as TipoEvento] || "#888"} strokeWidth={0} />
                         ))}
                       </Pie>
                       <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
@@ -315,7 +315,7 @@ const CentroCustos = () => {
                         key={s.mes}
                         className={`rounded-lg p-3 text-center border transition-colors ${
                           s.isHigh
-                            ? "bg-red-500/15 border-red-500/40 text-red-400"
+                            ? "bg-amber-500/8 border-amber-400/25 text-amber-300"
                             : "bg-card border-border text-muted-foreground"
                         }`}
                       >
@@ -326,7 +326,7 @@ const CentroCustos = () => {
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground mt-3">
-                    <span className="inline-block w-2.5 h-2.5 rounded bg-red-500/40 mr-1 align-middle" />
+                    <span className="inline-block w-2.5 h-2.5 rounded bg-amber-400/30 mr-1 align-middle" />
                     Meses com sinistralidade elevada (≥80% do pico)
                   </p>
                 </CardContent>
@@ -429,7 +429,7 @@ const CentroCustos = () => {
                           <TableCell><Badge variant="outline" className={statusConfig[ev.status].badgeClass}>{ev.status}</Badge></TableCell>
                           <TableCell>
                             {ev.nfVinculada ? (
-                              <span className="text-xs font-mono flex items-center gap-1 text-emerald-400"><FileCheck className="w-3.5 h-3.5" />{ev.nfVinculada}</span>
+                              <span className="text-xs font-mono flex items-center gap-1 text-emerald-300"><FileCheck className="w-3.5 h-3.5" />{ev.nfVinculada}</span>
                             ) : (
                               <span className="text-xs text-muted-foreground italic">—</span>
                             )}
@@ -447,10 +447,10 @@ const CentroCustos = () => {
           {/* ══════ TAB 3 — Análise e Projeção ══════ */}
           <TabsContent value="analise" className="space-y-6">
             {/* AI Card */}
-            <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5">
+            <Card className="border-primary/15 bg-primary/5">
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center"><Sparkles className="w-4 h-4 text-primary" /></div>
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center"><Sparkles className="w-4 h-4 text-primary" /></div>
                   <h3 className="font-semibold text-foreground">Projeção Inteligente — Próximos 6 Meses</h3>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -461,7 +461,7 @@ const CentroCustos = () => {
                       <div key={m} className="bg-background/50 rounded-lg p-3 text-center border border-border">
                         <p className="text-xs text-muted-foreground">{m}</p>
                         <p className="text-sm font-bold text-foreground mt-1">{formatCurrency(val)}</p>
-                        <span className={`text-[10px] flex items-center justify-center gap-0.5 mt-0.5 ${trend ? "text-red-400" : "text-emerald-400"}`}>
+                        <span className={`text-[10px] flex items-center justify-center gap-0.5 mt-0.5 ${trend ? "text-amber-400" : "text-emerald-400"}`}>
                           {trend ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                           {trend ? "+4.2%" : "-2.1%"}
                         </span>
@@ -478,13 +478,13 @@ const CentroCustos = () => {
               <CardContent>
                 <ResponsiveContainer width="100%" height={320}>
                   <ComposedChart data={projectionData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                    <XAxis dataKey="mes" tick={{ fill: "#94a3b8", fontSize: 11 }} />
-                    <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                    <XAxis dataKey="mes" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={{ stroke: "hsl(var(--border))" }} tickLine={false} />
+                    <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
-                    <Legend />
-                    <Line type="monotone" dataKey="real" stroke="#3B82F6" strokeWidth={2} name="Custo Real" dot={{ r: 3 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="projetado" stroke="#F97316" strokeWidth={2} strokeDasharray="6 3" name="Projetado" dot={{ r: 3 }} connectNulls={false} />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+                    <Line type="monotone" dataKey="real" stroke="#6B8EC4" strokeWidth={2} name="Custo Real" dot={{ r: 3, fill: "#6B8EC4" }} connectNulls={false} />
+                    <Line type="monotone" dataKey="projetado" stroke="#C49A6B" strokeWidth={2} strokeDasharray="6 3" name="Projetado" dot={{ r: 3, fill: "#C49A6B" }} connectNulls={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -519,8 +519,8 @@ const CentroCustos = () => {
               </Card>
 
               {/* Alertas acima da média */}
-              <Card className="border-red-500/20 bg-red-500/5">
-                <CardHeader><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-400" />Eventos Acima do Custo Médio</CardTitle></CardHeader>
+              <Card className="border-amber-400/15 bg-amber-500/5">
+                <CardHeader><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" />Eventos Acima do Custo Médio</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-xs text-muted-foreground mb-3">Custo médio: {formatCurrency(custoMedio)} — listando eventos com custo ≥150% da média</p>
                   {alertasAcima.map((ev) => (
@@ -530,7 +530,7 @@ const CentroCustos = () => {
                         <p className="text-sm font-medium text-foreground truncate">{ev.descricao}</p>
                         <p className="text-xs text-muted-foreground">{ev.unidade} · {ev.placa} · {new Date(ev.data).toLocaleDateString("pt-BR")}</p>
                       </div>
-                      <span className="text-sm font-bold text-red-400 whitespace-nowrap">{formatCurrency(ev.custoReal || ev.custoEstimado)}</span>
+                      <span className="text-sm font-bold text-amber-400 whitespace-nowrap">{formatCurrency(ev.custoReal || ev.custoEstimado)}</span>
                     </div>
                   ))}
                 </CardContent>
@@ -546,18 +546,18 @@ const CentroCustos = () => {
 /* ── StatCard ── */
 function StatCard({ label, value, icon, color }: { label: string; value: string | number; icon: React.ReactNode; color: "info" | "danger" | "warning" | "purple" }) {
   const colors: Record<string, string> = {
-    info: "from-blue-500/20 to-blue-500/5 border-blue-500/30",
-    danger: "from-red-500/20 to-red-500/5 border-red-500/30",
-    warning: "from-amber-500/20 to-amber-500/5 border-amber-500/30",
-    purple: "from-purple-500/20 to-purple-500/5 border-purple-500/30",
+    info: "border-l-4 border-l-[#6B8EC4]",
+    danger: "border-l-4 border-l-[#C4706B]",
+    warning: "border-l-4 border-l-[#C4B86B]",
+    purple: "border-l-4 border-l-[#8B7EC4]",
   };
   const iconColors: Record<string, string> = {
-    info: "text-blue-400", danger: "text-red-400", warning: "text-amber-400", purple: "text-purple-400",
+    info: "text-[#6B8EC4]", danger: "text-[#C4706B]", warning: "text-[#C4B86B]", purple: "text-[#8B7EC4]",
   };
   return (
-    <Card className={`bg-gradient-to-br ${colors[color]} border`}>
+    <Card className={colors[color]}>
       <CardContent className="p-5 flex items-center gap-4">
-        <div className={`w-11 h-11 rounded-xl bg-background/50 flex items-center justify-center ${iconColors[color]}`}>{icon}</div>
+        <div className={`w-11 h-11 rounded-xl bg-muted/60 flex items-center justify-center ${iconColors[color]}`}>{icon}</div>
         <div>
           <p className="text-xs text-muted-foreground">{label}</p>
           <p className="text-xl font-bold text-foreground">{value}</p>
