@@ -93,7 +93,7 @@ const ConciliacaoBancariaModule = () => {
         </div>
 
         <Tabs defaultValue="conciliacao">
-          <TabsList className="mb-4"><TabsTrigger value="conciliacao">Conciliação</TabsTrigger><TabsTrigger value="importar">Importar Extrato</TabsTrigger><TabsTrigger value="config">Configuração</TabsTrigger></TabsList>
+          <TabsList className="mb-4"><TabsTrigger value="conciliacao">Conciliação</TabsTrigger><TabsTrigger value="importar">Importar Extrato</TabsTrigger><TabsTrigger value="conexao">Conexão Bancária</TabsTrigger><TabsTrigger value="config">Configuração</TabsTrigger></TabsList>
 
           <TabsContent value="conciliacao">
             <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -143,6 +143,26 @@ const ConciliacaoBancariaModule = () => {
                 <Button onClick={() => toast({ title: "Selecione o arquivo OFX/CNAB para importação" })}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button>
               </div>
               <div className="text-xs text-muted-foreground">Formatos aceitos: .ofx, .cnab, .csv</div>
+            </CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="conexao">
+            <Card><CardContent className="p-6 space-y-4">
+              <h3 className="text-base font-semibold flex items-center gap-2"><Landmark className="w-4 h-4 text-muted-foreground" />Conectar Conta Bancária via API</h3>
+              <p className="text-sm text-muted-foreground">Integre suas contas bancárias para importação automática de extratos e conciliação em tempo real.</p>
+              <div className="space-y-3">
+                {[
+                  { name: "Open Banking (Brasil)", desc: "Conexão direta via Open Finance regulamentada pelo BACEN" },
+                  { name: "Pluggy", desc: "Agregador de dados bancários com suporte a 100+ bancos" },
+                  { name: "Belvo", desc: "Plataforma de dados financeiros abertos para América Latina" },
+                ].map(b => (
+                  <button key={b.name} onClick={() => toast({ title: "Em breve", description: `Integração via ${b.name} será disponibilizada em breve.` })} className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-accent/40 hover:bg-muted/30 transition-all text-left">
+                    <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center"><Landmark className="w-4 h-4 text-muted-foreground" /></div>
+                    <div><p className="text-sm font-medium text-foreground">{b.name}</p><p className="text-xs text-muted-foreground">{b.desc}</p></div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground text-center">As integrações utilizam protocolos seguros e criptografados.</p>
             </CardContent></Card>
           </TabsContent>
 

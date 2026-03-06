@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Wallet, TrendingUp, TrendingDown, ArrowRightLeft, Download, Eye } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, ArrowRightLeft, Download, Eye, Landmark, Plug } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 interface Movimentacao {
@@ -59,6 +60,7 @@ const FluxoCaixaModule = () => {
   const [conta, setConta] = useState("todos");
   const [visao, setVisao] = useState("lista");
   const [filtroCategoria, setFiltroCategoria] = useState("todos");
+  const [bankDialogOpen, setBankDialogOpen] = useState(false);
 
   const filtered = useMemo(() => {
     let result = movs;
@@ -112,6 +114,7 @@ const FluxoCaixaModule = () => {
             <SelectContent><SelectItem value="todos">Todas categorias</SelectItem>{categorias.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
           </Select>
           <div className="flex-1" />
+          <Button variant="outline" size="sm" onClick={() => setBankDialogOpen(true)}><Plug className="w-4 h-4 mr-1" />Conectar Banco</Button>
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Relatório exportado" })}><Download className="w-4 h-4 mr-1" />Exportar PDF/Excel</Button>
         </div>
 
@@ -191,6 +194,27 @@ const FluxoCaixaModule = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={bankDialogOpen} onOpenChange={setBankDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Landmark className="w-5 h-5 text-muted-foreground" />Conectar Conta Bancária via API</DialogTitle>
+            <DialogDescription>Integre suas contas para importação automática de extratos.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            {[
+              { name: "Open Banking (Brasil)", desc: "Conexão direta via Open Finance regulamentada pelo BACEN" },
+              { name: "Pluggy", desc: "Agregador de dados bancários com suporte a 100+ bancos" },
+              { name: "Belvo", desc: "Plataforma de dados financeiros abertos para América Latina" },
+            ].map(b => (
+              <button key={b.name} onClick={() => toast({ title: "Em breve", description: `Integração via ${b.name} será disponibilizada em breve.` })} className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-accent/40 hover:bg-muted/30 transition-all text-left">
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center"><Landmark className="w-4 h-4 text-muted-foreground" /></div>
+                <div><p className="text-sm font-medium text-foreground">{b.name}</p><p className="text-xs text-muted-foreground">{b.desc}</p></div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
