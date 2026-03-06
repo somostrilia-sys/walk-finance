@@ -24,6 +24,17 @@ import DashboardSocio from "./pages/DashboardSocio";
 import GestaoFiscal from "./pages/GestaoFiscal";
 import CentroCustos from "./pages/CentroCustos";
 import NotFound from "./pages/NotFound";
+// Módulos padronizados (todas as empresas exceto Objetivo)
+import Categorizacao from "./pages/modules/Categorizacao";
+import CadastroPessoas from "./pages/modules/CadastroPessoas";
+import ContasPagar from "./pages/modules/ContasPagar";
+import ContasReceber from "./pages/modules/ContasReceber";
+import ConciliacaoBancariaModule from "./pages/modules/ConciliacaoBancariaModule";
+import FluxoCaixaModule from "./pages/modules/FluxoCaixaModule";
+import FolhaComissoes from "./pages/modules/FolhaComissoes";
+import ImpostoFiscal from "./pages/modules/ImpostoFiscal";
+import ProjecaoPlanejamento from "./pages/modules/ProjecaoPlanejamento";
+import FaturamentoCobranca from "./pages/modules/FaturamentoCobranca";
 
 const queryClient = new QueryClient();
 
@@ -38,9 +49,19 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/empresa/:companyId" element={<ProtectedRoute><CompanyModules /></ProtectedRoute>} />
+            {/* Módulos padronizados */}
+            <Route path="/empresa/:companyId/categorizacao" element={<ProtectedRoute><Categorizacao /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/cadastro-pessoas" element={<ProtectedRoute><CadastroPessoas /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/contas-pagar" element={<ProtectedRoute><ContasPagar /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/contas-receber" element={<ProtectedRoute><ContasReceber /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/conciliacao" element={<ProtectedRoute><ConciliacaoBancariaModule /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/fluxo-caixa" element={<ProtectedRoute><FluxoCaixaModule /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/folha" element={<ProtectedRoute><FolhaComissoes /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/impostos" element={<ProtectedRoute><ImpostoFiscal /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/projecao" element={<ProtectedRoute><ProjecaoPlanejamento /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/faturamento" element={<ProtectedRoute><FaturamentoCobranca /></ProtectedRoute>} />
+            {/* Módulos exclusivos Objetivo Auto e Truck */}
             <Route path="/empresa/:companyId/dashboard" element={<ProtectedRoute><DashboardSocio /></ProtectedRoute>} />
-            <Route path="/empresa/:companyId/fluxo-caixa" element={<ProtectedRoute><FluxoCaixa /></ProtectedRoute>} />
-            <Route path="/empresa/:companyId/conciliacao" element={<ProtectedRoute><ConciliacaoBancaria /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/area-socio" element={<ProtectedRoute><AreaSocio /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/area-socio/:branchId" element={<ProtectedRoute><BranchDashboard /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/comercial" element={<ProtectedRoute><ModuloComercial /></ProtectedRoute>} />
