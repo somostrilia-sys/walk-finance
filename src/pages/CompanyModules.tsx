@@ -16,6 +16,7 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   impostos: { icon: "Receipt", description: "Impostos, tributos e NF", label: "Imposto e Fiscal" },
   projecao: { icon: "LineChart", description: "Projeção e planejamento financeiro", label: "Projeção e Planejamento" },
   faturamento: { icon: "Send", description: "Boletos, faturas e inadimplência", label: "Faturamento e Cobrança" },
+  dre: { icon: "FileSpreadsheet", description: "Demonstrativo de resultados automático", label: "DRE" },
   // Módulos exclusivos Objetivo Auto e Truck
   "area-socio": { icon: "UserCircle", description: "Visão geral financeira e indicadores", label: "Área do Sócio" },
   "calendario-financeiro": { icon: "Calendar", description: "Controle de pagamentos e alertas de vencimento", label: "Calendário Financeiro" },
