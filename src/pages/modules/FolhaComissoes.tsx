@@ -408,7 +408,7 @@ const FolhaComissoes = () => {
                     <TableRow className="font-bold border-t-2">
                       <TableCell colSpan={2}>TOTAL</TableCell>
                       <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + Number(c.salario_base), 0))}</TableCell>
-                      <TableCell className="text-right text-emerald-600">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.comissao_total, 0))}</TableCell>
+                      <TableCell className="text-right text-[hsl(var(--chart-2))]">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.comissao_total, 0))}</TableCell>
                       <TableCell className="text-right text-destructive">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.descontos_total, 0))}</TableCell>
                       <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.liquido, 0))}</TableCell>
                     </TableRow>
