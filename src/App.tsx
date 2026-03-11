@@ -35,6 +35,7 @@ import FolhaComissoes from "./pages/modules/FolhaComissoes";
 import ImpostoFiscal from "./pages/modules/ImpostoFiscal";
 import ProjecaoPlanejamento from "./pages/modules/ProjecaoPlanejamento";
 import FaturamentoCobranca from "./pages/modules/FaturamentoCobranca";
+import DREModule from "./pages/modules/DREModule";
 
 const queryClient = new QueryClient();
 
@@ -60,6 +61,7 @@ const App = () => (
             <Route path="/empresa/:companyId/impostos" element={<ProtectedRoute><ImpostoFiscal /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/projecao" element={<ProtectedRoute><ProjecaoPlanejamento /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/faturamento" element={<ProtectedRoute><FaturamentoCobranca /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/dre" element={<ProtectedRoute><DREModule /></ProtectedRoute>} />
             {/* Módulos exclusivos Objetivo Auto e Truck */}
             <Route path="/empresa/:companyId/dashboard" element={<ProtectedRoute><DashboardSocio /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/area-socio" element={<ProtectedRoute><AreaSocio /></ProtectedRoute>} />
