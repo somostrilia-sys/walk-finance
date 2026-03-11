@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useCompanies } from "@/hooks/useFinancialData";
+import { useCompanies, useFinancialTransactions } from "@/hooks/useFinancialData";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import ModuleStatCard from "@/components/ModuleStatCard";
@@ -13,57 +16,87 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { ArrowUpCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle, Paperclip } from "lucide-react";
+import { ArrowUpCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle, Loader2, Check } from "lucide-react";
 
-type StatusCR = "em_aberto" | "recebido" | "vencido";
-interface ContaReceber { id: string; cliente: string; categoria: string; centroCusto: string; descricao: string; valor: number; vencimento: string; recebimento: string | null; formaRecebimento: string; status: StatusCR; documento: boolean; }
+type StatusCR = "pendente" | "confirmado" | "cancelado";
 
 const statusConfig: Record<StatusCR, { label: string; badge: string; icon: React.ReactNode }> = {
-  em_aberto: { label: "Em Aberto", badge: "status-badge-warning", icon: <Clock className="w-3.5 h-3.5" /> },
-  recebido: { label: "Recebido", badge: "status-badge-positive", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
-  vencido: { label: "Vencido", badge: "status-badge-danger", icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+  pendente: { label: "Pendente", badge: "status-badge-warning", icon: <Clock className="w-3.5 h-3.5" /> },
+  confirmado: { label: "Recebido", badge: "status-badge-positive", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+  cancelado: { label: "Cancelado", badge: "status-badge-danger", icon: <AlertTriangle className="w-3.5 h-3.5" /> },
 };
 
-function genContas(): ContaReceber[] {
-  const clientes = ["Auto Center São Paulo Ltda", "Transportes Rápido Express", "Frota Brasil Logística", "Cooperativa Unidas do Sul", "Mega Frotas Nordeste", "João Silva ME", "Distribuidora Central EIRELI", "TransLog Cargas Pesadas"];
-  const categorias = ["Assistência 24h", "Consultoria", "Equipamentos", "Endereço Fiscal", "Gestão de Empresas", "Excedente da Assistência"];
-  const centros = ["Operacional", "Comercial", "Administrativo"];
-  const formas = ["PIX", "Boleto", "Transferência", "Cartão"];
-  const result: ContaReceber[] = [];
-  for (let i = 0; i < 25; i++) {
-    const d = new Date(2026, 2, 1 + (i % 28));
-    const isPast = d < new Date();
-    const status: StatusCR = i % 4 === 0 ? "recebido" : isPast ? "vencido" : "em_aberto";
-    result.push({ id: String(i + 1), cliente: clientes[i % clientes.length], categoria: categorias[i % categorias.length], centroCusto: centros[i % centros.length], descricao: `Fatura ${String(i + 1).padStart(4, "0")} - ${categorias[i % categorias.length]}`, valor: 1200 + (i * 523) % 15000, vencimento: d.toISOString().slice(0, 10), recebimento: status === "recebido" ? d.toISOString().slice(0, 10) : null, formaRecebimento: formas[i % formas.length], status, documento: status === "recebido" });
-  }
-  return result;
-}
+const fmtDate = (d: string) => {
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+};
+
+const isVencido = (date: string, status: string) => {
+  return status === "pendente" && new Date(date) < new Date(new Date().toISOString().slice(0, 10));
+};
 
 const ContasReceber = () => {
   const { companyId } = useParams();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: companies } = useCompanies();
+  const { data: transactions, isLoading } = useFinancialTransactions(companyId);
   const company = companies?.find(c => c.id === companyId);
-  const [contas, setContas] = useState(genContas);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState({ cliente: "", categoria: "", centroCusto: "", descricao: "", valor: "", vencimento: "", formaRecebimento: "PIX" });
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({ entity_name: "", description: "", amount: "", date: "", payment_method: "PIX" });
 
-  const filtered = useMemo(() => contas.filter(c => {
-    if (filtroStatus !== "todos" && c.status !== filtroStatus) return false;
-    if (search && !c.descricao.toLowerCase().includes(search.toLowerCase()) && !c.cliente.toLowerCase().includes(search.toLowerCase())) return false;
+  const contas = useMemo(() => (transactions || []).filter((t: any) => t.type === "receita"), [transactions]);
+
+  const filtered = useMemo(() => contas.filter((c: any) => {
+    if (filtroStatus === "pendente" && c.status !== "pendente") return false;
+    if (filtroStatus === "confirmado" && c.status !== "confirmado") return false;
+    if (filtroStatus === "vencido" && !isVencido(c.date, c.status)) return false;
+    if (filtroStatus === "cancelado" && c.status !== "cancelado") return false;
+    if (search) {
+      const s = search.toLowerCase();
+      if (!(c.description?.toLowerCase().includes(s) || (c as any).entity_name?.toLowerCase().includes(s))) return false;
+    }
     return true;
   }), [contas, filtroStatus, search]);
 
-  const totalAberto = contas.filter(c => c.status === "em_aberto").reduce((s, c) => s + c.valor, 0);
-  const totalRecebido = contas.filter(c => c.status === "recebido").reduce((s, c) => s + c.valor, 0);
-  const totalVencido = contas.filter(c => c.status === "vencido").reduce((s, c) => s + c.valor, 0);
+  const totalPendente = contas.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const totalRecebido = contas.filter((c: any) => c.status === "confirmado").reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const totalVencido = contas.filter((c: any) => isVencido(c.date, c.status)).reduce((s: number, c: any) => s + Number(c.amount), 0);
 
-  const handleAdd = () => {
-    if (!form.cliente || !form.valor) return toast({ title: "Preencha campos obrigatórios", variant: "destructive" });
-    setContas(prev => [...prev, { ...form, id: Date.now().toString(), valor: Number(form.valor), recebimento: null, status: "em_aberto" as StatusCR, documento: false }]);
-    setModalOpen(false); setForm({ cliente: "", categoria: "", centroCusto: "", descricao: "", valor: "", vencimento: "", formaRecebimento: "PIX" });
-    toast({ title: "Conta a receber cadastrada" });
+  const handleAdd = async () => {
+    if (!form.entity_name || !form.amount || !form.date) return toast({ title: "Preencha campos obrigatórios", variant: "destructive" });
+    setSubmitting(true);
+    const { error } = await supabase.from("financial_transactions").insert({
+      company_id: companyId!,
+      type: "receita",
+      description: form.description || `Recebimento - ${form.entity_name}`,
+      amount: Number(form.amount),
+      date: form.date,
+      status: "pendente",
+      created_by: user?.id,
+      entity_name: form.entity_name,
+      payment_method: form.payment_method,
+    } as any);
+    setSubmitting(false);
+    if (error) return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    setModalOpen(false);
+    setForm({ entity_name: "", description: "", amount: "", date: "", payment_method: "PIX" });
+    toast({ title: "Conta a receber cadastrada com sucesso" });
+  };
+
+  const handleBaixar = async (id: string) => {
+    const { error } = await supabase.from("financial_transactions").update({
+      status: "confirmado",
+      payment_date: new Date().toISOString().slice(0, 10),
+    } as any).eq("id", id);
+    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    toast({ title: "Conta baixada como recebida" });
   };
 
   return (
@@ -73,16 +106,25 @@ const ContasReceber = () => {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
           <ModuleStatCard label="Total Contas" value={contas.length} icon={<ArrowUpCircle className="w-4 h-4" />} />
-          <ModuleStatCard label="Em Aberto" value={formatCurrency(totalAberto)} icon={<Clock className="w-4 h-4" />} />
+          <ModuleStatCard label="Pendente" value={formatCurrency(totalPendente)} icon={<Clock className="w-4 h-4" />} />
           <ModuleStatCard label="Recebido" value={formatCurrency(totalRecebido)} icon={<CheckCircle2 className="w-4 h-4" />} />
           <ModuleStatCard label="Vencido" value={formatCurrency(totalVencido)} icon={<AlertTriangle className="w-4 h-4" />} />
         </div>
 
         <div className="module-toolbar">
-          <div className="relative max-w-xs flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
+          <div className="relative max-w-xs flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Buscar cliente ou descrição..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          </div>
           <Select value={filtroStatus} onValueChange={setFiltroStatus}>
             <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="em_aberto">Em Aberto</SelectItem><SelectItem value="recebido">Recebido</SelectItem><SelectItem value="vencido">Vencido</SelectItem></SelectContent>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="pendente">Pendente</SelectItem>
+              <SelectItem value="confirmado">Recebido</SelectItem>
+              <SelectItem value="vencido">Vencido</SelectItem>
+              <SelectItem value="cancelado">Cancelado</SelectItem>
+            </SelectContent>
           </Select>
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Relatório exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
@@ -91,45 +133,75 @@ const ContasReceber = () => {
             <DialogContent>
               <DialogHeader><DialogTitle>Cadastrar Conta a Receber</DialogTitle></DialogHeader>
               <div className="space-y-3 pt-2">
-                <div><label className="text-sm font-medium">Cliente *</label><Input className="mt-1" value={form.cliente} onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Categoria *</label><Input className="mt-1" value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Centro de Custo</label><Input className="mt-1" value={form.centroCusto} onChange={e => setForm(f => ({ ...f, centroCusto: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Cliente *</label><Input className="mt-1" value={form.entity_name} onChange={e => setForm(f => ({ ...f, entity_name: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-sm font-medium">Valor *</label><Input className="mt-1" type="number" value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))} /></div>
-                  <div><label className="text-sm font-medium">Vencimento</label><Input className="mt-1" type="date" value={form.vencimento} onChange={e => setForm(f => ({ ...f, vencimento: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium">Valor *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium">Vencimento *</label><Input className="mt-1" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
                 </div>
                 <div><label className="text-sm font-medium">Forma de Recebimento</label>
-                  <Select value={form.formaRecebimento} onValueChange={v => setForm(f => ({ ...f, formaRecebimento: v }))}>
+                  <Select value={form.payment_method} onValueChange={v => setForm(f => ({ ...f, payment_method: v }))}>
                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>{["PIX", "Boleto", "Transferência", "Cartão", "Dinheiro"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                  </Select></div>
-                <Button onClick={handleAdd} className="w-full">Cadastrar</Button>
+                  </Select>
+                </div>
+                <Button onClick={handleAdd} className="w-full" disabled={submitting}>
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Cadastrar
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
 
-        <Card><CardContent className="p-0">
-          <Table>
-            <TableHeader><TableRow className="bg-muted/30">
-              <TableHead className="font-semibold">Cliente</TableHead><TableHead className="font-semibold">Categoria</TableHead><TableHead className="font-semibold">Centro de Custo</TableHead><TableHead className="text-right font-semibold">Valor</TableHead><TableHead className="font-semibold">Vencimento</TableHead><TableHead className="font-semibold">Recebimento</TableHead><TableHead className="font-semibold">Forma</TableHead><TableHead className="font-semibold">Status</TableHead><TableHead className="w-12"></TableHead>
-            </TableRow></TableHeader>
-            <TableBody>{filtered.map((c, i) => (
-              <TableRow key={c.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
-                <TableCell className="font-medium">{c.cliente}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{c.categoria}</TableCell>
-                <TableCell className="text-sm">{c.centroCusto}</TableCell>
-                <TableCell className="text-right font-medium">{formatCurrency(c.valor)}</TableCell>
-                <TableCell>{c.vencimento}</TableCell>
-                <TableCell>{c.recebimento || "—"}</TableCell>
-                <TableCell><Badge variant="outline" className="text-[10px]">{c.formaRecebimento}</Badge></TableCell>
-                <TableCell><Badge className={`${statusConfig[c.status].badge} text-[10px]`}>{statusConfig[c.status].icon}<span className="ml-1">{statusConfig[c.status].label}</span></Badge></TableCell>
-                <TableCell>{c.documento && <Paperclip className="w-4 h-4 text-muted-foreground" />}</TableCell>
-              </TableRow>
-            ))}</TableBody>
-          </Table>
-        </CardContent></Card>
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : (
+          <Card><CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow className="bg-muted/30">
+                <TableHead className="font-semibold">Cliente</TableHead>
+                <TableHead className="font-semibold">Descrição</TableHead>
+                <TableHead className="text-right font-semibold">Valor</TableHead>
+                <TableHead className="font-semibold">Vencimento</TableHead>
+                <TableHead className="font-semibold">Recebimento</TableHead>
+                <TableHead className="font-semibold">Forma</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="w-24">Ações</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma conta encontrada</TableCell></TableRow>
+                ) : filtered.map((c: any, i: number) => {
+                  const vencido = isVencido(c.date, c.status);
+                  const cfg = vencido
+                    ? { label: "Vencido", badge: "status-badge-danger", icon: <AlertTriangle className="w-3.5 h-3.5" /> }
+                    : statusConfig[c.status as StatusCR] || statusConfig.pendente;
+                  return (
+                    <TableRow key={c.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
+                      <TableCell className="font-medium">{c.entity_name || "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{c.description}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(Number(c.amount))}</TableCell>
+                      <TableCell>{fmtDate(c.date)}</TableCell>
+                      <TableCell>{c.payment_date ? fmtDate(c.payment_date) : "—"}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-[10px]">{c.payment_method || "—"}</Badge></TableCell>
+                      <TableCell><Badge className={`${cfg.badge} text-[10px]`}>{cfg.icon}<span className="ml-1">{cfg.label}</span></Badge></TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {c.status === "pendente" && (
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => handleBaixar(c.id)}>
+                              <Check className="w-3 h-3 mr-1" />Baixar
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent></Card>
+        )}
       </div>
     </AppLayout>
   );
