@@ -399,7 +399,7 @@ const FolhaComissoes = () => {
                       <TableCell className="font-medium">{c.nome}</TableCell>
                       <TableCell>{c.cargo}</TableCell>
                       <TableCell className="text-right">{fmt(Number(c.salario_base))}</TableCell>
-                      <TableCell className="text-right text-emerald-600">{c.comissao_total > 0 ? `+${fmt(c.comissao_total)}` : "—"}</TableCell>
+                      <TableCell className="text-right text-[hsl(var(--chart-2))]">{c.comissao_total > 0 ? `+${fmt(c.comissao_total)}` : "—"}</TableCell>
                       <TableCell className="text-right text-destructive">{c.descontos_total > 0 ? `-${fmt(c.descontos_total)}` : "—"}</TableCell>
                       <TableCell className="text-right font-bold">{fmt(c.liquido)}</TableCell>
                     </TableRow>
