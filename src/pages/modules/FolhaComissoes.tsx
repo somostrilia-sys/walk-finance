@@ -448,7 +448,7 @@ const FolhaComissoes = () => {
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <Trophy className="w-5 h-5 text-amber-500" />
+                        <Trophy className="w-5 h-5 text-[hsl(var(--chart-4))]" />
                         <h4 className="font-semibold">{camp.nome}</h4>
                       </div>
                       <div className="flex items-center gap-1">
