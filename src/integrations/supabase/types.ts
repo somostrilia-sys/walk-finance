@@ -312,24 +312,36 @@ export type Database = {
       }
       expense_categories: {
         Row: {
+          classificacao: string | null
+          color: string | null
           company_id: string
           created_at: string
+          grupo: string | null
+          icon: string | null
           id: string
           name: string
           parent_id: string | null
           type: string
         }
         Insert: {
+          classificacao?: string | null
+          color?: string | null
           company_id: string
           created_at?: string
+          grupo?: string | null
+          icon?: string | null
           id?: string
           name: string
           parent_id?: string | null
           type?: string
         }
         Update: {
+          classificacao?: string | null
+          color?: string | null
           company_id?: string
           created_at?: string
+          grupo?: string | null
+          icon?: string | null
           id?: string
           name?: string
           parent_id?: string | null
