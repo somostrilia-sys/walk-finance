@@ -157,6 +157,91 @@ export type Database = {
           },
         ]
       }
+      cobrancas: {
+        Row: {
+          acordo: boolean
+          acordo_desconto: number | null
+          acordo_parcelas: number | null
+          cliente_nome: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          dias_atraso: number
+          faixa: string | null
+          faturamento_id: string | null
+          id: string
+          observacao: string | null
+          pessoa_id: string | null
+          status: string
+          ultima_cobranca: string | null
+          updated_at: string
+          valor: number
+          vencimento: string
+        }
+        Insert: {
+          acordo?: boolean
+          acordo_desconto?: number | null
+          acordo_parcelas?: number | null
+          cliente_nome: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          dias_atraso?: number
+          faixa?: string | null
+          faturamento_id?: string | null
+          id?: string
+          observacao?: string | null
+          pessoa_id?: string | null
+          status?: string
+          ultima_cobranca?: string | null
+          updated_at?: string
+          valor?: number
+          vencimento: string
+        }
+        Update: {
+          acordo?: boolean
+          acordo_desconto?: number | null
+          acordo_parcelas?: number | null
+          cliente_nome?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          dias_atraso?: number
+          faixa?: string | null
+          faturamento_id?: string | null
+          id?: string
+          observacao?: string | null
+          pessoa_id?: string | null
+          status?: string
+          ultima_cobranca?: string | null
+          updated_at?: string
+          valor?: number
+          vencimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobrancas_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobrancas_faturamento_id_fkey"
+            columns: ["faturamento_id"]
+            isOneToOne: false
+            referencedRelation: "faturamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobrancas_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           accent_color: string | null
@@ -267,6 +352,78 @@ export type Database = {
           },
         ]
       }
+      faturamentos: {
+        Row: {
+          categoria: string | null
+          cliente_nome: string
+          company_id: string
+          consultor: string | null
+          created_at: string
+          created_by: string | null
+          data_emissao: string
+          descricao: string | null
+          id: string
+          nf_emitida: boolean
+          pessoa_id: string | null
+          status: string
+          tipo: string
+          updated_at: string
+          valor: number
+          vencimento: string | null
+        }
+        Insert: {
+          categoria?: string | null
+          cliente_nome: string
+          company_id: string
+          consultor?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_emissao?: string
+          descricao?: string | null
+          id?: string
+          nf_emitida?: boolean
+          pessoa_id?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+          vencimento?: string | null
+        }
+        Update: {
+          categoria?: string | null
+          cliente_nome?: string
+          company_id?: string
+          consultor?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_emissao?: string
+          descricao?: string | null
+          id?: string
+          nf_emitida?: boolean
+          pessoa_id?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+          vencimento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "faturamentos_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "faturamentos_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_transactions: {
         Row: {
           amount: number
@@ -326,6 +483,80 @@ export type Database = {
           },
           {
             foreignKeyName: "financial_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pessoas: {
+        Row: {
+          agencia: string | null
+          banco: string | null
+          company_id: string
+          condicao_pagamento: string | null
+          conta: string | null
+          cpf_cnpj: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          forma_pagamento: string | null
+          id: string
+          municipio: string | null
+          razao_social: string
+          responsavel: string | null
+          telefone: string | null
+          tipo: string
+          tipo_servico: string | null
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          agencia?: string | null
+          banco?: string | null
+          company_id: string
+          condicao_pagamento?: string | null
+          conta?: string | null
+          cpf_cnpj?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          municipio?: string | null
+          razao_social: string
+          responsavel?: string | null
+          telefone?: string | null
+          tipo?: string
+          tipo_servico?: string | null
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agencia?: string | null
+          banco?: string | null
+          company_id?: string
+          condicao_pagamento?: string | null
+          conta?: string | null
+          cpf_cnpj?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          municipio?: string | null
+          razao_social?: string
+          responsavel?: string | null
+          telefone?: string | null
+          tipo?: string
+          tipo_servico?: string | null
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pessoas_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"

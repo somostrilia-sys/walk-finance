@@ -133,3 +133,54 @@ export const useExpenseCategories = (companyId: string | undefined) => {
     },
   });
 };
+
+export const usePessoas = (companyId: string | undefined) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["pessoas", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pessoas")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("razao_social");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};
+
+export const useFaturamentos = (companyId: string | undefined) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["faturamentos", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("faturamentos")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("data_emissao", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};
+
+export const useCobrancas = (companyId: string | undefined) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["cobrancas", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cobrancas")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("dias_atraso", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};
