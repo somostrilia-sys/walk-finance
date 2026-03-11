@@ -157,6 +157,59 @@ export type Database = {
           },
         ]
       }
+      campanhas: {
+        Row: {
+          bonus_percent: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_fim: string | null
+          data_inicio: string
+          descricao: string | null
+          id: string
+          meta: number
+          nome: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          bonus_percent?: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          descricao?: string | null
+          id?: string
+          meta?: number
+          nome: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          bonus_percent?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          descricao?: string | null
+          id?: string
+          meta?: number
+          nome?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campanhas_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cobrancas: {
         Row: {
           acordo: boolean
@@ -242,6 +295,137 @@ export type Database = {
           },
         ]
       }
+      colaboradores: {
+        Row: {
+          admissao: string | null
+          agencia: string | null
+          banco: string | null
+          cargo: string
+          chave_pix: string | null
+          comissao_percent: number
+          comissao_tipo: string
+          company_id: string
+          conta: string | null
+          contrato: string
+          cpf: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+          salario_base: number
+          status: string
+          tipo_conta: string | null
+          tipo_remuneracao: string
+          updated_at: string
+        }
+        Insert: {
+          admissao?: string | null
+          agencia?: string | null
+          banco?: string | null
+          cargo?: string
+          chave_pix?: string | null
+          comissao_percent?: number
+          comissao_tipo?: string
+          company_id: string
+          conta?: string | null
+          contrato?: string
+          cpf?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+          salario_base?: number
+          status?: string
+          tipo_conta?: string | null
+          tipo_remuneracao?: string
+          updated_at?: string
+        }
+        Update: {
+          admissao?: string | null
+          agencia?: string | null
+          banco?: string | null
+          cargo?: string
+          chave_pix?: string | null
+          comissao_percent?: number
+          comissao_tipo?: string
+          company_id?: string
+          conta?: string | null
+          contrato?: string
+          cpf?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+          salario_base?: number
+          status?: string
+          tipo_conta?: string | null
+          tipo_remuneracao?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "colaboradores_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comissoes_folha: {
+        Row: {
+          cliente: string
+          colaborador_id: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          periodo: string
+          status: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          cliente?: string
+          colaborador_id: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          periodo?: string
+          status?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          cliente?: string
+          colaborador_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          periodo?: string
+          status?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comissoes_folha_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "colaboradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comissoes_folha_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           accent_color: string | null
@@ -303,6 +487,57 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "company_modules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      descontos_folha: {
+        Row: {
+          colaborador_id: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          referencia: string
+          tipo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          colaborador_id: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          referencia?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          colaborador_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          referencia?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "descontos_folha_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "colaboradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "descontos_folha_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
