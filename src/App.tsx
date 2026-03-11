@@ -35,6 +35,7 @@ import FolhaComissoes from "./pages/modules/FolhaComissoes";
 import ImpostoFiscal from "./pages/modules/ImpostoFiscal";
 import ProjecaoPlanejamento from "./pages/modules/ProjecaoPlanejamento";
 import FaturamentoCobranca from "./pages/modules/FaturamentoCobranca";
+import DREModule from "./pages/modules/DREModule";
 
 const queryClient = new QueryClient();
 
