@@ -61,6 +61,7 @@ const App = () => (
             <Route path="/empresa/:companyId/impostos" element={<ProtectedRoute><ImpostoFiscal /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/projecao" element={<ProtectedRoute><ProjecaoPlanejamento /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/faturamento" element={<ProtectedRoute><FaturamentoCobranca /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/dre" element={<ProtectedRoute><DREModule /></ProtectedRoute>} />
             {/* Módulos exclusivos Objetivo Auto e Truck */}
             <Route path="/empresa/:companyId/dashboard" element={<ProtectedRoute><DashboardSocio /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/area-socio" element={<ProtectedRoute><AreaSocio /></ProtectedRoute>} />
