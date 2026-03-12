@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 
 const moduleConfig: Record<string, { icon: string; description: string; label: string }> = {
   categorizacao: { icon: "FolderOpen", description: "Categorização de receitas e despesas", label: "Categorização" },
-  "cadastro-pessoas": { icon: "Users", description: "Clientes e prestadores", label: "Cadastro de Pessoas" },
+  "cadastro-pessoas": { icon: "Users", description: "Clientes, prestadores e vínculos financeiros", label: "Clientes e Prestadores" },
   "contas-pagar": { icon: "ArrowDownCircle", description: "Gestão de contas a pagar", label: "Contas a Pagar" },
   "contas-receber": { icon: "ArrowUpCircle", description: "Gestão de contas a receber", label: "Contas a Receber" },
   conciliacao: { icon: "Landmark", description: "Extratos, conciliação e pagamentos", label: "Conciliação Bancária" },
