@@ -1,45 +1,46 @@
+import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency } from "@/data/mockData";
 import {
-  DollarSign, Car, TrendingDown, AlertTriangle, ShieldAlert,
-  Target, ArrowUpRight, ArrowDownRight, Bell, Loader2,
+  DollarSign, TrendingDown, TrendingUp, Bell, Loader2,
+  ArrowUpRight, ArrowDownRight, ShieldAlert, AlertTriangle,
 } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  PieChart as RePieChart, Pie, Cell, ComposedChart, Line,
 } from "recharts";
-import { useMemo } from "react";
 
 const tt = { backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" };
+
+const PIE_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(var(--status-danger))",
+  "hsl(var(--status-warning))",
+  "hsl(var(--status-positive))",
+  "#8B7EC4", "#6BC49A", "#C49A6B", "#C4706B",
+];
+
+const PERIODOS = [
+  { value: "mes", label: "Mês Atual" },
+  { value: "trimestre", label: "Trimestre" },
+  { value: "semestre", label: "Semestre" },
+  { value: "ano", label: "Ano" },
+];
 
 const DashboardSocio = () => {
   const { companyId } = useParams();
   const { data: companies } = useCompanies();
   const company = companies?.find((c) => c.id === companyId);
 
-  // Real data queries
-  const { data: eventos } = useQuery({
-    queryKey: ["eventos-dash", companyId],
-    queryFn: async () => {
-      const { data } = await supabase.from("eventos").select("*").eq("company_id", companyId!);
-      return data || [];
-    },
-    enabled: !!companyId,
-  });
+  const [periodo, setPeriodo] = useState("mes");
 
-  const { data: indenizacoes } = useQuery({
-    queryKey: ["indenizacoes-dash", companyId],
-    queryFn: async () => {
-      const { data } = await supabase.from("indenizacoes").select("*").eq("company_id", companyId!);
-      return data || [];
-    },
-    enabled: !!companyId,
-  });
-
+  // Data queries
   const { data: despesas } = useQuery({
     queryKey: ["despesas-unidade-dash", companyId],
     queryFn: async () => {
@@ -58,176 +59,237 @@ const DashboardSocio = () => {
     enabled: !!companyId,
   });
 
-  const stats = useMemo(() => {
-    const custoEventos = (eventos || []).reduce((s, e) => s + Number(e.custo_estimado || 0), 0);
-    const valorIndenizacoes = (indenizacoes || []).filter(i => i.status === "prevista").reduce((s, i) => s + Number(i.valor || 0), 0);
-    const totalDespesas = (despesas || []).reduce((s, d) => s + Number(d.valor || 0), 0);
-    const totalReceitas = (receitas || []).reduce((s, r) => s + Number(r.valor || 0), 0);
-    const resultadoLiquido = totalReceitas - totalDespesas;
+  const { data: eventos } = useQuery({
+    queryKey: ["eventos-dash", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("eventos").select("*").eq("company_id", companyId!);
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
 
-    // Group despesas by category
+  const { data: indenizacoes } = useQuery({
+    queryKey: ["indenizacoes-dash", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("indenizacoes").select("*").eq("company_id", companyId!);
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  const { data: percentuais } = useQuery({
+    queryKey: ["percentual-socio", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("percentual_socio_unidade").select("*").eq("company_id", companyId!);
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  // Filter by period
+  const filterByPeriod = (date: string) => {
+    const d = new Date(date);
+    const now = new Date();
+    if (periodo === "mes") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (periodo === "trimestre") {
+      const diff = (now.getFullYear() - d.getFullYear()) * 12 + now.getMonth() - d.getMonth();
+      return diff >= 0 && diff < 3;
+    }
+    if (periodo === "semestre") {
+      const diff = (now.getFullYear() - d.getFullYear()) * 12 + now.getMonth() - d.getMonth();
+      return diff >= 0 && diff < 6;
+    }
+    return d.getFullYear() === now.getFullYear();
+  };
+
+  const stats = useMemo(() => {
+    const filteredDespesas = (despesas || []).filter(d => filterByPeriod(d.data));
+    const filteredReceitas = (receitas || []).filter(r => filterByPeriod(r.data));
+
+    const totalDespesas = filteredDespesas.reduce((s, d) => s + Number(d.valor || 0), 0);
+    const totalReceitas = filteredReceitas.reduce((s, r) => s + Number(r.valor || 0), 0);
+    const resultadoGeral = totalReceitas - totalDespesas;
+
+    // Calculate lucros sócios (sum of percentuais applied to each branch result)
+    const avgPercentual = (percentuais || []).length > 0
+      ? (percentuais || []).reduce((s, p) => s + Number(p.percentual || 50), 0) / (percentuais || []).length
+      : 50;
+    const lucrosSocios = Math.round(resultadoGeral * (avgPercentual / 100));
+    const resultadoMatriz = resultadoGeral - lucrosSocios;
+
+    // Categorização despesas
     const catMap: Record<string, number> = {};
-    (despesas || []).forEach(d => {
+    filteredDespesas.forEach(d => {
       const cat = d.categoria_auto || d.categoria_manual || "Outros";
       catMap[cat] = (catMap[cat] || 0) + Number(d.valor || 0);
     });
-    const topDespesas = Object.entries(catMap)
+    const pieData = Object.entries(catMap)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([cat, val]) => ({ categoria: cat, valor: val }));
+      .map(([name, value]) => ({ name, value, pct: totalDespesas > 0 ? ((value / totalDespesas) * 100).toFixed(1) : "0" }));
 
-    // Projection (simple 3 months based on current)
-    const projecao = [
-      { mes: "Mês 1", saldo: resultadoLiquido },
-      { mes: "Mês 2", saldo: Math.round(resultadoLiquido * 0.95) },
-      { mes: "Mês 3", saldo: Math.round(resultadoLiquido * 1.05) },
-    ];
+    // Monthly comparison (last 6 months)
+    const monthlyMap: Record<string, { receita: number; despesa: number; resultado: number; resultadoMatriz: number }> = {};
+    const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const key = `${meses[d.getMonth()]} ${d.getFullYear().toString().slice(2)}`;
+      monthlyMap[key] = { receita: 0, despesa: 0, resultado: 0, resultadoMatriz: 0 };
+    }
 
-    return { custoEventos, valorIndenizacoes, totalDespesas, totalReceitas, resultadoLiquido, topDespesas, projecao };
-  }, [eventos, indenizacoes, despesas, receitas]);
+    (despesas || []).forEach(d => {
+      const dt = new Date(d.data);
+      const key = `${meses[dt.getMonth()]} ${dt.getFullYear().toString().slice(2)}`;
+      if (monthlyMap[key]) monthlyMap[key].despesa += Number(d.valor || 0);
+    });
+    (receitas || []).forEach(r => {
+      const dt = new Date(r.data);
+      const key = `${meses[dt.getMonth()]} ${dt.getFullYear().toString().slice(2)}`;
+      if (monthlyMap[key]) monthlyMap[key].receita += Number(r.valor || 0);
+    });
+    Object.keys(monthlyMap).forEach(k => {
+      monthlyMap[k].resultado = monthlyMap[k].receita - monthlyMap[k].despesa;
+      monthlyMap[k].resultadoMatriz = Math.round(monthlyMap[k].resultado * ((100 - avgPercentual) / 100));
+    });
 
-  const percentualSocio = 50;
-  const resultadoSocio = Math.round(stats.resultadoLiquido * (percentualSocio / 100));
-  const inadimplencia = receitas?.length
-    ? ((receitas.filter(r => r.status === "gerado").length / receitas.length) * 100).toFixed(1)
-    : "0.0";
+    const barData = Object.entries(monthlyMap).map(([mes, v]) => ({ mes, ...v }));
 
+    const custoEventos = (eventos || []).reduce((s, e) => s + Number(e.custo_estimado || 0), 0);
+    const valorIndenizacoes = (indenizacoes || []).filter(i => i.status === "prevista").reduce((s, i) => s + Number(i.valor || 0), 0);
+
+    return { totalDespesas, totalReceitas, resultadoGeral, resultadoMatriz, lucrosSocios, pieData, barData, custoEventos, valorIndenizacoes };
+  }, [despesas, receitas, eventos, indenizacoes, percentuais, periodo]);
+
+  // Alertas
   const alertas = [
-    ...(stats.valorIndenizacoes > 0 ? [{ tipo: "danger", icon: <ShieldAlert className="w-4 h-4" />, msg: `Indenizações previstas: ${formatCurrency(stats.valorIndenizacoes)}`, tempo: "Atual" }] : []),
-    ...(stats.custoEventos > 0 ? [{ tipo: "warning", icon: <AlertTriangle className="w-4 h-4" />, msg: `Custo total de eventos: ${formatCurrency(stats.custoEventos)}`, tempo: "Atual" }] : []),
-    ...(Number(inadimplencia) > 10 ? [{ tipo: "danger", icon: <TrendingDown className="w-4 h-4" />, msg: `Inadimplência em ${inadimplencia}%`, tempo: "Atual" }] : []),
-    ...(stats.resultadoLiquido > 0 ? [{ tipo: "positive", icon: <ArrowUpRight className="w-4 h-4" />, msg: `Resultado positivo: ${formatCurrency(stats.resultadoLiquido)}`, tempo: "Atual" }] : []),
+    ...(stats.resultadoGeral < 0 ? [{ tipo: "danger", icon: <TrendingDown className="w-4 h-4" />, msg: `Resultado negativo: ${formatCurrency(stats.resultadoGeral)}` }] : []),
+    ...(stats.valorIndenizacoes > 0 ? [{ tipo: "warning", icon: <ShieldAlert className="w-4 h-4" />, msg: `Indenizações previstas: ${formatCurrency(stats.valorIndenizacoes)}` }] : []),
+    ...(stats.custoEventos > 0 ? [{ tipo: "warning", icon: <AlertTriangle className="w-4 h-4" />, msg: `Custo total eventos: ${formatCurrency(stats.custoEventos)}` }] : []),
+    ...(stats.resultadoGeral > 0 ? [{ tipo: "positive", icon: <ArrowUpRight className="w-4 h-4" />, msg: `Resultado positivo: ${formatCurrency(stats.resultadoGeral)}` }] : []),
   ];
 
   const alertColors: Record<string, string> = {
     danger: "border-l-[hsl(var(--status-danger))] bg-[hsl(var(--status-danger)/0.03)]",
     warning: "border-l-[hsl(var(--status-warning))] bg-[hsl(var(--status-warning)/0.03)]",
-    info: "border-l-primary bg-primary/[0.03]",
     positive: "border-l-[hsl(var(--status-positive))] bg-[hsl(var(--status-positive)/0.03)]",
   };
   const alertIconColors: Record<string, string> = {
     danger: "text-[hsl(var(--status-danger))]",
     warning: "text-[hsl(var(--status-warning))]",
-    info: "text-primary",
     positive: "text-[hsl(var(--status-positive))]",
   };
-
-  const circumference = 2 * Math.PI * 45;
-  const boletosGerados = receitas?.length || 0;
-  const boletosLiquidados = receitas?.filter(r => r.status === "liquidado").length || 0;
-  const progressPct = boletosGerados > 0 ? Math.round((boletosLiquidados / boletosGerados) * 100) : 0;
-  const strokeDash = (progressPct / 100) * circumference;
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageHeader title="Dashboard do Sócio" subtitle={company?.name} showBack />
+        <div className="flex items-center justify-between mb-6">
+          <PageHeader title="Dashboard Geral" subtitle={company?.name} showBack />
+          <Select value={periodo} onValueChange={setPeriodo}>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PERIODOS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
 
-        {/* KPI Cards - All in R$ */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <div className="hub-card-base p-5">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Resultado Líquido</span>
-            <span className={`text-2xl font-bold ${stats.resultadoLiquido >= 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
-              {formatCurrency(stats.resultadoLiquido)}
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Receita Total</span>
+            <span className="text-2xl font-bold text-[hsl(var(--status-positive))]">{formatCurrency(stats.totalReceitas)}</span>
+          </div>
+          <div className="hub-card-base p-5">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Despesa Total</span>
+            <span className="text-2xl font-bold text-[hsl(var(--status-danger))]">{formatCurrency(stats.totalDespesas)}</span>
+          </div>
+          <div className="hub-card-base p-5 ring-1 ring-primary/20">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Resultado Líquido Geral</span>
+            <span className={`text-2xl font-bold ${stats.resultadoGeral >= 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+              {formatCurrency(stats.resultadoGeral)}
             </span>
           </div>
           <div className="hub-card-base p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resultado Sócio</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{percentualSocio}%</span>
-            </div>
-            <span className="text-2xl font-bold text-[hsl(var(--status-positive))]">{formatCurrency(resultadoSocio)}</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Lucros Sócios</span>
+            <span className="text-2xl font-bold text-[hsl(var(--status-warning))]">{formatCurrency(stats.lucrosSocios)}</span>
           </div>
-          <div className="hub-card-base p-5">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Custo Eventos</span>
-            <span className="text-2xl font-bold text-[hsl(var(--status-danger))]">{formatCurrency(stats.custoEventos)}</span>
-          </div>
-          <div className="hub-card-base p-5">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Receita vs Despesa</span>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-[hsl(var(--status-positive))]"><ArrowUpRight className="w-3 h-3 inline" />{formatCurrency(stats.totalReceitas)}</span>
-              <span className="text-muted-foreground text-xs">vs</span>
-              <span className="text-sm font-bold text-[hsl(var(--status-danger))]"><ArrowDownRight className="w-3 h-3 inline" />{formatCurrency(stats.totalDespesas)}</span>
-            </div>
-          </div>
-          <div className="hub-card-base p-5">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Indenizações Previstas</span>
-            <span className="text-2xl font-bold text-[hsl(var(--status-warning))]">{formatCurrency(stats.valorIndenizacoes)}</span>
-          </div>
-          <div className="hub-card-base p-5">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Top Despesas por Categoria</span>
-            <div className="space-y-1">
-              {stats.topDespesas.length > 0 ? stats.topDespesas.map((e, i) => (
-                <div key={i} className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground truncate mr-2">{e.categoria}</span>
-                  <span className="font-semibold text-[hsl(var(--status-danger))] whitespace-nowrap">{formatCurrency(e.valor)}</span>
-                </div>
-              )) : <span className="text-xs text-muted-foreground">Sem dados</span>}
-            </div>
+          <div className="hub-card-base p-5 ring-1 ring-primary/20">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Resultado Líquido Matriz</span>
+            <span className={`text-2xl font-bold ${stats.resultadoMatriz >= 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+              {formatCurrency(stats.resultadoMatriz)}
+            </span>
+            <p className="text-[10px] text-muted-foreground mt-1">Geral − Lucros Sócios</p>
           </div>
         </div>
 
-        {/* Middle Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          {/* Progress Ring - Boletos */}
-          <div className="hub-card-base p-5 flex flex-col items-center justify-center">
-            <h3 className="text-sm font-semibold text-foreground mb-4">Conversão de Boletos</h3>
-            <div className="relative w-32 h-32">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="45" fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
-                <circle
-                  cx="50" cy="50" r="45" fill="none"
-                  stroke={progressPct >= 80 ? "hsl(var(--status-positive))" : progressPct >= 50 ? "hsl(var(--status-warning))" : "hsl(var(--status-danger))"}
-                  strokeWidth="8" strokeLinecap="round"
-                  strokeDasharray={`${strokeDash} ${circumference}`}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-foreground">{progressPct}%</span>
-                <span className="text-[10px] text-muted-foreground">liquidados</span>
-              </div>
-            </div>
-            <div className="mt-3 text-center">
-              <p className="text-sm font-semibold text-foreground">{boletosLiquidados} / {boletosGerados}</p>
-              <p className="text-xs text-muted-foreground">boletos</p>
-            </div>
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
+          {/* Pie - Categorização Despesas */}
+          <div className="lg:col-span-2 hub-card-base p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Categorização de Despesas</h3>
+            {stats.pieData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={240}>
+                  <RePieChart>
+                    <Pie data={stats.pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={45} paddingAngle={2}
+                      label={({ name, pct }) => `${name} ${pct}%`} labelLine={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}>
+                      {stats.pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} strokeWidth={0} />)}
+                    </Pie>
+                    <Tooltip contentStyle={tt} formatter={(v: number) => formatCurrency(v)} />
+                  </RePieChart>
+                </ResponsiveContainer>
+                <div className="mt-3 space-y-1">
+                  {stats.pieData.slice(0, 5).map((d, i) => (
+                    <div key={d.name} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                        <span className="text-muted-foreground">{d.name}</span>
+                      </div>
+                      <span className="font-semibold text-foreground">{formatCurrency(d.value)} ({d.pct}%)</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-12">Sem dados de despesas</p>
+            )}
           </div>
 
-          {/* Projeção Caixa 3 meses */}
-          <div className="hub-card-base p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-4">Projeção de Caixa — 3 Meses</h3>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={stats.projecao}>
+          {/* Bar/Line - Comparativo Mensal */}
+          <div className="lg:col-span-3 hub-card-base p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Comparativo Mensal</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={stats.barData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
                 <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={tt} />
-                <Bar dataKey="saldo" name="Saldo" fill="hsl(var(--status-positive))" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Legend wrapperStyle={{ fontSize: "11px" }} />
+                <Bar dataKey="receita" name="Receita" fill="hsl(var(--status-positive))" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="despesa" name="Despesas" fill="hsl(var(--status-danger))" radius={[3, 3, 0, 0]} />
+                <Line type="monotone" dataKey="resultado" name="Resultado Geral" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="resultadoMatriz" name="Resultado Matriz" stroke="hsl(var(--status-warning))" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3 }} />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
+        </div>
 
-          {/* Alertas Automáticos */}
-          <div className="hub-card-base p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Bell className="w-4 h-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">Alertas Automáticos</h3>
-            </div>
-            <div className="space-y-2.5 max-h-[260px] overflow-y-auto">
-              {alertas.length > 0 ? alertas.map((a, i) => (
-                <div key={i} className={`border-l-4 rounded-r-lg p-3 ${alertColors[a.tipo]}`}>
-                  <div className="flex items-start gap-2">
-                    <span className={`mt-0.5 shrink-0 ${alertIconColors[a.tipo]}`}>{a.icon}</span>
-                    <div>
-                      <p className="text-xs text-foreground leading-tight">{a.msg}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">{a.tempo}</p>
-                    </div>
-                  </div>
+        {/* Alertas */}
+        <div className="hub-card-base p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Bell className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">Alertas Automáticos</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {alertas.length > 0 ? alertas.map((a, i) => (
+              <div key={i} className={`border-l-4 rounded-r-lg p-3 ${alertColors[a.tipo]}`}>
+                <div className="flex items-start gap-2">
+                  <span className={`mt-0.5 shrink-0 ${alertIconColors[a.tipo]}`}>{a.icon}</span>
+                  <p className="text-xs text-foreground leading-tight">{a.msg}</p>
                 </div>
-              )) : (
-                <p className="text-xs text-muted-foreground text-center py-4">Nenhum alerta no momento</p>
-              )}
-            </div>
+              </div>
+            )) : (
+              <p className="text-xs text-muted-foreground text-center py-4 col-span-2">Nenhum alerta no momento</p>
+            )}
           </div>
         </div>
       </div>
