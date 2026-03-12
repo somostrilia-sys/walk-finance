@@ -23,6 +23,7 @@ import CalendarioFinanceiro from "./pages/CalendarioFinanceiro";
 import DashboardSocio from "./pages/DashboardSocio";
 import GestaoFiscal from "./pages/GestaoFiscal";
 import CentroCustos from "./pages/CentroCustos";
+import ModuloEventos from "./pages/ModuloEventos";
 import NotFound from "./pages/NotFound";
 // Módulos padronizados (todas as empresas exceto Objetivo)
 import Categorizacao from "./pages/modules/Categorizacao";
@@ -74,6 +75,7 @@ const App = () => (
             <Route path="/empresa/:companyId/calendario-financeiro" element={<ProtectedRoute><CalendarioFinanceiro /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/gestao-fiscal" element={<ProtectedRoute><GestaoFiscal /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/centro-custos" element={<ProtectedRoute><CentroCustos /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/eventos" element={<ProtectedRoute><ModuloEventos /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/:moduleId" element={<ProtectedRoute><ModulePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

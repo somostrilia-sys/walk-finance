@@ -642,6 +642,180 @@ export type Database = {
           },
         ]
       }
+      despesas_unidade: {
+        Row: {
+          branch_id: string
+          categoria_auto: string | null
+          categoria_manual: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data: string
+          descricao: string
+          id: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          branch_id: string
+          categoria_auto?: string | null
+          categoria_manual?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          descricao: string
+          id?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          branch_id?: string
+          categoria_auto?: string | null
+          categoria_manual?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          descricao?: string
+          id?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "despesas_unidade_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "despesas_unidade_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evento_documentos: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          evento_id: string
+          id: string
+          nome: string
+          observacao: string | null
+          tipo: string
+          url: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          evento_id: string
+          id?: string
+          nome: string
+          observacao?: string | null
+          tipo?: string
+          url?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          evento_id?: string
+          id?: string
+          nome?: string
+          observacao?: string | null
+          tipo?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evento_documentos_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evento_documentos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eventos: {
+        Row: {
+          beneficiario: string | null
+          branch_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          custo_estimado: number
+          data_evento: string
+          descricao: string | null
+          id: string
+          placa: string | null
+          status: string
+          tipo: string
+          updated_at: string
+          vendedor: string | null
+        }
+        Insert: {
+          beneficiario?: string | null
+          branch_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          custo_estimado?: number
+          data_evento?: string
+          descricao?: string | null
+          id?: string
+          placa?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          vendedor?: string | null
+        }
+        Update: {
+          beneficiario?: string | null
+          branch_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          custo_estimado?: number
+          data_evento?: string
+          descricao?: string | null
+          id?: string
+          placa?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          vendedor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_categories: {
         Row: {
           classificacao: string | null
@@ -834,6 +1008,73 @@ export type Database = {
           },
         ]
       }
+      indenizacoes: {
+        Row: {
+          branch_id: string | null
+          company_id: string
+          created_at: string
+          data_pagamento: string | null
+          data_previsao: string | null
+          evento_id: string | null
+          id: string
+          observacao: string | null
+          status: string
+          tipo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          branch_id?: string | null
+          company_id: string
+          created_at?: string
+          data_pagamento?: string | null
+          data_previsao?: string | null
+          evento_id?: string | null
+          id?: string
+          observacao?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          branch_id?: string | null
+          company_id?: string
+          created_at?: string
+          data_pagamento?: string | null
+          data_previsao?: string | null
+          evento_id?: string | null
+          id?: string
+          observacao?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indenizacoes_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indenizacoes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indenizacoes_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notas_fiscais: {
         Row: {
           cnpj_emissor: string | null
@@ -902,6 +1143,48 @@ export type Database = {
             columns: ["transaction_id"]
             isOneToOne: false
             referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      percentual_socio_unidade: {
+        Row: {
+          branch_id: string
+          company_id: string
+          id: string
+          percentual: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          branch_id: string
+          company_id: string
+          id?: string
+          percentual?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          branch_id?: string
+          company_id?: string
+          id?: string
+          percentual?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "percentual_socio_unidade_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "percentual_socio_unidade_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1003,6 +1286,60 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      receitas_unidade: {
+        Row: {
+          branch_id: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data: string
+          descricao: string
+          id: string
+          status: string
+          tipo: string
+          valor: number
+        }
+        Insert: {
+          branch_id: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          descricao?: string
+          id?: string
+          status?: string
+          tipo?: string
+          valor?: number
+        }
+        Update: {
+          branch_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          descricao?: string
+          id?: string
+          status?: string
+          tipo?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receitas_unidade_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receitas_unidade_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       regime_fiscal: {
         Row: {
