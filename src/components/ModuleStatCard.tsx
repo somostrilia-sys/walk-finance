@@ -7,9 +7,9 @@ interface ModuleStatCardProps {
 }
 
 const ModuleStatCard = ({ label, value, icon }: ModuleStatCardProps) => (
-  <Card className="border-l-2 border-l-border">
+  <Card className="kpi-card border-l-0">
     <CardContent className="p-4 flex items-center gap-3">
-      <div className="w-9 h-9 rounded-lg bg-muted/60 flex items-center justify-center text-muted-foreground">
+      <div className="w-9 h-9 rounded-lg bg-muted/60 flex items-center justify-center kpi-icon">
         {icon}
       </div>
       <div className="min-w-0">
