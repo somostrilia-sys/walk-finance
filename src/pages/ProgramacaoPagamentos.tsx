@@ -374,8 +374,8 @@ function PixQrCodeModal({ open, onOpenChange, pagamentos }: {
 
     // Generate QR using qrcode-generator
     try {
-      const qrgen = require("qrcode-generator");
-      const qr = qrgen(0, "M");
+      const qr = qrcode(0, "M");
+
       qr.addData(emvPayload);
       qr.make();
       setQrDataUrl(qr.createDataURL(6, 4));
