@@ -291,22 +291,12 @@ const ProgramacaoPagamentos = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Modal QR Code */}
-        <Dialog open={qrModal} onOpenChange={setQrModal}>
-          <DialogContent className="max-w-sm text-center">
-            <DialogHeader><DialogTitle className="flex items-center justify-center gap-2"><QrCode className="w-5 h-5" />Open Finance — Conexão Bancária</DialogTitle></DialogHeader>
-            <div className="py-6">
-              <div className="w-48 h-48 mx-auto bg-muted rounded-xl flex items-center justify-center border-2 border-dashed border-border">
-                <div className="text-center">
-                  <QrCode className="w-16 h-16 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-xs text-muted-foreground">QR Code será gerado<br />ao conectar Open Finance</p>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground mt-4">Escaneie o QR Code no aplicativo do seu banco para autorizar a conexão Open Finance.</p>
-              <Button className="mt-4 w-full" onClick={() => { toast.info("Integração Open Finance em preparação"); setQrModal(false); }}>Gerar QR Code</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Modal QR Code PIX */}
+        <PixQrCodeModal
+          open={qrModal}
+          onOpenChange={setQrModal}
+          pagamentos={programados.filter(p => !p.pausado && !p.enviado_banco)}
+        />
 
         {/* Modal Confirmação Exclusão */}
         <Dialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>

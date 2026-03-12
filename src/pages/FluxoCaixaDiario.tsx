@@ -464,9 +464,17 @@ function PagamentosTab({ companyId }: { companyId?: string }) {
                     <td className="py-2.5 px-4 text-muted-foreground text-xs">{t.entity_name || "—"}</td>
                     <td className="py-2.5 px-4 text-right font-semibold text-[hsl(var(--status-danger))]">{formatCurrency(Number(t.amount))}</td>
                     <td className="py-2.5 px-4">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                        {t.expense_categories?.name || catAuto}
-                      </span>
+                      {t.expense_categories?.name || (catAuto !== "Outros") ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                          {t.expense_categories?.name || catAuto}
+                        </span>
+                      ) : (
+                        <ManualCategorySelect
+                          companyId={companyId!}
+                          transactionId={t.id}
+                          onSaved={() => qc.invalidateQueries({ queryKey: ["fluxo_diario_transactions", companyId] })}
+                        />
+                      )}
                     </td>
                     <td className="py-2.5 px-4 text-muted-foreground text-xs">{unidAuto || "—"}</td>
                     <td className="py-2.5 px-4 text-center">
