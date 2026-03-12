@@ -23,6 +23,7 @@ import CalendarioFinanceiro from "./pages/CalendarioFinanceiro";
 import DashboardSocio from "./pages/DashboardSocio";
 import GestaoFiscal from "./pages/GestaoFiscal";
 import CentroCustos from "./pages/CentroCustos";
+import ModuloEventos from "./pages/ModuloEventos";
 import NotFound from "./pages/NotFound";
 // Módulos padronizados (todas as empresas exceto Objetivo)
 import Categorizacao from "./pages/modules/Categorizacao";
