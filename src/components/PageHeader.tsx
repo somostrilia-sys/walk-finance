@@ -27,7 +27,7 @@ const PageHeader = ({ title, subtitle, showBack = false, companyLogo }: PageHead
         <img src={companyLogo} alt="" className="w-10 h-10 rounded-lg object-cover border border-border/50 flex-shrink-0" />
       ) : null}
       <div className="flex-1">
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+        <h1 className="text-2xl font-bold section-title">{title}</h1>
         {subtitle && (
           <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
         )}

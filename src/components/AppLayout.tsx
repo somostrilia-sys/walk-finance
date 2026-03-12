@@ -5,22 +5,31 @@ import WalkLogo from "@/components/WalkLogo";
 interface AppLayoutProps {
   children: React.ReactNode;
   companyBar?: { primary?: string | null; accent?: string | null };
+  companyName?: string;
 }
 
-const AppLayout = ({ children, companyBar }: AppLayoutProps) => {
+const AppLayout = ({ children, companyBar, companyName }: AppLayoutProps) => {
   const { user, signOut } = useAuth();
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top navbar */}
-      <header className="sticky top-0 z-40" style={{ background: "linear-gradient(135deg, #1a2744 0%, #243554 100%)" }}>
+      <header className="sticky top-0 z-40 border-b border-border" style={{ background: "hsl(213 58% 10%)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <WalkLogo width={160} className="brightness-0 invert" />
+          <div className="flex items-center gap-4">
+            <WalkLogo width={160} className="brightness-0 invert" />
+            {companyName && (
+              <div className="hidden sm:flex items-center gap-2">
+                <span className="text-muted-foreground">/</span>
+                <span className="text-sm font-semibold text-accent">{companyName}</span>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-white/70 hidden sm:block">{user?.email}</span>
+            <span className="text-xs text-muted-foreground hidden sm:block">{user?.email}</span>
             <button
               onClick={signOut}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Sair</span>
