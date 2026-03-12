@@ -26,7 +26,7 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   comercial: { icon: "TrendingUp", description: "Comissionamento, performance e ROI por consultor", label: "Módulo Comercial" },
   "fluxo-caixa-diario": { icon: "Wallet", description: "Entradas e saídas por conta bancária", label: "Fluxo de Caixa Diário" },
   "programacao-pagamentos": { icon: "CalendarCheck", description: "Banking integrado e fluxo de aprovação", label: "Programação de Pagamentos" },
-  "contratacoes-demissoes": { icon: "UserPlus", description: "Ciclo de vida RH integrado à folha e projeção", label: "Contratações e Demissões" },
+  "contratacoes-demissoes": { icon: "UserPlus", description: "Gestão de colaboradores MEI e ciclo de vida", label: "Colaboradores" },
 };
 
 const CompanyModules = () => {
