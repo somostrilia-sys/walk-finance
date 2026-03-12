@@ -591,6 +591,72 @@ export type Database = {
           },
         ]
       }
+      contas_pagar: {
+        Row: {
+          branch_id: string | null
+          categoria: string | null
+          company_id: string
+          cpf_cnpj: string | null
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          fornecedor: string
+          id: string
+          status: string
+          unidade: string | null
+          updated_at: string
+          valor: number
+          vencimento: string
+        }
+        Insert: {
+          branch_id?: string | null
+          categoria?: string | null
+          company_id: string
+          cpf_cnpj?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          fornecedor: string
+          id?: string
+          status?: string
+          unidade?: string | null
+          updated_at?: string
+          valor?: number
+          vencimento: string
+        }
+        Update: {
+          branch_id?: string | null
+          categoria?: string | null
+          company_id?: string
+          cpf_cnpj?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          fornecedor?: string
+          id?: string
+          status?: string
+          unidade?: string | null
+          updated_at?: string
+          valor?: number
+          vencimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_pagar_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contas_pagar_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       descontos_folha: {
         Row: {
           colaborador_id: string
@@ -1143,6 +1209,78 @@ export type Database = {
             columns: ["transaction_id"]
             isOneToOne: false
             referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pagamentos_programados: {
+        Row: {
+          branch_id: string | null
+          categoria: string | null
+          company_id: string
+          cpf_cnpj: string
+          created_at: string
+          created_by: string | null
+          descricao: string
+          enviado_banco: boolean
+          enviado_em: string | null
+          id: string
+          pausado: boolean
+          status: string
+          unidade: string | null
+          updated_at: string
+          valor: number
+          vencimento: string
+        }
+        Insert: {
+          branch_id?: string | null
+          categoria?: string | null
+          company_id: string
+          cpf_cnpj: string
+          created_at?: string
+          created_by?: string | null
+          descricao: string
+          enviado_banco?: boolean
+          enviado_em?: string | null
+          id?: string
+          pausado?: boolean
+          status?: string
+          unidade?: string | null
+          updated_at?: string
+          valor?: number
+          vencimento: string
+        }
+        Update: {
+          branch_id?: string | null
+          categoria?: string | null
+          company_id?: string
+          cpf_cnpj?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string
+          enviado_banco?: boolean
+          enviado_em?: string | null
+          id?: string
+          pausado?: boolean
+          status?: string
+          unidade?: string | null
+          updated_at?: string
+          valor?: number
+          vencimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagamentos_programados_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_programados_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
