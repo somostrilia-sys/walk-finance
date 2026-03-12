@@ -21,7 +21,7 @@ import FolhaAdm from "./pages/FolhaAdm";
 import ContratacoesDemissoes from "./pages/ContratacoesDemissoes";
 import CalendarioFinanceiro from "./pages/CalendarioFinanceiro";
 import DashboardSocio from "./pages/DashboardSocio";
-import GestaoFiscal from "./pages/GestaoFiscal";
+
 import CentroCustos from "./pages/CentroCustos";
 import ModuloEventos from "./pages/ModuloEventos";
 import NotFound from "./pages/NotFound";
