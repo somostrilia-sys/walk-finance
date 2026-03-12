@@ -91,13 +91,25 @@
 @layer utilities {
   .hub-card-base {
     @apply bg-card rounded-xl border border-border/50 transition-all duration-200 cursor-pointer;
-    box-shadow: 0 1px 3px hsl(var(--hub-card-shadow) / 0.12);
+    box-shadow: 0 1px 3px hsl(var(--hub-card-shadow) / 0.25);
   }
 
   .hub-card-base:hover {
     @apply border-accent/30;
-    box-shadow: 0 8px 28px hsl(var(--hub-card-shadow) / 0.18);
+    box-shadow: 0 8px 28px hsl(var(--hub-card-shadow) / 0.4);
     transform: translateY(-3px);
+  }
+
+  .section-title {
+    color: hsl(var(--section-title));
+  }
+
+  .kpi-card {
+    border-top: 2px solid hsl(var(--accent));
+  }
+
+  .kpi-card .kpi-icon {
+    color: hsl(var(--accent));
   }
 
   .gold-gradient {
