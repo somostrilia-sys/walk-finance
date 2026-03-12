@@ -720,6 +720,49 @@ function NotasFiscaisTab({ companyId }: { companyId?: string }) {
   );
 }
 
+// ===== Manual Category Select (fallback when auto-categorization fails) =====
+
+function ManualCategorySelect({ companyId, transactionId, onSaved }: {
+  companyId: string;
+  transactionId: string;
+  onSaved: () => void;
+}) {
+  const { data: categories } = useQuery({
+    queryKey: ["expense-categories-all", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("expense_categories").select("id, name").eq("company_id", companyId).order("name");
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  const handleSelect = async (categoryId: string) => {
+    const { error } = await supabase.from("financial_transactions").update({ category_id: categoryId }).eq("id", transactionId);
+    if (error) {
+      toast({ title: "Erro ao salvar categoria", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Categoria aplicada" });
+    onSaved();
+  };
+
+  return (
+    <Select onValueChange={handleSelect}>
+      <SelectTrigger className="h-7 w-36 text-[10px] border-dashed border-[hsl(var(--status-warning)/0.5)]">
+        <SelectValue placeholder="⚠️ Selecionar..." />
+      </SelectTrigger>
+      <SelectContent>
+        {(categories || []).map(cat => (
+          <SelectItem key={cat.id} value={cat.id} className="text-xs">{cat.name}</SelectItem>
+        ))}
+        {(categories || []).length === 0 && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma categoria cadastrada</div>
+        )}
+      </SelectContent>
+    </Select>
+  );
+}
+
 // ===== Stat Card =====
 
 function StatCard({ label, value, icon, color }: {
