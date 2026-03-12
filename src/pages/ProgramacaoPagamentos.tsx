@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import qrcode from "qrcode-generator";
 import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { useAuth } from "@/hooks/useAuth";
@@ -291,22 +292,12 @@ const ProgramacaoPagamentos = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Modal QR Code */}
-        <Dialog open={qrModal} onOpenChange={setQrModal}>
-          <DialogContent className="max-w-sm text-center">
-            <DialogHeader><DialogTitle className="flex items-center justify-center gap-2"><QrCode className="w-5 h-5" />Open Finance — Conexão Bancária</DialogTitle></DialogHeader>
-            <div className="py-6">
-              <div className="w-48 h-48 mx-auto bg-muted rounded-xl flex items-center justify-center border-2 border-dashed border-border">
-                <div className="text-center">
-                  <QrCode className="w-16 h-16 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-xs text-muted-foreground">QR Code será gerado<br />ao conectar Open Finance</p>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground mt-4">Escaneie o QR Code no aplicativo do seu banco para autorizar a conexão Open Finance.</p>
-              <Button className="mt-4 w-full" onClick={() => { toast.info("Integração Open Finance em preparação"); setQrModal(false); }}>Gerar QR Code</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Modal QR Code PIX */}
+        <PixQrCodeModal
+          open={qrModal}
+          onOpenChange={setQrModal}
+          pagamentos={programados.filter(p => !p.pausado && !p.enviado_banco)}
+        />
 
         {/* Modal Confirmação Exclusão */}
         <Dialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
@@ -323,6 +314,132 @@ const ProgramacaoPagamentos = () => {
     </AppLayout>
   );
 };
+
+// ===== PIX QR Code Generator (EMV/BRCode) =====
+
+function generatePixEMV(chavePix: string, valor: number, descricao: string, nomeRecebedor: string): string {
+  // EMV/BRCode PIX format per BCB specification
+  const pad = (id: string, val: string) => `${id}${String(val.length).padStart(2, "0")}${val}`;
+
+  // Merchant Account Information (PIX)
+  const gui = pad("00", "br.gov.bcb.pix");
+  const chave = pad("01", chavePix);
+  const mai = pad("26", gui + chave);
+
+  const payloadFormatIndicator = pad("00", "01");
+  const merchantCategoryCode = pad("52", "0000");
+  const transactionCurrency = pad("53", "986"); // BRL
+  const transactionAmount = pad("54", valor.toFixed(2));
+  const countryCode = pad("58", "BR");
+  const merchantName = pad("59", nomeRecebedor.substring(0, 25));
+  const merchantCity = pad("60", "SAO PAULO");
+  const txId = pad("05", descricao.replace(/[^a-zA-Z0-9]/g, "").substring(0, 25) || "PGTO");
+  const additionalData = pad("62", txId);
+
+  const payload = payloadFormatIndicator + mai + merchantCategoryCode + transactionCurrency + transactionAmount + countryCode + merchantName + merchantCity + additionalData;
+  // CRC16 placeholder (63 + 04 + CRC)
+  const payloadForCrc = payload + "6304";
+
+  // CRC-16/CCITT-FALSE
+  let crc = 0xFFFF;
+  for (let i = 0; i < payloadForCrc.length; i++) {
+    crc ^= payloadForCrc.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1;
+      crc &= 0xFFFF;
+    }
+  }
+  return payloadForCrc + crc.toString(16).toUpperCase().padStart(4, "0");
+}
+
+function PixQrCodeModal({ open, onOpenChange, pagamentos }: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  pagamentos: Array<{ id: string; descricao: string; valor: number; cpf_cnpj: string }>;
+}) {
+  const [selectedPag, setSelectedPag] = useState("");
+  const [chavePix, setChavePix] = useState("");
+  const [nomeRecebedor, setNomeRecebedor] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [pixCode, setPixCode] = useState("");
+
+  const handleGerarQR = () => {
+    const pag = pagamentos.find(p => p.id === selectedPag);
+    if (!pag) { toast.error("Selecione um pagamento"); return; }
+    if (!chavePix.trim()) { toast.error("Informe a chave PIX do destinatário"); return; }
+    if (!nomeRecebedor.trim()) { toast.error("Informe o nome do recebedor"); return; }
+
+    const emvPayload = generatePixEMV(chavePix.trim(), Number(pag.valor), pag.descricao, nomeRecebedor.trim());
+    setPixCode(emvPayload);
+
+    // Generate QR using qrcode-generator
+    try {
+      const qr = qrcode(0, "M");
+
+      qr.addData(emvPayload);
+      qr.make();
+      setQrDataUrl(qr.createDataURL(6, 4));
+    } catch {
+      // Fallback: show text code
+      setQrDataUrl(null);
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(pixCode);
+    toast.success("Código PIX copiado!");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setQrDataUrl(null); setPixCode(""); setSelectedPag(""); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><QrCode className="w-5 h-5" />QR Code PIX — Pagamento</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Pagamento</Label>
+            <Select value={selectedPag} onValueChange={setSelectedPag}>
+              <SelectTrigger><SelectValue placeholder="Selecione o pagamento" /></SelectTrigger>
+              <SelectContent>
+                {pagamentos.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.descricao} — {formatCurrency(Number(p.valor))}</SelectItem>
+                ))}
+                {pagamentos.length === 0 && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum pagamento ativo</div>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Chave PIX do Destinatário *</Label>
+            <Input value={chavePix} onChange={e => setChavePix(e.target.value)} placeholder="CPF, CNPJ, Email, Telefone ou Chave aleatória" />
+          </div>
+          <div>
+            <Label>Nome do Recebedor *</Label>
+            <Input value={nomeRecebedor} onChange={e => setNomeRecebedor(e.target.value)} placeholder="Nome ou Razão Social" />
+          </div>
+
+          {qrDataUrl && (
+            <div className="text-center py-3">
+              <img src={qrDataUrl} alt="QR Code PIX" className="mx-auto w-48 h-48 rounded-lg border border-border" />
+              <p className="text-xs text-muted-foreground mt-2">Escaneie no app do banco para pagar</p>
+              <Button variant="outline" size="sm" className="mt-2" onClick={handleCopy}>Copiar Código PIX</Button>
+            </div>
+          )}
+
+          {pixCode && !qrDataUrl && (
+            <div className="bg-muted p-3 rounded-lg">
+              <p className="text-xs font-mono break-all text-foreground">{pixCode}</p>
+              <Button variant="outline" size="sm" className="mt-2 w-full" onClick={handleCopy}>Copiar Código PIX</Button>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          {!qrDataUrl && <Button onClick={handleGerarQR} className="w-full">Gerar QR Code PIX</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function StatCard({ label, value, icon, color }: { label: string; value: string | number; icon: React.ReactNode; color: "positive" | "warning" | "danger" | "info" }) {
   const cm = { positive: { bg: "bg-[hsl(var(--status-positive)/0.1)]", text: "text-[hsl(var(--status-positive))]" }, warning: { bg: "bg-[hsl(var(--status-warning)/0.1)]", text: "text-[hsl(var(--status-warning))]" }, danger: { bg: "bg-[hsl(var(--status-danger)/0.1)]", text: "text-[hsl(var(--status-danger))]" }, info: { bg: "bg-primary/10", text: "text-primary" } };

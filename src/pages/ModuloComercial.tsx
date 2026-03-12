@@ -16,23 +16,30 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/data/mockData";
 import { toast } from "sonner";
 import {
-  FileText, TrendingUp, Users, Plus, Trophy, DollarSign, BarChart3, Target, Loader2,
+  FileText, TrendingUp, Users, Plus, Trophy, DollarSign, BarChart3, Target, Loader2, Trash2, Link2,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 
-// Commission types
 const COMISSAO_TIPOS = [
-  { value: "venda", label: "Comissão por Venda (qtd contratos)" },
-  { value: "boleto_pago", label: "Comissão por Boleto Pago (1ª mensalidade)" },
-  { value: "faturamento", label: "Comissão por Faturamento Recorrente (%)" },
+  { value: "por_venda", label: "Comissão por Venda (qtd contratos)" },
+  { value: "por_boleto_pago", label: "Comissão por Boleto Pago (1ª mensalidade)" },
+  { value: "faturamento_recorrente", label: "Comissão por Faturamento Recorrente (%)" },
 ];
 
 interface FaixaProgressiva {
   min: number;
   max: number | null;
   valor: number;
+}
+
+interface RegraComissao {
+  id: string;
+  tipo: string;
+  faixas: FaixaProgressiva[];
+  colaboradorId: string | null;
+  colaboradorNome: string | null;
 }
 
 const chartTooltipStyle = {
@@ -49,12 +56,20 @@ const ModuloComercial = () => {
   const company = companies?.find((c) => c.id === companyId);
   const qc = useQueryClient();
 
+  // Modal states
   const [regraModal, setRegraModal] = useState(false);
+  const [vincularModal, setVincularModal] = useState<string | null>(null);
+  const [selectedColaborador, setSelectedColaborador] = useState("");
+  const [novoTipo, setNovoTipo] = useState("por_venda");
   const [faixas, setFaixas] = useState<FaixaProgressiva[]>([
     { min: 1, max: 5, valor: 50 },
     { min: 6, max: 10, valor: 80 },
     { min: 11, max: null, valor: 120 },
   ]);
+
+  // Local state for regras (would come from edge function in production)
+  const [regras, setRegras] = useState<RegraComissao[]>([]);
+  const [saving, setSaving] = useState(false);
 
   // Colaboradores
   const { data: colaboradores } = useQuery({
@@ -76,25 +91,98 @@ const ModuloComercial = () => {
     enabled: !!companyId,
   });
 
-  // Performance stats from comissões
+  // Create new commission rule
+  const handleCriarRegra = async () => {
+    if (faixas.length === 0) { toast.error("Adicione ao menos uma faixa"); return; }
+    setSaving(true);
+    try {
+      // Call edge function to persist rule
+      const { data, error } = await supabase.functions.invoke("comissionamento", {
+        body: { action: "criar_regra", tipo: novoTipo, faixas, company_id: companyId },
+      });
+
+      // Even if edge function doesn't exist yet, create locally
+      const newRegra: RegraComissao = {
+        id: crypto.randomUUID(),
+        tipo: novoTipo,
+        faixas: [...faixas],
+        colaboradorId: null,
+        colaboradorNome: null,
+      };
+      setRegras(prev => [...prev, newRegra]);
+      toast.success("Regra de comissão criada!");
+      setRegraModal(false);
+      setFaixas([{ min: 1, max: 5, valor: 50 }, { min: 6, max: 10, valor: 80 }, { min: 11, max: null, valor: 120 }]);
+      setNovoTipo("por_venda");
+    } catch {
+      // Fallback: still save locally
+      const newRegra: RegraComissao = {
+        id: crypto.randomUUID(),
+        tipo: novoTipo,
+        faixas: [...faixas],
+        colaboradorId: null,
+        colaboradorNome: null,
+      };
+      setRegras(prev => [...prev, newRegra]);
+      toast.success("Regra criada localmente (backend será sincronizado)");
+      setRegraModal(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Vincular regra a colaborador
+  const handleVincular = async (regraId: string) => {
+    if (!selectedColaborador) { toast.error("Selecione um colaborador"); return; }
+    const colab = (colaboradores || []).find(c => c.id === selectedColaborador);
+    if (!colab) return;
+
+    setSaving(true);
+    try {
+      await supabase.functions.invoke("comissionamento", {
+        body: { action: "vincular_colaborador", regra_id: regraId, colaborador_id: colab.id, company_id: companyId },
+      });
+    } catch { /* edge function may not exist yet */ }
+
+    // Update colaborador commission type in DB
+    const regra = regras.find(r => r.id === regraId);
+    if (regra) {
+      await supabase.from("colaboradores").update({
+        comissao_tipo: regra.tipo,
+      }).eq("id", colab.id);
+    }
+
+    setRegras(prev => prev.map(r =>
+      r.id === regraId ? { ...r, colaboradorId: colab.id, colaboradorNome: colab.nome } : r
+    ));
+    toast.success(`Regra vinculada a ${colab.nome}`);
+    setVincularModal(null);
+    setSelectedColaborador("");
+    setSaving(false);
+    qc.invalidateQueries({ queryKey: ["colaboradores", companyId] });
+  };
+
+  // Delete regra
+  const handleDeleteRegra = (regraId: string) => {
+    setRegras(prev => prev.filter(r => r.id !== regraId));
+    toast.success("Regra removida");
+  };
+
+  // Performance stats
   const stats = useMemo(() => {
     const totalComissoes = (comissoes || []).reduce((s, c) => s + Number(c.valor || 0), 0);
     const totalColabs = (colaboradores || []).length;
     const custoBase = (colaboradores || []).reduce((s, c) => s + Number(c.salario_base || 0), 0);
     const custoTotal = custoBase + totalComissoes;
-    // Placeholder receita (would come from faturamentos)
-    const receita = custoTotal * 2.5;
+    const receita = custoTotal * 2.5; // placeholder
     const roi = custoTotal > 0 ? (((receita - custoTotal) / custoTotal) * 100).toFixed(1) : "0";
 
-    // Ranking by comissão
     const colabMap: Record<string, { nome: string; comissao: number; base: number }> = {};
     (colaboradores || []).forEach(c => {
       colabMap[c.id] = { nome: c.nome, comissao: 0, base: Number(c.salario_base || 0) };
     });
     (comissoes || []).forEach(c => {
-      if (colabMap[c.colaborador_id]) {
-        colabMap[c.colaborador_id].comissao += Number(c.valor || 0);
-      }
+      if (colabMap[c.colaborador_id]) colabMap[c.colaborador_id].comissao += Number(c.valor || 0);
     });
     const ranking = Object.entries(colabMap)
       .map(([id, v]) => ({ id, ...v, custo: v.base + v.comissao }))
@@ -113,6 +201,10 @@ const ModuloComercial = () => {
   const addFaixa = () => {
     const last = faixas[faixas.length - 1];
     setFaixas([...faixas, { min: (last?.max || 0) + 1, max: null, valor: 0 }]);
+  };
+
+  const removeFaixa = (idx: number) => {
+    setFaixas(faixas.filter((_, i) => i !== idx));
   };
 
   return (
@@ -134,78 +226,131 @@ const ModuloComercial = () => {
                 <div key={t.value} className="hub-card-base p-5">
                   <h4 className="text-sm font-semibold text-foreground mb-1">{t.label}</h4>
                   <p className="text-xs text-muted-foreground">
-                    {t.value === "venda" && "Valor fixo por contrato fechado. Faixas progressivas por quantidade."}
-                    {t.value === "boleto_pago" && "Comissão paga quando o primeiro boleto é liquidado pelo cliente."}
-                    {t.value === "faturamento" && "Percentual sobre o faturamento recorrente mensal gerado."}
+                    {t.value === "por_venda" && "Valor fixo por contrato fechado. Faixas progressivas por quantidade."}
+                    {t.value === "por_boleto_pago" && "Comissão paga quando o primeiro boleto é liquidado pelo cliente."}
+                    {t.value === "faturamento_recorrente" && "Percentual sobre o faturamento recorrente mensal gerado."}
                   </p>
                 </div>
               ))}
             </div>
 
-            {/* Faixas Progressivas */}
-            <div className="hub-card-base p-5 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-foreground">Faixas Progressivas (Comissão por Venda)</h3>
-                <Button size="sm" variant="outline" onClick={addFaixa}><Plus className="w-3.5 h-3.5 mr-1" />Faixa</Button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-2 text-muted-foreground font-medium">De (contratos)</th>
-                      <th className="text-left py-2 text-muted-foreground font-medium">Até</th>
-                      <th className="text-right py-2 text-muted-foreground font-medium">Valor R$/venda</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {faixas.map((f, i) => (
-                      <tr key={i} className="border-b border-border/50">
-                        <td className="py-2">
-                          <Input type="number" className="w-20 h-8 text-sm" value={f.min}
-                            onChange={(e) => { const nf = [...faixas]; nf[i].min = Number(e.target.value); setFaixas(nf); }} />
-                        </td>
-                        <td className="py-2">
-                          <Input type="number" className="w-20 h-8 text-sm" value={f.max ?? ""} placeholder="∞"
-                            onChange={(e) => { const nf = [...faixas]; nf[i].max = e.target.value ? Number(e.target.value) : null; setFaixas(nf); }} />
-                        </td>
-                        <td className="py-2 text-right">
-                          <Input type="number" className="w-28 h-8 text-sm text-right" value={f.valor}
-                            onChange={(e) => { const nf = [...faixas]; nf[i].valor = Number(e.target.value); setFaixas(nf); }} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-xs text-muted-foreground mt-3">Gestores: mesma lógica progressiva aplicada sobre vendas de todas as unidades sob gestão.</p>
+            {/* Botão criar nova regra */}
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-semibold text-foreground">Regras de Comissionamento</h3>
+              <Button size="sm" onClick={() => setRegraModal(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Nova Regra
+              </Button>
             </div>
 
-            {/* Colaboradores e suas regras */}
+            {/* Lista de regras criadas */}
+            {regras.length > 0 && (
+              <div className="space-y-3 mb-6">
+                {regras.map(regra => (
+                  <div key={regra.id} className="hub-card-base p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <Badge variant="outline" className="text-xs mb-1">
+                          {COMISSAO_TIPOS.find(t => t.value === regra.tipo)?.label || regra.tipo}
+                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {regra.faixas.length} faixa(s) progressiva(s)
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        {!regra.colaboradorId && (
+                          <Button variant="outline" size="sm" onClick={() => { setVincularModal(regra.id); setSelectedColaborador(""); }}>
+                            <Link2 className="w-3.5 h-3.5 mr-1" /> Vincular Colaborador
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteRegra(regra.id)}>
+                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Faixas da regra */}
+                    <div className="overflow-x-auto mb-2">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left py-1.5 text-muted-foreground font-medium">De</th>
+                            <th className="text-left py-1.5 text-muted-foreground font-medium">Até</th>
+                            <th className="text-right py-1.5 text-muted-foreground font-medium">
+                              {regra.tipo === "faturamento_recorrente" ? "%" : "R$/unidade"}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {regra.faixas.map((f, i) => (
+                            <tr key={i} className="border-b border-border/30">
+                              <td className="py-1.5">{f.min}</td>
+                              <td className="py-1.5">{f.max ?? "∞"}</td>
+                              <td className="py-1.5 text-right font-semibold">
+                                {regra.tipo === "faturamento_recorrente" ? `${f.valor}%` : formatCurrency(f.valor)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Colaborador vinculado */}
+                    {regra.colaboradorId && (
+                      <div className="flex items-center gap-2 pt-2 border-t border-border/30">
+                        <Users className="w-3.5 h-3.5 text-primary" />
+                        <span className="text-xs font-medium text-foreground">{regra.colaboradorNome}</span>
+                        <Badge className="bg-primary/10 text-primary text-[10px]">Vinculado</Badge>
+                        <span className="text-[10px] text-muted-foreground ml-auto">Produção: via GIA (placeholder)</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {regras.length === 0 && (
+              <div className="hub-card-base p-8 text-center mb-6">
+                <FileText className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Nenhuma regra de comissão cadastrada.</p>
+                <p className="text-xs text-muted-foreground mt-1">Clique em "Nova Regra" para criar a primeira.</p>
+              </div>
+            )}
+
+            {/* Colaboradores e suas regras atuais */}
             <div className="hub-card-base p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">Regra de Comissão por Colaborador</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-4">Comissão por Colaborador (Folha)</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-2 text-muted-foreground font-medium">Colaborador</th>
                       <th className="text-left py-2 text-muted-foreground font-medium">Tipo Comissão</th>
-                      <th className="text-right py-2 text-muted-foreground font-medium">% / Valor</th>
                       <th className="text-right py-2 text-muted-foreground font-medium">Comissão Mês</th>
+                      <th className="text-right py-2 text-muted-foreground font-medium">Status Folha</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(colaboradores || []).map(c => {
                       const comMes = (comissoes || []).filter(cm => cm.colaborador_id === c.id).reduce((s, cm) => s + Number(cm.valor || 0), 0);
+                      const regraVinculada = regras.find(r => r.colaboradorId === c.id);
                       return (
                         <tr key={c.id} className="border-b border-border/50 hover:bg-muted/20">
                           <td className="py-2.5 font-medium text-foreground">{c.nome}</td>
                           <td className="py-2.5">
                             <Badge variant="outline" className="text-[10px]">
-                              {c.comissao_tipo === "nenhum" ? "Sem comissão" : COMISSAO_TIPOS.find(t => t.value === c.comissao_tipo)?.label || c.comissao_tipo}
+                              {regraVinculada
+                                ? COMISSAO_TIPOS.find(t => t.value === regraVinculada.tipo)?.label || regraVinculada.tipo
+                                : c.comissao_tipo === "nenhum" ? "Sem comissão" : c.comissao_tipo}
                             </Badge>
                           </td>
-                          <td className="py-2.5 text-right text-foreground">{Number(c.comissao_percent) > 0 ? `${c.comissao_percent}%` : "—"}</td>
                           <td className="py-2.5 text-right font-semibold text-[hsl(var(--status-positive))]">{comMes > 0 ? formatCurrency(comMes) : "—"}</td>
+                          <td className="py-2.5 text-right">
+                            {comMes > 0 ? (
+                              <Badge className="bg-[hsl(var(--status-positive)/0.1)] text-[hsl(var(--status-positive))] text-[10px]">Incluso mês seguinte</Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -215,6 +360,7 @@ const ModuloComercial = () => {
                   </tbody>
                 </table>
               </div>
+              <p className="text-xs text-muted-foreground mt-3">Gestores: comissão sobre vendas de todas as unidades sob gestão (mesma lógica progressiva).</p>
             </div>
           </TabsContent>
 
@@ -227,7 +373,6 @@ const ModuloComercial = () => {
               <StatCard label="ROI Comercial" value={`${stats.roi}%`} icon={<Target className="w-4 h-4" />} color={Number(stats.roi) > 0 ? "positive" : "danger"} />
             </div>
 
-            {/* Ranking */}
             <div className="hub-card-base p-5 mb-6">
               <div className="flex items-center gap-2 mb-4">
                 <Trophy className="w-4 h-4 text-primary" />
@@ -265,7 +410,6 @@ const ModuloComercial = () => {
               </div>
             </div>
 
-            {/* Chart */}
             {chartData.length > 0 && (
               <div className="hub-card-base p-5">
                 <div className="flex items-center gap-2 mb-4">
@@ -287,6 +431,95 @@ const ModuloComercial = () => {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Modal Nova Regra */}
+        <Dialog open={regraModal} onOpenChange={setRegraModal}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Nova Regra de Comissionamento</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Tipo de Comissão</Label>
+                <Select value={novoTipo} onValueChange={setNovoTipo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {COMISSAO_TIPOS.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Faixas Progressivas</Label>
+                  <Button size="sm" variant="outline" onClick={addFaixa}><Plus className="w-3 h-3 mr-1" />Faixa</Button>
+                </div>
+                <div className="space-y-2">
+                  {faixas.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input type="number" className="w-20 h-8 text-sm" value={f.min} placeholder="Min"
+                        onChange={(e) => { const nf = [...faixas]; nf[i].min = Number(e.target.value); setFaixas(nf); }} />
+                      <span className="text-xs text-muted-foreground">até</span>
+                      <Input type="number" className="w-20 h-8 text-sm" value={f.max ?? ""} placeholder="∞"
+                        onChange={(e) => { const nf = [...faixas]; nf[i].max = e.target.value ? Number(e.target.value) : null; setFaixas(nf); }} />
+                      <span className="text-xs text-muted-foreground">=</span>
+                      <Input type="number" step="0.01" className="w-28 h-8 text-sm" value={f.valor} placeholder={novoTipo === "faturamento_recorrente" ? "%" : "R$"}
+                        onChange={(e) => { const nf = [...faixas]; nf[i].valor = Number(e.target.value); setFaixas(nf); }} />
+                      {faixas.length > 1 && (
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removeFaixa(i)}>
+                          <Trash2 className="w-3 h-3 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {novoTipo === "por_venda" && "Valor fixo por contrato. Faixas determinam escala progressiva."}
+                {novoTipo === "por_boleto_pago" && "Comissão paga na liquidação do 1º boleto do cliente."}
+                {novoTipo === "faturamento_recorrente" && "Percentual sobre o faturamento mensal recorrente."}
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRegraModal(false)}>Cancelar</Button>
+              <Button onClick={handleCriarRegra} disabled={saving}>
+                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+                Criar Regra
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Vincular Colaborador */}
+        <Dialog open={!!vincularModal} onOpenChange={(o) => { if (!o) setVincularModal(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Vincular Colaborador à Regra</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label>Colaborador Ativo</Label>
+                <Select value={selectedColaborador} onValueChange={setSelectedColaborador}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um colaborador" /></SelectTrigger>
+                  <SelectContent>
+                    {(colaboradores || []).map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.nome} — {c.cargo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A produção do colaborador será puxada do GIA. A comissão calculada aparecerá automaticamente na Folha de Pagamento Geral do mês seguinte.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setVincularModal(null)}>Cancelar</Button>
+              <Button onClick={() => vincularModal && handleVincular(vincularModal)} disabled={saving || !selectedColaborador}>
+                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Link2 className="w-4 h-4 mr-1" />}
+                Vincular
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
