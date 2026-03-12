@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import qrcode from "qrcode-generator";
 import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { useAuth } from "@/hooks/useAuth";
