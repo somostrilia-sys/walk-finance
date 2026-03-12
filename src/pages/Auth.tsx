@@ -47,43 +47,41 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 relative overflow-hidden bg-[hsl(0,0%,100%)]">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 relative overflow-hidden bg-background">
       {/* Subtle geometric pattern overlay */}
       <div
-        className="absolute inset-0 opacity-[0.035]"
+        className="absolute inset-0 opacity-[0.04]"
         style={{
           backgroundImage: `
-            linear-gradient(30deg, #1a365d 12%, transparent 12.5%, transparent 87%, #1a365d 87.5%, #1a365d),
-            linear-gradient(150deg, #1a365d 12%, transparent 12.5%, transparent 87%, #1a365d 87.5%, #1a365d),
-            linear-gradient(30deg, #1a365d 12%, transparent 12.5%, transparent 87%, #1a365d 87.5%, #1a365d),
-            linear-gradient(150deg, #1a365d 12%, transparent 12.5%, transparent 87%, #1a365d 87.5%, #1a365d),
-            linear-gradient(60deg, #d4a85377 25%, transparent 25.5%, transparent 75%, #d4a85377 75%, #d4a85377),
-            linear-gradient(60deg, #d4a85377 25%, transparent 25.5%, transparent 75%, #d4a85377 75%, #d4a85377)
+            linear-gradient(30deg, hsl(var(--accent)) 12%, transparent 12.5%, transparent 87%, hsl(var(--accent)) 87.5%),
+            linear-gradient(150deg, hsl(var(--accent)) 12%, transparent 12.5%, transparent 87%, hsl(var(--accent)) 87.5%),
+            linear-gradient(30deg, hsl(var(--accent)) 12%, transparent 12.5%, transparent 87%, hsl(var(--accent)) 87.5%),
+            linear-gradient(150deg, hsl(var(--accent)) 12%, transparent 12.5%, transparent 87%, hsl(var(--accent)) 87.5%)
           `,
           backgroundSize: "80px 140px",
-          backgroundPosition: "0 0, 0 0, 40px 70px, 40px 70px, 0 0, 40px 70px",
+          backgroundPosition: "0 0, 0 0, 40px 70px, 40px 70px",
         }}
       />
 
       {/* Soft radial glow */}
       <div
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] opacity-[0.06]"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] opacity-[0.08]"
         style={{ background: "radial-gradient(ellipse at center, hsl(var(--accent)), transparent 70%)" }}
       />
 
       <div className="relative z-10 w-full max-w-sm flex flex-col items-center">
         {/* Logo — large */}
         <div className="mb-6 flex flex-col items-center select-none">
-          <WalkLogo width={280} />
+          <WalkLogo width={280} className="brightness-0 invert" />
         </div>
 
         {/* Subtitle + gold divider */}
         <p className="text-sm text-muted-foreground mb-2 tracking-wide">Sistema Financeiro Integrado</p>
-        <div className="w-20 h-[2px] rounded-full mb-8" style={{ background: "linear-gradient(90deg, transparent, #d4a853, transparent)" }} />
+        <div className="w-20 h-[2px] rounded-full mb-8 gold-gradient" />
 
         {/* Form card */}
-        <div className="w-full rounded-2xl bg-[hsl(0,0%,100%)] border border-border/40 p-8"
-          style={{ boxShadow: "0 4px 40px rgba(26,54,93,0.06), 0 1px 4px rgba(26,54,93,0.04)" }}>
+        <div className="w-full rounded-2xl bg-card border border-border/40 p-8"
+          style={{ boxShadow: "0 4px 40px hsl(var(--hub-card-shadow) / 0.3)" }}>
 
           {/* Title */}
           <div className="text-center mb-6">
@@ -101,19 +99,19 @@ const Auth = () => {
             {!isLogin && (
               <div className="space-y-1.5">
                 <Label htmlFor="fullName" className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">Nome completo</Label>
-                <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Seu nome" required={!isLogin} className="h-12 rounded-xl bg-secondary/40 border-border/50 focus:bg-background" />
+                <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Seu nome" required={!isLogin} className="h-12 rounded-xl bg-muted/40 border-border/50 focus:bg-card" />
               </div>
             )}
 
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">E-mail</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" required className="h-12 rounded-xl bg-secondary/40 border-border/50 focus:bg-background" />
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" required className="h-12 rounded-xl bg-muted/40 border-border/50 focus:bg-card" />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">Senha</Label>
               <div className="relative">
-                <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="h-12 rounded-xl bg-secondary/40 border-border/50 focus:bg-background" />
+                <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="h-12 rounded-xl bg-muted/40 border-border/50 focus:bg-card" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -122,8 +120,7 @@ const Auth = () => {
 
             <Button
               type="submit"
-              className="w-full h-12 mt-1 text-base font-semibold rounded-xl"
-              style={{ background: "#1a365d", color: "#fff", boxShadow: "0 2px 12px rgba(26,54,93,0.18)" }}
+              className="w-full h-12 mt-1 text-base font-semibold rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
               disabled={loading}
             >
               {loading ? "Processando..." : isLogin ? (<><LogIn className="w-4 h-4 mr-2" /> Entrar</>) : (<><UserPlus className="w-4 h-4 mr-2" /> Criar conta</>)}
@@ -131,7 +128,7 @@ const Auth = () => {
           </form>
 
           <div className="mt-5 text-center">
-            <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-[#1a365d] hover:underline font-medium">
+            <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-accent hover:underline font-medium">
               {isLogin ? "Não tem conta? Cadastre-se" : "Já tem conta? Faça login"}
             </button>
           </div>
