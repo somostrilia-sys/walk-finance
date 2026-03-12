@@ -14,6 +14,103 @@ export type Database = {
   }
   public: {
     Tables: {
+      alertas_fiscais: {
+        Row: {
+          company_id: string
+          created_at: string
+          data_vencimento: string | null
+          descricao: string | null
+          id: string
+          resolvido: boolean
+          resolvido_em: string | null
+          resolvido_por: string | null
+          severity: string
+          tipo: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          data_vencimento?: string | null
+          descricao?: string | null
+          id?: string
+          resolvido?: boolean
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          severity?: string
+          tipo?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          data_vencimento?: string | null
+          descricao?: string | null
+          id?: string
+          resolvido?: boolean
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          severity?: string
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_fiscais_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auditoria_fiscal: {
+        Row: {
+          acao: string
+          company_id: string
+          created_at: string
+          detalhes: Json | null
+          entidade: string
+          entidade_id: string | null
+          id: string
+          usuario_id: string | null
+          usuario_nome: string | null
+        }
+        Insert: {
+          acao: string
+          company_id: string
+          created_at?: string
+          detalhes?: Json | null
+          entidade: string
+          entidade_id?: string | null
+          id?: string
+          usuario_id?: string | null
+          usuario_nome?: string | null
+        }
+        Update: {
+          acao?: string
+          company_id?: string
+          created_at?: string
+          detalhes?: Json | null
+          entidade?: string
+          entidade_id?: string | null
+          id?: string
+          usuario_id?: string | null
+          usuario_nome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auditoria_fiscal_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_accounts: {
         Row: {
           account_number: string | null
@@ -737,6 +834,78 @@ export type Database = {
           },
         ]
       }
+      notas_fiscais: {
+        Row: {
+          cnpj_emissor: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_emissao: string
+          id: string
+          numero: string
+          observacao: string | null
+          pagamento_vinculado: string | null
+          razao_social: string
+          status: string
+          tipo: string
+          transaction_id: string | null
+          updated_at: string
+          valor: number
+          xml_anexo: boolean
+        }
+        Insert: {
+          cnpj_emissor?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_emissao?: string
+          id?: string
+          numero: string
+          observacao?: string | null
+          pagamento_vinculado?: string | null
+          razao_social: string
+          status?: string
+          tipo?: string
+          transaction_id?: string | null
+          updated_at?: string
+          valor?: number
+          xml_anexo?: boolean
+        }
+        Update: {
+          cnpj_emissor?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_emissao?: string
+          id?: string
+          numero?: string
+          observacao?: string | null
+          pagamento_vinculado?: string | null
+          razao_social?: string
+          status?: string
+          tipo?: string
+          transaction_id?: string | null
+          updated_at?: string
+          valor?: number
+          xml_anexo?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notas_fiscais_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_fiscais_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pessoas: {
         Row: {
           agencia: string | null
@@ -834,6 +1003,50 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      regime_fiscal: {
+        Row: {
+          aliquota: number
+          ativo: boolean
+          base_calculo_tipo: string
+          company_id: string
+          created_at: string
+          id: string
+          imposto: string
+          regime: string
+          updated_at: string
+        }
+        Insert: {
+          aliquota?: number
+          ativo?: boolean
+          base_calculo_tipo?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          imposto: string
+          regime?: string
+          updated_at?: string
+        }
+        Update: {
+          aliquota?: number
+          ativo?: boolean
+          base_calculo_tipo?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          imposto?: string
+          regime?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regime_fiscal_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_company_access: {
         Row: {
