@@ -105,15 +105,15 @@ async function logAuditoria(
   userId?: string,
   userName?: string,
 ) {
-  await supabase.from("auditoria_fiscal").insert({
+  await supabase.from("auditoria_fiscal").insert([{
     company_id: companyId,
     acao,
     entidade,
     entidade_id: entidadeId,
-    detalhes,
+    detalhes: detalhes as any,
     usuario_id: userId ?? null,
     usuario_nome: userName ?? null,
-  });
+  }]);
 }
 
 // ── Constants ──────────────────────────────────────────────────
