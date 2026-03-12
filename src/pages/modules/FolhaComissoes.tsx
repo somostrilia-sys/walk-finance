@@ -15,13 +15,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { Users, Plus, Download, DollarSign, Percent, FileText, Calculator, Search, Pencil, Trash2, Loader2, Megaphone, Trophy } from "lucide-react";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-// ── Hooks ──
 const useColaboradores = (companyId?: string) => {
   const { user } = useAuth();
   return useQuery({
@@ -74,7 +74,8 @@ const useCampanhas = (companyId?: string) => {
   });
 };
 
-// ── Component ──
+const DESCONTO_TIPOS = ["Falta", "Atraso", "Vale", "Hora Extra", "Bônus", "Adiantamento", "Outros"];
+
 const FolhaComissoes = () => {
   const { companyId } = useParams();
   const { data: companies } = useCompanies();
@@ -89,23 +90,21 @@ const FolhaComissoes = () => {
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Modals
   const [modalColab, setModalColab] = useState(false);
   const [editColabId, setEditColabId] = useState<string | null>(null);
   const [formColab, setFormColab] = useState({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum" });
 
   const [modalComissao, setModalComissao] = useState(false);
-  const [formComissao, setFormComissao] = useState({ colaborador_id: "", cliente: "", valor: 0, status: "prevista", periodo: "" });
+  const [formComissao, setFormComissao] = useState({ colaborador_id: "", cliente: "", valor: 0, status: "pendente", periodo: "" });
 
   const [modalDesconto, setModalDesconto] = useState(false);
-  const [formDesconto, setFormDesconto] = useState({ colaborador_id: "", tipo: "", valor: 0, referencia: "" });
+  const [formDesconto, setFormDesconto] = useState({ colaborador_id: "", tipo: "", valor: 0, referencia: "", observacao: "" });
 
   const [modalCampanha, setModalCampanha] = useState(false);
   const [formCampanha, setFormCampanha] = useState({ nome: "", descricao: "", meta: 0, bonus_percent: 0, data_inicio: "", data_fim: "", status: "ativa" });
 
   const invalidate = (...keys: string[]) => keys.forEach(k => queryClient.invalidateQueries({ queryKey: [k, companyId] }));
 
-  // ── Stats ──
   const ativos = colaboradores.filter((c: any) => c.status === "ativo");
   const totalFolha = ativos.reduce((s: number, c: any) => s + Number(c.salario_base), 0);
   const totalDescontos = descontos.reduce((s: number, d: any) => s + Number(d.valor), 0);
@@ -121,7 +120,6 @@ const FolhaComissoes = () => {
     return { ...c, descontos_total: desc, comissao_total: comiss, liquido: Number(c.salario_base) - desc + comiss };
   }), [ativos, descontos, comissoes]);
 
-  // ── CRUD Colaborador ──
   const handleSaveColab = async () => {
     if (!formColab.nome || !companyId) { toast({ title: "Preencha o nome", variant: "destructive" }); return; }
     setSaving(true);
@@ -136,17 +134,14 @@ const FolhaComissoes = () => {
       if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); setSaving(false); return; }
       toast({ title: "Colaborador cadastrado" });
     }
-    setSaving(false);
-    setModalColab(false);
-    setEditColabId(null);
+    setSaving(false); setModalColab(false); setEditColabId(null);
     setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum" });
     invalidate("colaboradores");
   };
 
   const handleEditColab = (c: any) => {
     setFormColab({ nome: c.nome, cpf: c.cpf || "", cargo: c.cargo, admissao: c.admissao || "", contrato: c.contrato, salario_base: c.salario_base, tipo_remuneracao: c.tipo_remuneracao, banco: c.banco || "", agencia: c.agencia || "", conta: c.conta || "", chave_pix: c.chave_pix || "", comissao_percent: c.comissao_percent, comissao_tipo: c.comissao_tipo });
-    setEditColabId(c.id);
-    setModalColab(true);
+    setEditColabId(c.id); setModalColab(true);
   };
 
   const handleDeleteColab = async (id: string) => {
@@ -155,7 +150,6 @@ const FolhaComissoes = () => {
     invalidate("colaboradores", "comissoes_folha", "descontos_folha");
   };
 
-  // ── CRUD Comissão ──
   const handleSaveComissao = async () => {
     if (!formComissao.colaborador_id || !companyId) { toast({ title: "Selecione o colaborador", variant: "destructive" }); return; }
     setSaving(true);
@@ -164,24 +158,28 @@ const FolhaComissoes = () => {
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Comissão registrada" });
     setModalComissao(false);
-    setFormComissao({ colaborador_id: "", cliente: "", valor: 0, status: "prevista", periodo: "" });
+    setFormComissao({ colaborador_id: "", cliente: "", valor: 0, status: "pendente", periodo: "" });
     invalidate("comissoes_folha");
   };
 
-  // ── CRUD Desconto ──
   const handleSaveDesconto = async () => {
     if (!formDesconto.colaborador_id || !companyId) { toast({ title: "Selecione o colaborador", variant: "destructive" }); return; }
     setSaving(true);
-    const { error } = await supabase.from("descontos_folha").insert({ ...formDesconto, company_id: companyId } as any);
+    const { error } = await supabase.from("descontos_folha").insert({
+      colaborador_id: formDesconto.colaborador_id,
+      tipo: formDesconto.tipo,
+      valor: formDesconto.valor,
+      referencia: formDesconto.referencia,
+      company_id: companyId,
+    } as any);
     setSaving(false);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Desconto registrado" });
     setModalDesconto(false);
-    setFormDesconto({ colaborador_id: "", tipo: "", valor: 0, referencia: "" });
+    setFormDesconto({ colaborador_id: "", tipo: "", valor: 0, referencia: "", observacao: "" });
     invalidate("descontos_folha");
   };
 
-  // ── CRUD Campanha ──
   const handleSaveCampanha = async () => {
     if (!formCampanha.nome || !companyId) { toast({ title: "Preencha o nome", variant: "destructive" }); return; }
     setSaving(true);
@@ -212,7 +210,7 @@ const FolhaComissoes = () => {
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
-        <PageHeader title="Folha e Comissões" subtitle="Colaboradores, descontos, comissões e campanhas" showBack companyLogo={company?.logo_url} />
+        <PageHeader title="Folha e Comissões" subtitle="Colaboradores, comissões, descontos, cálculo e campanhas" showBack companyLogo={company?.logo_url} />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
           <ModuleStatCard label="Colaboradores Ativos" value={ativos.length} icon={<Users className="w-4 h-4" />} />
@@ -225,12 +223,12 @@ const FolhaComissoes = () => {
           <TabsList className="mb-4 flex-wrap">
             <TabsTrigger value="colaboradores">Colaboradores</TabsTrigger>
             <TabsTrigger value="comissoes">Comissões</TabsTrigger>
+            <TabsTrigger value="calculo">Cálculo da Folha</TabsTrigger>
             <TabsTrigger value="descontos">Descontos</TabsTrigger>
-            <TabsTrigger value="calculo">Cálculo</TabsTrigger>
             <TabsTrigger value="campanhas">Campanhas</TabsTrigger>
           </TabsList>
 
-          {/* ── TAB COLABORADORES ── */}
+          {/* ── COLABORADORES ── */}
           <TabsContent value="colaboradores">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <div className="relative max-w-xs flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
@@ -240,7 +238,7 @@ const FolhaComissoes = () => {
                 <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader><DialogTitle>{editColabId ? "Editar Colaborador" : "Novo Colaborador"}</DialogTitle></DialogHeader>
                   <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div className="col-span-2"><label className="text-sm font-medium">Nome Completo</label><Input value={formColab.nome} onChange={e => setFormColab(f => ({ ...f, nome: e.target.value }))} /></div>
+                    <div className="col-span-2"><label className="text-sm font-medium">Nome</label><Input value={formColab.nome} onChange={e => setFormColab(f => ({ ...f, nome: e.target.value }))} /></div>
                     <div><label className="text-sm font-medium">CPF</label><Input value={formColab.cpf} onChange={e => setFormColab(f => ({ ...f, cpf: e.target.value }))} /></div>
                     <div><label className="text-sm font-medium">Cargo</label><Input value={formColab.cargo} onChange={e => setFormColab(f => ({ ...f, cargo: e.target.value }))} /></div>
                     <div><label className="text-sm font-medium">Admissão</label><Input type="date" value={formColab.admissao} onChange={e => setFormColab(f => ({ ...f, admissao: e.target.value }))} /></div>
@@ -278,20 +276,20 @@ const FolhaComissoes = () => {
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditColab(c)}><Pencil className="w-3.5 h-3.5" /></Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="w-3.5 h-3.5" /></Button></AlertDialogTrigger>
-                          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Excluir colaborador?</AlertDialogTitle><AlertDialogDescription>"{c.nome}" será removido permanentemente.</AlertDialogDescription></AlertDialogHeader>
+                          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Excluir?</AlertDialogTitle><AlertDialogDescription>"{c.nome}" será removido.</AlertDialogDescription></AlertDialogHeader>
                             <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteColab(c.id)}>Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                         </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
-                {filteredColab.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhum colaborador cadastrado.</TableCell></TableRow>}
+                {filteredColab.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhum colaborador.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
           </TabsContent>
 
-          {/* ── TAB COMISSÕES ── */}
+          {/* ── COMISSÕES ── */}
           <TabsContent value="comissoes">
             <div className="flex justify-end mb-4">
               <Dialog open={modalComissao} onOpenChange={setModalComissao}>
@@ -302,18 +300,19 @@ const FolhaComissoes = () => {
                     <div><label className="text-sm font-medium">Colaborador</label>
                       <Select value={formComissao.colaborador_id} onValueChange={v => setFormComissao(f => ({ ...f, colaborador_id: v }))}>
                         <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                        <SelectContent>{colaboradores.filter((c: any) => c.status === "ativo").map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
+                        <SelectContent>{ativos.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
                       </Select></div>
-                    <div><label className="text-sm font-medium">Cliente</label><Input value={formComissao.cliente} onChange={e => setFormComissao(f => ({ ...f, cliente: e.target.value }))} /></div>
+                    <div><label className="text-sm font-medium">Vendas Geradoras (cliente)</label><Input value={formComissao.cliente} onChange={e => setFormComissao(f => ({ ...f, cliente: e.target.value }))} /></div>
                     <div className="grid grid-cols-2 gap-3">
                       <div><label className="text-sm font-medium">Valor (R$)</label><Input type="number" value={formComissao.valor || ""} onChange={e => setFormComissao(f => ({ ...f, valor: Number(e.target.value) }))} /></div>
-                      <div><label className="text-sm font-medium">Período</label><Input placeholder="Mar/2026" value={formComissao.periodo} onChange={e => setFormComissao(f => ({ ...f, periodo: e.target.value }))} /></div>
+                      <div><label className="text-sm font-medium">Mês Referência Venda</label><Input placeholder="Mar/2026" value={formComissao.periodo} onChange={e => setFormComissao(f => ({ ...f, periodo: e.target.value }))} /></div>
                     </div>
                     <div><label className="text-sm font-medium">Status</label>
                       <Select value={formComissao.status} onValueChange={v => setFormComissao(f => ({ ...f, status: v }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="prevista">Prevista</SelectItem><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="paga">Paga</SelectItem></SelectContent>
+                        <SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="incluida">Incluída na Folha</SelectItem><SelectItem value="paga">Paga</SelectItem></SelectContent>
                       </Select></div>
+                    <p className="text-xs text-muted-foreground">Comissão será paga no mês seguinte ao da venda.</p>
                     <Button className="w-full" onClick={handleSaveComissao} disabled={saving}>{saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Registrar</Button>
                   </div>
                 </DialogContent>
@@ -321,23 +320,75 @@ const FolhaComissoes = () => {
             </div>
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Cliente</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Período</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                <TableBody>{comissoes.map((c: any) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.colaboradores?.nome || "—"}</TableCell>
-                    <TableCell>{c.cliente}</TableCell>
-                    <TableCell className="text-right">{fmt(Number(c.valor))}</TableCell>
-                    <TableCell>{c.periodo}</TableCell>
-                    <TableCell><Badge className={c.status === "paga" ? "status-badge-positive" : c.status === "pendente" ? "status-badge-warning" : "bg-muted text-muted-foreground"}>{c.status}</Badge></TableCell>
-                  </TableRow>
-                ))}
-                {comissoes.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Nenhuma comissão registrada.</TableCell></TableRow>}
+                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Vendas Geradoras</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref. Venda</TableHead><TableHead>Mês Pgto</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                <TableBody>{comissoes.map((c: any) => {
+                  // Calcular mês pagamento (mês seguinte ao período)
+                  let mesPgto = "—";
+                  if (c.periodo) {
+                    const parts = c.periodo.split("/");
+                    if (parts.length === 2) {
+                      const m = parseInt(parts[0]);
+                      const y = parseInt(parts[1]);
+                      const next = m === 12 ? `01/${y + 1}` : `${String(m + 1).padStart(2, "0")}/${y}`;
+                      mesPgto = next;
+                    }
+                  }
+                  return (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">{c.colaboradores?.nome || "—"}</TableCell>
+                      <TableCell>{c.cliente}</TableCell>
+                      <TableCell className="text-right">{fmt(Number(c.valor))}</TableCell>
+                      <TableCell>{c.periodo}</TableCell>
+                      <TableCell>{mesPgto}</TableCell>
+                      <TableCell><Badge className={c.status === "paga" ? "status-badge-positive" : c.status === "incluida" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "status-badge-warning"}>{c.status === "incluida" ? "Incluída" : c.status}</Badge></TableCell>
+                    </TableRow>
+                  );
+                })}
+                {comissoes.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhuma comissão registrada.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
           </TabsContent>
 
-          {/* ── TAB DESCONTOS ── */}
+          {/* ── CÁLCULO DA FOLHA ── */}
+          <TabsContent value="calculo">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-sm">Folha de Pagamento — Resumo</h3>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => toast({ title: "Exportação CSV/Excel em desenvolvimento" })}><Download className="w-4 h-4 mr-1" />Exportar Excel/CSV</Button>
+                <Button size="sm" onClick={() => toast({ title: "Folha fechada", description: "Lançamento gerado em Contas a Pagar." })}><FileText className="w-4 h-4 mr-1" />Fechar Folha</Button>
+              </div>
+            </div>
+            <Card><CardContent className="p-0">
+              <Table>
+                <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Cargo</TableHead><TableHead className="text-right">Salário Base</TableHead><TableHead className="text-right">Comissão</TableHead><TableHead className="text-right">Descontos</TableHead><TableHead className="text-right font-bold">Valor Líquido</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {folhaCalc.map((c: any) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">{c.nome}</TableCell>
+                      <TableCell>{c.cargo}</TableCell>
+                      <TableCell className="text-right">{fmt(Number(c.salario_base))}</TableCell>
+                      <TableCell className="text-right text-emerald-600">{c.comissao_total > 0 ? `+${fmt(c.comissao_total)}` : "—"}</TableCell>
+                      <TableCell className="text-right text-destructive">{c.descontos_total > 0 ? `-${fmt(c.descontos_total)}` : "—"}</TableCell>
+                      <TableCell className="text-right font-bold">{fmt(c.liquido)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {folhaCalc.length > 0 && (
+                    <TableRow className="font-bold border-t-2">
+                      <TableCell colSpan={2}>TOTAL</TableCell>
+                      <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + Number(c.salario_base), 0))}</TableCell>
+                      <TableCell className="text-right text-emerald-600">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.comissao_total, 0))}</TableCell>
+                      <TableCell className="text-right text-destructive">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.descontos_total, 0))}</TableCell>
+                      <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.liquido, 0))}</TableCell>
+                    </TableRow>
+                  )}
+                  {folhaCalc.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Cadastre colaboradores.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </CardContent></Card>
+          </TabsContent>
+
+          {/* ── DESCONTOS ── */}
           <TabsContent value="descontos">
             <div className="flex justify-end mb-4">
               <Dialog open={modalDesconto} onOpenChange={setModalDesconto}>
@@ -348,17 +399,18 @@ const FolhaComissoes = () => {
                     <div><label className="text-sm font-medium">Colaborador</label>
                       <Select value={formDesconto.colaborador_id} onValueChange={v => setFormDesconto(f => ({ ...f, colaborador_id: v }))}>
                         <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                        <SelectContent>{colaboradores.filter((c: any) => c.status === "ativo").map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
+                        <SelectContent>{ativos.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
                       </Select></div>
                     <div><label className="text-sm font-medium">Tipo</label>
                       <Select value={formDesconto.tipo} onValueChange={v => setFormDesconto(f => ({ ...f, tipo: v }))}>
                         <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                        <SelectContent><SelectItem value="INSS">INSS</SelectItem><SelectItem value="IRRF">IRRF</SelectItem><SelectItem value="VT">Vale Transporte</SelectItem><SelectItem value="VR">Vale Refeição</SelectItem><SelectItem value="Adiantamento">Adiantamento</SelectItem><SelectItem value="Faltas">Faltas</SelectItem><SelectItem value="Outros">Outros</SelectItem></SelectContent>
+                        <SelectContent>{DESCONTO_TIPOS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                       </Select></div>
                     <div className="grid grid-cols-2 gap-3">
                       <div><label className="text-sm font-medium">Valor (R$)</label><Input type="number" value={formDesconto.valor || ""} onChange={e => setFormDesconto(f => ({ ...f, valor: Number(e.target.value) }))} /></div>
-                      <div><label className="text-sm font-medium">Referência</label><Input placeholder="Mar/2026" value={formDesconto.referencia} onChange={e => setFormDesconto(f => ({ ...f, referencia: e.target.value }))} /></div>
+                      <div><label className="text-sm font-medium">Mês Referência</label><Input placeholder="Mar/2026" value={formDesconto.referencia} onChange={e => setFormDesconto(f => ({ ...f, referencia: e.target.value }))} /></div>
                     </div>
+                    <div><label className="text-sm font-medium">Observação</label><Textarea rows={2} value={formDesconto.observacao} onChange={e => setFormDesconto(f => ({ ...f, observacao: e.target.value }))} /></div>
                     <Button className="w-full" onClick={handleSaveDesconto} disabled={saving}>{saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Registrar</Button>
                   </div>
                 </DialogContent>
@@ -366,7 +418,7 @@ const FolhaComissoes = () => {
             </div>
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Tipo</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Referência</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Tipo</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref.</TableHead></TableRow></TableHeader>
                 <TableBody>{descontos.map((d: any) => (
                   <TableRow key={d.id}>
                     <TableCell className="font-medium">{d.colaboradores?.nome || "—"}</TableCell>
@@ -375,51 +427,13 @@ const FolhaComissoes = () => {
                     <TableCell>{d.referencia}</TableCell>
                   </TableRow>
                 ))}
-                {descontos.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum desconto registrado.</TableCell></TableRow>}
+                {descontos.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum desconto.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
           </TabsContent>
 
-          {/* ── TAB CÁLCULO ── */}
-          <TabsContent value="calculo">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-sm">Folha de Pagamento — Resumo</h3>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm"><Download className="w-4 h-4 mr-1" />Exportar</Button>
-                <Button size="sm" onClick={() => toast({ title: "Folha fechada", description: "Lançamento gerado em Contas a Pagar." })}><FileText className="w-4 h-4 mr-1" />Fechar Folha</Button>
-              </div>
-            </div>
-            <Card><CardContent className="p-0">
-              <Table>
-                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Cargo</TableHead><TableHead className="text-right">Salário</TableHead><TableHead className="text-right">Comissão</TableHead><TableHead className="text-right">Descontos</TableHead><TableHead className="text-right font-bold">Líquido</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {folhaCalc.map((c: any) => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-medium">{c.nome}</TableCell>
-                      <TableCell>{c.cargo}</TableCell>
-                      <TableCell className="text-right">{fmt(Number(c.salario_base))}</TableCell>
-                      <TableCell className="text-right text-[hsl(var(--chart-2))]">{c.comissao_total > 0 ? `+${fmt(c.comissao_total)}` : "—"}</TableCell>
-                      <TableCell className="text-right text-destructive">{c.descontos_total > 0 ? `-${fmt(c.descontos_total)}` : "—"}</TableCell>
-                      <TableCell className="text-right font-bold">{fmt(c.liquido)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {folhaCalc.length > 0 && (
-                    <TableRow className="font-bold border-t-2">
-                      <TableCell colSpan={2}>TOTAL</TableCell>
-                      <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + Number(c.salario_base), 0))}</TableCell>
-                      <TableCell className="text-right text-[hsl(var(--chart-2))]">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.comissao_total, 0))}</TableCell>
-                      <TableCell className="text-right text-destructive">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.descontos_total, 0))}</TableCell>
-                      <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.liquido, 0))}</TableCell>
-                    </TableRow>
-                  )}
-                  {folhaCalc.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Cadastre colaboradores para calcular a folha.</TableCell></TableRow>}
-                </TableBody>
-              </Table>
-            </CardContent></Card>
-          </TabsContent>
-
-          {/* ── TAB CAMPANHAS ── */}
+          {/* ── CAMPANHAS ── */}
           <TabsContent value="campanhas">
             <div className="flex justify-end mb-4">
               <Dialog open={modalCampanha} onOpenChange={setModalCampanha}>
@@ -428,15 +442,17 @@ const FolhaComissoes = () => {
                   <DialogHeader><DialogTitle>Criar Campanha</DialogTitle></DialogHeader>
                   <div className="space-y-3 pt-2">
                     <div><label className="text-sm font-medium">Nome</label><Input value={formCampanha.nome} onChange={e => setFormCampanha(f => ({ ...f, nome: e.target.value }))} /></div>
-                    <div><label className="text-sm font-medium">Descrição</label><Input value={formCampanha.descricao} onChange={e => setFormCampanha(f => ({ ...f, descricao: e.target.value }))} /></div>
+                    <div><label className="text-sm font-medium">Descrição</label><Textarea rows={2} value={formCampanha.descricao} onChange={e => setFormCampanha(f => ({ ...f, descricao: e.target.value }))} /></div>
+                    <div><label className="text-sm font-medium">Colaboradores Elegíveis</label><p className="text-xs text-muted-foreground">Todos os colaboradores ativos participam. Filtragem individual será habilitada.</p></div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div><label className="text-sm font-medium">Meta (R$)</label><Input type="number" value={formCampanha.meta || ""} onChange={e => setFormCampanha(f => ({ ...f, meta: Number(e.target.value) }))} /></div>
-                      <div><label className="text-sm font-medium">Bônus %</label><Input type="number" value={formCampanha.bonus_percent || ""} onChange={e => setFormCampanha(f => ({ ...f, bonus_percent: Number(e.target.value) }))} /></div>
+                      <div><label className="text-sm font-medium">Meta (qtd vendas ou R$)</label><Input type="number" value={formCampanha.meta || ""} onChange={e => setFormCampanha(f => ({ ...f, meta: Number(e.target.value) }))} /></div>
+                      <div><label className="text-sm font-medium">Bônus (R$ ou %)</label><Input type="number" value={formCampanha.bonus_percent || ""} onChange={e => setFormCampanha(f => ({ ...f, bonus_percent: Number(e.target.value) }))} /></div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div><label className="text-sm font-medium">Início</label><Input type="date" value={formCampanha.data_inicio} onChange={e => setFormCampanha(f => ({ ...f, data_inicio: e.target.value }))} /></div>
                       <div><label className="text-sm font-medium">Fim</label><Input type="date" value={formCampanha.data_fim} onChange={e => setFormCampanha(f => ({ ...f, data_fim: e.target.value }))} /></div>
                     </div>
+                    <p className="text-xs text-muted-foreground">Bônus da campanha soma à comissão do colaborador na folha.</p>
                     <Button className="w-full" onClick={handleSaveCampanha} disabled={saving}>{saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Criar Campanha</Button>
                   </div>
                 </DialogContent>
@@ -447,10 +463,7 @@ const FolhaComissoes = () => {
                 <Card key={camp.id}>
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Trophy className="w-5 h-5 text-[hsl(var(--chart-4))]" />
-                        <h4 className="font-semibold">{camp.nome}</h4>
-                      </div>
+                      <div className="flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-500" /><h4 className="font-semibold">{camp.nome}</h4></div>
                       <div className="flex items-center gap-1">
                         <Badge className={camp.status === "ativa" ? "status-badge-positive" : "status-badge-danger"}>{camp.status}</Badge>
                         <AlertDialog>
@@ -474,7 +487,6 @@ const FolhaComissoes = () => {
                 <div className="col-span-2 text-center py-12 text-muted-foreground">
                   <Megaphone className="w-12 h-12 mx-auto mb-3 opacity-40" />
                   <p>Nenhuma campanha ativa.</p>
-                  <p className="text-sm mt-1">Crie campanhas de vendas para motivar sua equipe.</p>
                 </div>
               )}
             </div>
