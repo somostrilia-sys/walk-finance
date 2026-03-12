@@ -20,14 +20,13 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   // Módulos exclusivos Objetivo Auto e Truck
   "area-socio": { icon: "UserCircle", description: "Visão geral financeira e indicadores", label: "Área do Sócio" },
   "calendario-financeiro": { icon: "Calendar", description: "Controle de pagamentos e alertas de vencimento", label: "Calendário Financeiro" },
-  "gestao-fiscal": { icon: "Calculator", description: "Alertas de pagamentos sem nota fiscal", label: "Gestão Fiscal Inteligente" },
-  dashboard: { icon: "BarChart3", description: "Visão estratégica da empresa", label: "Dashboard do Sócio" },
+  dashboard: { icon: "BarChart3", description: "Visão consolidada de toda a operação", label: "Dashboard Geral" },
   "centro-custos": { icon: "Target", description: "Gestão de custos por evento", label: "Centro de Custos por Evento" },
-  "folha-adm": { icon: "Users", description: "Gestão de remuneração fixa e variável por setor", label: "Folha de Pagamento ADM" },
+  "folha-adm": { icon: "Users", description: "Folha de pagamento geral — todas unidades", label: "Folha de Pagamento Geral" },
   comercial: { icon: "TrendingUp", description: "Comissionamento, performance e ROI por consultor", label: "Módulo Comercial" },
   "fluxo-caixa-diario": { icon: "Wallet", description: "Entradas e saídas por conta bancária", label: "Fluxo de Caixa Diário" },
   "programacao-pagamentos": { icon: "CalendarCheck", description: "Banking integrado e fluxo de aprovação", label: "Programação de Pagamentos" },
-  "contratacoes-demissoes": { icon: "UserPlus", description: "Ciclo de vida RH integrado à folha e projeção", label: "Contratações e Demissões" },
+  "contratacoes-demissoes": { icon: "UserPlus", description: "Gestão de colaboradores MEI e ciclo de vida", label: "Colaboradores" },
 };
 
 const CompanyModules = () => {
