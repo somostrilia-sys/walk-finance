@@ -93,8 +93,8 @@ const SelectedCompanyDashboard = ({ company, onNavigate }: { company: any; onNav
       d.setMonth(d.getMonth() - i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
-      const mRec = txs.filter((t: any) => t.type === "receita" && t.date?.startsWith(key)).reduce((s: number, t: any) => s + Number(t.amount), 0);
-      const mDesp = txs.filter((t: any) => t.type === "despesa" && t.date?.startsWith(key)).reduce((s: number, t: any) => s + Number(t.amount), 0);
+      const mRec = txs.filter((t: any) => t.type === "entrada" && t.date?.startsWith(key)).reduce((s: number, t: any) => s + Number(t.amount), 0);
+      const mDesp = txs.filter((t: any) => t.type === "saida" && t.date?.startsWith(key)).reduce((s: number, t: any) => s + Number(t.amount), 0);
       months.push({ name: label, receitas: mRec, despesas: mDesp });
     }
 
