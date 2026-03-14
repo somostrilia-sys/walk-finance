@@ -1,6 +1,12 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCompanies, useFinancialTransactions, useBankAccounts } from "@/hooks/useFinancialData";
+import logoOAT from "@/assets/logo-objetivo-auto-truck.jpg";
+
+// Map company IDs to local logo assets (until logo_url is set in DB)
+const LOCAL_LOGOS: Record<string, string> = {
+  "b1000000-0000-0000-0000-000000000001": logoOAT,
+};
 import AppLayout from "@/components/AppLayout";
 import ModuleStatCard from "@/components/ModuleStatCard";
 import { formatCurrency } from "@/data/mockData";
@@ -270,8 +276,8 @@ const Index = () => {
                     className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden shadow-sm"
                     style={{ backgroundColor: company.primary_color || "hsl(var(--primary))" }}
                   >
-                    {company.logo_url ? (
-                      <img src={company.logo_url} alt={company.name} className="w-full h-full object-cover" />
+                    {(company.logo_url || LOCAL_LOGOS[company.id]) ? (
+                      <img src={company.logo_url || LOCAL_LOGOS[company.id]} alt={company.name} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-lg font-bold text-white">{company.initials}</span>
                     )}
