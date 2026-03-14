@@ -107,10 +107,10 @@ const DREModule = () => {
 
         {!isLoading && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <ModuleStatCard label="Receita Bruta" value={formatCurrency(dreValues.receita_bruta)} icon={<DollarSign className="w-4 h-4" />} color="positive" />
-            <ModuleStatCard label="Lucro Bruto" value={formatCurrency(dreValues.lucro_bruto)} icon={<TrendingUp className="w-4 h-4" />} color={dreValues.lucro_bruto >= 0 ? "positive" : "danger"} />
-            <ModuleStatCard label="EBITDA" value={formatCurrency(dreValues.ebitda)} icon={<BarChart3 className="w-4 h-4" />} color={dreValues.ebitda >= 0 ? "info" : "danger"} />
-            <ModuleStatCard label="Lucro Líquido" value={formatCurrency(dreValues.lucro_liquido)} icon={<TrendingDown className="w-4 h-4" />} color={dreValues.lucro_liquido >= 0 ? "positive" : "danger"} />
+            <ModuleStatCard label="Receita Bruta" value={formatCurrency(dreValues.receita_bruta)} icon={<DollarSign className="w-4 h-4" />} />
+            <ModuleStatCard label="Lucro Bruto" value={formatCurrency(dreValues.lucro_bruto)} icon={<TrendingUp className="w-4 h-4" />} />
+            <ModuleStatCard label="EBITDA" value={formatCurrency(dreValues.ebitda)} icon={<BarChart3 className="w-4 h-4" />} />
+            <ModuleStatCard label="Lucro Líquido" value={formatCurrency(dreValues.lucro_liquido)} icon={<TrendingDown className="w-4 h-4" />} />
           </div>
         )}
 
