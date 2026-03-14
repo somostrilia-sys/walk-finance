@@ -54,7 +54,7 @@ const FluxoCaixaModule = () => {
     const map: Record<string, { dia: string; entradas: number; saidas: number }> = {};
     txs.forEach(t => {
       if (!map[t.date]) map[t.date] = { dia: t.date, entradas: 0, saidas: 0 };
-      if (t.type === "receita") map[t.date].entradas += Number(t.amount);
+      if (t.type === "entrada") map[t.date].entradas += Number(t.amount);
       else map[t.date].saidas += Number(t.amount);
     });
     return Object.values(map).sort((a, b) => a.dia.localeCompare(b.dia));
