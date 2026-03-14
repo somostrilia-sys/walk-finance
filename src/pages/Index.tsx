@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCompanies, useFinancialTransactions, useBankAccounts } from "@/hooks/useFinancialData";
-import logoOAT from "@/assets/logo-objetivo-auto-truck.jpg";
+import logoOAT from "@/assets/logo-objetivo-auto-truck.png";
 
 // Map company IDs to local logo assets (until logo_url is set in DB)
 const LOCAL_LOGOS: Record<string, string> = {
