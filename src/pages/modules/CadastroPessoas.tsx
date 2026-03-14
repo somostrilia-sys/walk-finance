@@ -369,8 +369,8 @@ const CadastroPessoas = () => {
                           <TableRow key={t.id}>
                             <TableCell className="text-xs">{t.date}</TableCell>
                             <TableCell className="text-xs">{t.description}</TableCell>
-                            <TableCell><Badge variant={t.type === "receita" ? "default" : "secondary"} className="text-[10px]">{t.type}</Badge></TableCell>
-                            <TableCell className={`text-right text-xs font-medium ${t.type === "receita" ? "text-emerald-600" : "text-destructive"}`}>{formatCurrency(Number(t.amount))}</TableCell>
+                            <TableCell><Badge variant={t.type === "entrada" ? "default" : "secondary"} className="text-[10px]">{t.type}</Badge></TableCell>
+                            <TableCell className={`text-right text-xs font-medium ${t.type === "entrada" ? "text-emerald-600" : "text-destructive"}`}>{formatCurrency(Number(t.amount))}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

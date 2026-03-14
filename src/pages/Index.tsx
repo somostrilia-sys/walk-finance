@@ -161,7 +161,7 @@ const SelectedCompanyDashboard = ({ company, onNavigate }: { company: any; onNav
                     <div key={t.id} className="flex items-center justify-between px-4 py-3">
                       <div>
                         <p className="text-sm font-medium text-foreground">{t.entity_name || t.description}</p>
-                        <p className="text-xs text-muted-foreground">{t.type === "receita" ? "A Receber" : "A Pagar"} • Venc: {t.date}</p>
+                        <p className="text-xs text-muted-foreground">{t.type === "entrada" ? "A Receber" : "A Pagar"} • Venc: {t.date}</p>
                       </div>
                       <p className="text-sm font-semibold text-foreground">{formatCurrency(Number(t.amount))}</p>
                     </div>
