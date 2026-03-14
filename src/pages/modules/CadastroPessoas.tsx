@@ -146,7 +146,7 @@ const CadastroPessoas = () => {
     setSaving(true);
     const { error } = await supabase.from("financial_transactions").insert({
       company_id: companyId!,
-      type: "receita",
+      type: "entrada",
       description: formCR.descricao || `Receita — ${form.razao_social}`,
       amount: parseFloat(formCR.valor),
       date: formCR.vencimento || new Date().toISOString().slice(0, 10),

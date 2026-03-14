@@ -574,7 +574,7 @@ function NotasFiscaisTab({ companyId }: { companyId?: string }) {
   const autoMatchSuggestions = useMemo(() => {
     const suggestions: Record<string, { txId: string; txDesc: string; txAmount: number; exact: boolean }> = {};
     const unlinked = (nfs || []).filter((n) => !n.transaction_id && n.status === "pendente");
-    const despesas = (txs || []).filter((t) => t.type === "despesa");
+    const despesas = (txs || []).filter((t) => t.type === "saida");
 
     unlinked.forEach((nf) => {
       const candidates = despesas.filter((tx) => {
