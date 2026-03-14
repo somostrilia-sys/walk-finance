@@ -158,7 +158,7 @@ function RecebimentosTab({ companyId }: { companyId?: string }) {
   const [addOpen, setAddOpen] = useState(false);
 
   const receitas = useMemo(() =>
-    (txs || []).filter((t) => t.type === "receita"), [txs]);
+    (txs || []).filter((t) => t.type === "entrada"), [txs]);
 
   const today = new Date().toISOString().slice(0, 10);
 

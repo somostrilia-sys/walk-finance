@@ -53,7 +53,7 @@ const FaturamentoCobranca = () => {
   const ticketMedio = fat.length > 0 ? totalFaturado / fat.length : 0;
 
   // Receita confirmada
-  const recebido = (transactions || []).filter((t: any) => t.type === "receita" && t.status === "confirmado").reduce((s: number, t: any) => s + Number(t.amount), 0);
+  const recebido = (transactions || []).filter((t: any) => t.type === "entrada" && t.status === "confirmado").reduce((s: number, t: any) => s + Number(t.amount), 0);
   const faltaReceber = totalFaturado - recebido;
   // Total a vencer no mês
   const now = new Date();

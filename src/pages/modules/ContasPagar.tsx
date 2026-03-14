@@ -50,7 +50,7 @@ const ContasPagar = () => {
   const [form, setForm] = useState({ entity_name: "", description: "", amount: "", date: "", payment_method: "PIX" });
 
   // Filter only "despesa" type transactions
-  const contas = useMemo(() => (transactions || []).filter((t: any) => t.type === "despesa"), [transactions]);
+  const contas = useMemo(() => (transactions || []).filter((t: any) => t.type === "saida"), [transactions]);
 
   const filtered = useMemo(() => contas.filter((c: any) => {
     if (filtroStatus === "pendente" && c.status !== "pendente") return false;

@@ -60,8 +60,8 @@ const FluxoCaixaModule = () => {
     return Object.values(map).sort((a, b) => a.dia.localeCompare(b.dia));
   }, [txs]);
 
-  const totalEntradas = txs.filter(t => t.type === "receita").reduce((s, t) => s + Number(t.amount), 0);
-  const totalSaidas = txs.filter(t => t.type === "despesa").reduce((s, t) => s + Number(t.amount), 0);
+  const totalEntradas = txs.filter(t => t.type === "entrada").reduce((s, t) => s + Number(t.amount), 0);
+  const totalSaidas = txs.filter(t => t.type === "saida").reduce((s, t) => s + Number(t.amount), 0);
   const saldoBancario = (bankAccounts || []).reduce((s, b) => s + Number(b.current_balance), 0);
   const saldoLiquido = totalEntradas - totalSaidas;
 
