@@ -188,7 +188,7 @@ function RecebimentosTab({ companyId }: { companyId?: string }) {
     const fd = new FormData(e.currentTarget);
     const { error } = await supabase.from("financial_transactions").insert({
       company_id: companyId!,
-      type: "receita",
+      type: "entrada",
       description: fd.get("descricao") as string,
       amount: Number(fd.get("valor")),
       date: fd.get("data") as string,
