@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Download, Loader2, FileSpreadsheet } from "lucide-react";
+import { Download, Loader2, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
+import ModuleStatCard from "@/components/ModuleStatCard";
 
 // 14-line DRE structure auto-calculated from financial_transactions
 interface DRELine {
@@ -103,6 +104,15 @@ const DREModule = () => {
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
         <PageHeader title="DRE — Demonstrativo de Resultados" subtitle="Calculado automaticamente das transações financeiras" showBack companyLogo={company?.logo_url} />
+
+        {!isLoading && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <ModuleStatCard label="Receita Bruta" value={formatCurrency(dreValues.receita_bruta)} icon={<DollarSign className="w-4 h-4" />} />
+            <ModuleStatCard label="Lucro Bruto" value={formatCurrency(dreValues.lucro_bruto)} icon={<TrendingUp className="w-4 h-4" />} />
+            <ModuleStatCard label="EBITDA" value={formatCurrency(dreValues.ebitda)} icon={<BarChart3 className="w-4 h-4" />} />
+            <ModuleStatCard label="Lucro Líquido" value={formatCurrency(dreValues.lucro_liquido)} icon={<TrendingDown className="w-4 h-4" />} />
+          </div>
+        )}
 
         <div className="flex items-center gap-3 mb-6">
           <div className="flex-1" />
