@@ -310,7 +310,7 @@ function PagamentosTab({ companyId }: { companyId?: string }) {
   const [justificativa, setJustificativa] = useState("");
 
   const despesas = useMemo(() =>
-    (txs || []).filter((t) => t.type === "despesa"), [txs]);
+    (txs || []).filter((t) => t.type === "saida"), [txs]);
 
   const today = new Date().toISOString().slice(0, 10);
 
