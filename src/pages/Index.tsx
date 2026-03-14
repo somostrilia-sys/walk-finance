@@ -78,8 +78,8 @@ const SelectedCompanyDashboard = ({ company, onNavigate }: { company: any; onNav
 
   const metrics = useMemo(() => {
     const txs = transactions || [];
-    const receitas = txs.filter((t: any) => t.type === "receita");
-    const despesas = txs.filter((t: any) => t.type === "despesa");
+    const receitas = txs.filter((t: any) => t.type === "entrada");
+    const despesas = txs.filter((t: any) => t.type === "saida");
     const totalReceber = receitas.filter((t: any) => t.status === "pendente").reduce((s: number, t: any) => s + Number(t.amount), 0);
     const totalPagar = despesas.filter((t: any) => t.status === "pendente").reduce((s: number, t: any) => s + Number(t.amount), 0);
     const saldoBanco = (bankAccounts || []).reduce((s: number, b: any) => s + Number(b.current_balance), 0);
@@ -93,8 +93,8 @@ const SelectedCompanyDashboard = ({ company, onNavigate }: { company: any; onNav
       d.setMonth(d.getMonth() - i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
-      const mRec = txs.filter((t: any) => t.type === "receita" && t.date?.startsWith(key)).reduce((s: number, t: any) => s + Number(t.amount), 0);
-      const mDesp = txs.filter((t: any) => t.type === "despesa" && t.date?.startsWith(key)).reduce((s: number, t: any) => s + Number(t.amount), 0);
+      const mRec = txs.filter((t: any) => t.type === "entrada" && t.date?.startsWith(key)).reduce((s: number, t: any) => s + Number(t.amount), 0);
+      const mDesp = txs.filter((t: any) => t.type === "saida" && t.date?.startsWith(key)).reduce((s: number, t: any) => s + Number(t.amount), 0);
       months.push({ name: label, receitas: mRec, despesas: mDesp });
     }
 
@@ -161,7 +161,7 @@ const SelectedCompanyDashboard = ({ company, onNavigate }: { company: any; onNav
                     <div key={t.id} className="flex items-center justify-between px-4 py-3">
                       <div>
                         <p className="text-sm font-medium text-foreground">{t.entity_name || t.description}</p>
-                        <p className="text-xs text-muted-foreground">{t.type === "receita" ? "A Receber" : "A Pagar"} • Venc: {t.date}</p>
+                        <p className="text-xs text-muted-foreground">{t.type === "entrada" ? "A Receber" : "A Pagar"} • Venc: {t.date}</p>
                       </div>
                       <p className="text-sm font-semibold text-foreground">{formatCurrency(Number(t.amount))}</p>
                     </div>

@@ -42,7 +42,7 @@ const FluxoCaixaModule = () => {
       const k = t.date.slice(0, 7);
       const m = months.find(mo => mo.key === k);
       if (m) {
-        if (t.type === "receita") m.entradas += Number(t.amount);
+        if (t.type === "entrada") m.entradas += Number(t.amount);
         else m.saidas += Number(t.amount);
       }
     });
@@ -54,14 +54,14 @@ const FluxoCaixaModule = () => {
     const map: Record<string, { dia: string; entradas: number; saidas: number }> = {};
     txs.forEach(t => {
       if (!map[t.date]) map[t.date] = { dia: t.date, entradas: 0, saidas: 0 };
-      if (t.type === "receita") map[t.date].entradas += Number(t.amount);
+      if (t.type === "entrada") map[t.date].entradas += Number(t.amount);
       else map[t.date].saidas += Number(t.amount);
     });
     return Object.values(map).sort((a, b) => a.dia.localeCompare(b.dia));
   }, [txs]);
 
-  const totalEntradas = txs.filter(t => t.type === "receita").reduce((s, t) => s + Number(t.amount), 0);
-  const totalSaidas = txs.filter(t => t.type === "despesa").reduce((s, t) => s + Number(t.amount), 0);
+  const totalEntradas = txs.filter(t => t.type === "entrada").reduce((s, t) => s + Number(t.amount), 0);
+  const totalSaidas = txs.filter(t => t.type === "saida").reduce((s, t) => s + Number(t.amount), 0);
   const saldoBancario = (bankAccounts || []).reduce((s, b) => s + Number(b.current_balance), 0);
   const saldoLiquido = totalEntradas - totalSaidas;
 
@@ -126,8 +126,8 @@ const FluxoCaixaModule = () => {
                           <TableCell>{t.date}</TableCell>
                           <TableCell className="font-medium">{t.description}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{t.entity_name || "—"}</TableCell>
-                          <TableCell className={`text-right font-medium ${t.type === "receita" ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
-                            {t.type === "receita" ? "+" : "-"}{formatCurrency(Number(t.amount))}
+                          <TableCell className={`text-right font-medium ${t.type === "entrada" ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                            {t.type === "entrada" ? "+" : "-"}{formatCurrency(Number(t.amount))}
                           </TableCell>
                           <TableCell><Badge variant={t.status === "pago" || t.status === "recebido" ? "default" : "outline"}>{t.status}</Badge></TableCell>
                         </TableRow>

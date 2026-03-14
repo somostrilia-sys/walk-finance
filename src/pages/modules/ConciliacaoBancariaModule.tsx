@@ -157,8 +157,8 @@ const ConciliacaoBancariaModule = () => {
                           <TableCell>{t.date}</TableCell>
                           <TableCell className="font-medium">{t.description}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{t.entity_name || "—"}</TableCell>
-                          <TableCell className={`text-right font-medium ${t.type === "receita" ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
-                            {t.type === "receita" ? "+" : "-"}{formatCurrency(Number(t.amount))}
+                          <TableCell className={`text-right font-medium ${t.type === "entrada" ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                            {t.type === "entrada" ? "+" : "-"}{formatCurrency(Number(t.amount))}
                           </TableCell>
                           <TableCell><Badge variant={t.status === "pago" || t.status === "recebido" ? "default" : "outline"}>{t.status}</Badge></TableCell>
                         </TableRow>

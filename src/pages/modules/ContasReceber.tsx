@@ -49,7 +49,7 @@ const ContasReceber = () => {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ entity_name: "", description: "", amount: "", date: "", payment_method: "PIX" });
 
-  const contas = useMemo(() => (transactions || []).filter((t: any) => t.type === "receita"), [transactions]);
+  const contas = useMemo(() => (transactions || []).filter((t: any) => t.type === "entrada"), [transactions]);
 
   const filtered = useMemo(() => contas.filter((c: any) => {
     if (filtroStatus === "pendente" && c.status !== "pendente") return false;
@@ -72,7 +72,7 @@ const ContasReceber = () => {
     setSubmitting(true);
     const { error } = await supabase.from("financial_transactions").insert({
       company_id: companyId!,
-      type: "receita",
+      type: "entrada",
       description: form.description || `Recebimento - ${form.entity_name}`,
       amount: Number(form.amount),
       date: form.date,

@@ -146,7 +146,7 @@ const CadastroPessoas = () => {
     setSaving(true);
     const { error } = await supabase.from("financial_transactions").insert({
       company_id: companyId!,
-      type: "receita",
+      type: "entrada",
       description: formCR.descricao || `Receita — ${form.razao_social}`,
       amount: parseFloat(formCR.valor),
       date: formCR.vencimento || new Date().toISOString().slice(0, 10),
@@ -369,8 +369,8 @@ const CadastroPessoas = () => {
                           <TableRow key={t.id}>
                             <TableCell className="text-xs">{t.date}</TableCell>
                             <TableCell className="text-xs">{t.description}</TableCell>
-                            <TableCell><Badge variant={t.type === "receita" ? "default" : "secondary"} className="text-[10px]">{t.type}</Badge></TableCell>
-                            <TableCell className={`text-right text-xs font-medium ${t.type === "receita" ? "text-emerald-600" : "text-destructive"}`}>{formatCurrency(Number(t.amount))}</TableCell>
+                            <TableCell><Badge variant={t.type === "entrada" ? "default" : "secondary"} className="text-[10px]">{t.type}</Badge></TableCell>
+                            <TableCell className={`text-right text-xs font-medium ${t.type === "entrada" ? "text-emerald-600" : "text-destructive"}`}>{formatCurrency(Number(t.amount))}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

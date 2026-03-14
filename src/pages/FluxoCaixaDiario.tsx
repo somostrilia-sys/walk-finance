@@ -158,7 +158,7 @@ function RecebimentosTab({ companyId }: { companyId?: string }) {
   const [addOpen, setAddOpen] = useState(false);
 
   const receitas = useMemo(() =>
-    (txs || []).filter((t) => t.type === "receita"), [txs]);
+    (txs || []).filter((t) => t.type === "entrada"), [txs]);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -188,7 +188,7 @@ function RecebimentosTab({ companyId }: { companyId?: string }) {
     const fd = new FormData(e.currentTarget);
     const { error } = await supabase.from("financial_transactions").insert({
       company_id: companyId!,
-      type: "receita",
+      type: "entrada",
       description: fd.get("descricao") as string,
       amount: Number(fd.get("valor")),
       date: fd.get("data") as string,
@@ -310,7 +310,7 @@ function PagamentosTab({ companyId }: { companyId?: string }) {
   const [justificativa, setJustificativa] = useState("");
 
   const despesas = useMemo(() =>
-    (txs || []).filter((t) => t.type === "despesa"), [txs]);
+    (txs || []).filter((t) => t.type === "saida"), [txs]);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -574,7 +574,7 @@ function NotasFiscaisTab({ companyId }: { companyId?: string }) {
   const autoMatchSuggestions = useMemo(() => {
     const suggestions: Record<string, { txId: string; txDesc: string; txAmount: number; exact: boolean }> = {};
     const unlinked = (nfs || []).filter((n) => !n.transaction_id && n.status === "pendente");
-    const despesas = (txs || []).filter((t) => t.type === "despesa");
+    const despesas = (txs || []).filter((t) => t.type === "saida");
 
     unlinked.forEach((nf) => {
       const candidates = despesas.filter((tx) => {

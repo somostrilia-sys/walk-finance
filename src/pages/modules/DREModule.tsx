@@ -81,7 +81,7 @@ const DREModule = () => {
 
     (transactions || []).forEach(t => {
       const catName = (t as any).expense_categories?.name || "";
-      if (t.type === "receita") {
+      if (t.type === "entrada") {
         values.receita_bruta += Number(t.amount);
       } else {
         const dreKey = mapToDREKey(t.description, catName);
