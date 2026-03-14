@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Download, Loader2, FileSpreadsheet } from "lucide-react";
+import { Download, Loader2, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
+import ModuleStatCard from "@/components/ModuleStatCard";
 
 // 14-line DRE structure auto-calculated from financial_transactions
 interface DRELine {
