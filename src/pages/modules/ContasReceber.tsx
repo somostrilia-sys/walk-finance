@@ -72,7 +72,7 @@ const ContasReceber = () => {
     setSubmitting(true);
     const { error } = await supabase.from("financial_transactions").insert({
       company_id: companyId!,
-      type: "receita",
+      type: "entrada",
       description: form.description || `Recebimento - ${form.entity_name}`,
       amount: Number(form.amount),
       date: form.date,
