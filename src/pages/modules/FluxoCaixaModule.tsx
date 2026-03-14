@@ -42,7 +42,7 @@ const FluxoCaixaModule = () => {
       const k = t.date.slice(0, 7);
       const m = months.find(mo => mo.key === k);
       if (m) {
-        if (t.type === "receita") m.entradas += Number(t.amount);
+        if (t.type === "entrada") m.entradas += Number(t.amount);
         else m.saidas += Number(t.amount);
       }
     });
