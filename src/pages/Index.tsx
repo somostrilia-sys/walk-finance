@@ -78,8 +78,8 @@ const SelectedCompanyDashboard = ({ company, onNavigate }: { company: any; onNav
 
   const metrics = useMemo(() => {
     const txs = transactions || [];
-    const receitas = txs.filter((t: any) => t.type === "receita");
-    const despesas = txs.filter((t: any) => t.type === "despesa");
+    const receitas = txs.filter((t: any) => t.type === "entrada");
+    const despesas = txs.filter((t: any) => t.type === "saida");
     const totalReceber = receitas.filter((t: any) => t.status === "pendente").reduce((s: number, t: any) => s + Number(t.amount), 0);
     const totalPagar = despesas.filter((t: any) => t.status === "pendente").reduce((s: number, t: any) => s + Number(t.amount), 0);
     const saldoBanco = (bankAccounts || []).reduce((s: number, b: any) => s + Number(b.current_balance), 0);
