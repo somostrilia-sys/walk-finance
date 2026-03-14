@@ -73,7 +73,7 @@ const ContasPagar = () => {
     setSubmitting(true);
     const { error } = await supabase.from("financial_transactions").insert({
       company_id: companyId!,
-      type: "despesa",
+      type: "saida",
       description: form.description || `Conta - ${form.entity_name}`,
       amount: Number(form.amount),
       date: form.date,
