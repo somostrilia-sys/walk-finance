@@ -1021,6 +1021,9 @@ export type Database = {
           id: string
           payment_date: string | null
           payment_method: string | null
+          recurrence_months: number
+          recurrence_group_id: string | null
+          attachment_url: string | null
           status: string
           type: string
           updated_at: string
@@ -1037,6 +1040,9 @@ export type Database = {
           id?: string
           payment_date?: string | null
           payment_method?: string | null
+          recurrence_months?: number
+          recurrence_group_id?: string | null
+          attachment_url?: string | null
           status?: string
           type: string
           updated_at?: string
@@ -1053,6 +1059,9 @@ export type Database = {
           id?: string
           payment_date?: string | null
           payment_method?: string | null
+          recurrence_months?: number
+          recurrence_group_id?: string | null
+          attachment_url?: string | null
           status?: string
           type?: string
           updated_at?: string
