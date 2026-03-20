@@ -295,7 +295,45 @@ const ContasReceber = () => {
                   </Select>
                 </div>
 
-                {/* Recorrência */}
+                {/* Consultor vinculado */}
+                {consultores.length > 0 && (
+                  <div>
+                    <label className="text-sm font-medium">Consultor (Comissão)</label>
+                    <Select value={form.consultor_id} onValueChange={v => setForm(f => ({ ...f, consultor_id: v }))}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Nenhum consultor vinculado" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {consultores.map((c: any) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nome} — {c.comissao_percent}%
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {form.consultor_id && form.consultor_id !== "none" && (() => {
+                      const consul = consultores.find((c: any) => c.id === form.consultor_id);
+                      if (!consul) return null;
+                      const comVal = form.amount ? (Number(form.amount) * (consul.comissao_percent / 100)) : 0;
+                      const hasPeriodo = consul.dia_inicio_fechamento && consul.dia_fim_fechamento && consul.dia_pagamento_comissao;
+                      return (
+                        <div className="mt-2 text-xs p-2 rounded-md bg-muted/50 border space-y-1">
+                          <p className="text-muted-foreground">
+                            Comissão: <span className="font-medium text-foreground">{formatCurrency(comVal)}</span> ({consul.comissao_percent}%)
+                          </p>
+                          {hasPeriodo ? (
+                            <p className="text-muted-foreground">
+                              Pgto dia {consul.dia_pagamento_comissao} · Fechamento: {consul.dia_inicio_fechamento} ao {consul.dia_fim_fechamento}
+                            </p>
+                          ) : (
+                            <p className="text-destructive">⚠ Período de fechamento não configurado</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+
                 <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                   <div className="flex items-center gap-2">
                     <Repeat className="w-4 h-4 text-muted-foreground" />
