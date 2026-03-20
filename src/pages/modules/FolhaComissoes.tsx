@@ -92,7 +92,7 @@ const FolhaComissoes = () => {
 
   const [modalColab, setModalColab] = useState(false);
   const [editColabId, setEditColabId] = useState<string | null>(null);
-  const [formColab, setFormColab] = useState({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false });
+  const [formColab, setFormColab] = useState({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false, fechamento_salario: "", fechamento_comissao: "" });
 
   const [modalComissao, setModalComissao] = useState(false);
   const [formComissao, setFormComissao] = useState({ colaborador_id: "", cliente: "", valor: 0, status: "pendente", periodo: "" });
@@ -123,13 +123,15 @@ const FolhaComissoes = () => {
   const handleSaveColab = async () => {
     if (!formColab.nome || !companyId) { toast({ title: "Preencha o nome", variant: "destructive" }); return; }
     setSaving(true);
-    const { dia_pagamento_salario, dia_pagamento_comissao, is_consultor, ...rest } = formColab;
+    const { dia_pagamento_salario, dia_pagamento_comissao, is_consultor, fechamento_salario, fechamento_comissao, ...rest } = formColab;
     const payload = {
       ...rest,
       company_id: companyId,
       dia_pagamento_salario: dia_pagamento_salario ? parseInt(dia_pagamento_salario) : null,
       dia_pagamento_comissao: dia_pagamento_comissao ? parseInt(dia_pagamento_comissao) : null,
       is_consultor,
+      fechamento_salario: fechamento_salario || null,
+      fechamento_comissao: fechamento_comissao || null,
     } as any;
     if (!payload.admissao) delete payload.admissao;
     if (editColabId) {
@@ -142,12 +144,12 @@ const FolhaComissoes = () => {
       toast({ title: "Colaborador cadastrado" });
     }
     setSaving(false); setModalColab(false); setEditColabId(null);
-    setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false });
+    setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false, fechamento_salario: "", fechamento_comissao: "" });
     invalidate("colaboradores");
   };
 
   const handleEditColab = (c: any) => {
-    setFormColab({ nome: c.nome, cpf: c.cpf || "", cargo: c.cargo, admissao: c.admissao || "", contrato: c.contrato, salario_base: c.salario_base, tipo_remuneracao: c.tipo_remuneracao, banco: c.banco || "", agencia: c.agencia || "", conta: c.conta || "", chave_pix: c.chave_pix || "", comissao_percent: c.comissao_percent, comissao_tipo: c.comissao_tipo, dia_pagamento_salario: c.dia_pagamento_salario?.toString() || "", dia_pagamento_comissao: c.dia_pagamento_comissao?.toString() || "", is_consultor: c.is_consultor || false });
+    setFormColab({ nome: c.nome, cpf: c.cpf || "", cargo: c.cargo, admissao: c.admissao || "", contrato: c.contrato, salario_base: c.salario_base, tipo_remuneracao: c.tipo_remuneracao, banco: c.banco || "", agencia: c.agencia || "", conta: c.conta || "", chave_pix: c.chave_pix || "", comissao_percent: c.comissao_percent, comissao_tipo: c.comissao_tipo, dia_pagamento_salario: c.dia_pagamento_salario?.toString() || "", dia_pagamento_comissao: c.dia_pagamento_comissao?.toString() || "", is_consultor: c.is_consultor || false, fechamento_salario: c.fechamento_salario || "", fechamento_comissao: c.fechamento_comissao || "" });
     setEditColabId(c.id); setModalColab(true);
   };
 
@@ -264,6 +266,28 @@ const FolhaComissoes = () => {
                       <Select value={formColab.comissao_tipo} onValueChange={v => setFormColab(f => ({ ...f, comissao_tipo: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="fixo">Fixo</SelectItem><SelectItem value="variável">Variável</SelectItem><SelectItem value="nenhum">Nenhum</SelectItem></SelectContent></Select></div>
                     <div><label className="text-sm font-medium">Dia Pgto Salário</label><Input type="number" min={1} max={31} placeholder="Ex: 5" value={formColab.dia_pagamento_salario} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_salario: e.target.value }))} /></div>
                     <div><label className="text-sm font-medium">Dia Pgto Comissão</label><Input type="number" min={1} max={31} placeholder="Ex: 15" value={formColab.dia_pagamento_comissao} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_comissao: e.target.value }))} /></div>
+                    <div><label className="text-sm font-medium">Fechamento Folha Salário</label>
+                      <Select value={formColab.fechamento_salario} onValueChange={v => setFormColab(f => ({ ...f, fechamento_salario: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1-30">Dia 1 ao 30</SelectItem>
+                          <SelectItem value="1-31">Dia 1 ao 31</SelectItem>
+                          <SelectItem value="16-15">Dia 16 ao 15</SelectItem>
+                          <SelectItem value="21-20">Dia 21 ao 20</SelectItem>
+                          <SelectItem value="26-25">Dia 26 ao 25</SelectItem>
+                        </SelectContent>
+                      </Select></div>
+                    <div><label className="text-sm font-medium">Fechamento Folha Comissão</label>
+                      <Select value={formColab.fechamento_comissao} onValueChange={v => setFormColab(f => ({ ...f, fechamento_comissao: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1-30">Dia 1 ao 30</SelectItem>
+                          <SelectItem value="1-31">Dia 1 ao 31</SelectItem>
+                          <SelectItem value="16-15">Dia 16 ao 15</SelectItem>
+                          <SelectItem value="21-20">Dia 21 ao 20</SelectItem>
+                          <SelectItem value="26-25">Dia 26 ao 25</SelectItem>
+                        </SelectContent>
+                      </Select></div>
                     <div className="col-span-2 flex items-center gap-2">
                       <input type="checkbox" id="is_consultor" checked={formColab.is_consultor} onChange={e => setFormColab(f => ({ ...f, is_consultor: e.target.checked }))} className="rounded" />
                       <label htmlFor="is_consultor" className="text-sm font-medium">É consultor (recebe comissões)</label>
