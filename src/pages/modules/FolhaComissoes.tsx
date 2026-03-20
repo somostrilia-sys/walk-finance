@@ -18,7 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-import { Users, Plus, Download, DollarSign, Percent, FileText, Calculator, Search, Pencil, Trash2, Loader2, Megaphone, Trophy } from "lucide-react";
+import { Users, Plus, Download, DollarSign, Percent, FileText, Calculator, Search, Pencil, Trash2, Loader2, Megaphone, Trophy, CalendarClock } from "lucide-react";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
