@@ -140,7 +140,7 @@ const FolhaComissoes = () => {
   };
 
   const handleEditColab = (c: any) => {
-    setFormColab({ nome: c.nome, cpf: c.cpf || "", cargo: c.cargo, admissao: c.admissao || "", contrato: c.contrato, salario_base: c.salario_base, tipo_remuneracao: c.tipo_remuneracao, banco: c.banco || "", agencia: c.agencia || "", conta: c.conta || "", chave_pix: c.chave_pix || "", comissao_percent: c.comissao_percent, comissao_tipo: c.comissao_tipo });
+    setFormColab({ nome: c.nome, cpf: c.cpf || "", cargo: c.cargo, admissao: c.admissao || "", contrato: c.contrato, salario_base: c.salario_base, tipo_remuneracao: c.tipo_remuneracao, banco: c.banco || "", agencia: c.agencia || "", conta: c.conta || "", chave_pix: c.chave_pix || "", comissao_percent: c.comissao_percent, comissao_tipo: c.comissao_tipo, dia_pagamento_salario: c.dia_pagamento_salario?.toString() || "", dia_pagamento_comissao: c.dia_pagamento_comissao?.toString() || "", is_consultor: c.is_consultor || false });
     setEditColabId(c.id); setModalColab(true);
   };
 
