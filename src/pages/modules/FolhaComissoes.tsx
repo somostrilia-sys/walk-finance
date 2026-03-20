@@ -548,9 +548,36 @@ const FolhaComissoes = () => {
   );
 };
 
+function periodoFechamentoLabel(c: any, mesCompetencia?: string) {
+  const diaInicio = c.dia_inicio_fechamento;
+  const diaFim = c.dia_fim_fechamento;
+  if (!diaInicio || !diaFim) return "—";
+
+  if (!mesCompetencia) {
+    return `Dia ${diaInicio} ao ${diaFim}`;
+  }
+
+  const [ano, m] = mesCompetencia.split("-").map(Number);
+  const pad = (d: number, mes: number, a: number) =>
+    `${String(d).padStart(2, "0")}/${String(mes).padStart(2, "0")}/${a}`;
+
+  if (diaInicio > diaFim) {
+    const mesAnterior = m === 1 ? 12 : m - 1;
+    const anoAnterior = m === 1 ? ano - 1 : ano;
+    return `${pad(diaInicio, mesAnterior, anoAnterior)} a ${pad(diaFim, m, ano)}`;
+  }
+  return `${pad(diaInicio, m, ano)} a ${pad(diaFim, m, ano)}`;
+}
+
 function VencimentosTab({ colaboradores, comissoes }: { colaboradores: any[]; comissoes: any[] }) {
+  const hoje = new Date();
+  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+
+  const consultoresAtivos = colaboradores.filter(c =>
+    c.is_consultor && c.dia_inicio_fechamento && c.dia_fim_fechamento
+  );
+
   const vencimentos = useMemo(() => {
-    const hoje = new Date();
     const items: { id: string; descricao: string; valor: number; vencimento: string; _tipo: "salario" | "comissao" }[] = [];
 
     // Salários
@@ -593,6 +620,18 @@ function VencimentosTab({ colaboradores, comissoes }: { colaboradores: any[]; co
 
   return (
     <>
+      {consultoresAtivos.length > 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900 px-4 py-3 mb-4 text-xs">
+          <div className="font-bold text-primary mb-1.5">Períodos apurados neste mês:</div>
+          {consultoresAtivos.map(c => (
+            <div key={c.id} className="text-foreground mb-0.5">
+              <strong>{c.nome}:</strong>{" "}
+              {periodoFechamentoLabel(c, mesAtual)}
+              {c.dia_pagamento_comissao && ` → pagamento dia ${c.dia_pagamento_comissao}`}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-4">
         <CalendarClock className="w-5 h-5 text-primary" />
         <h3 className="font-semibold text-sm">Próximos Vencimentos — Salários e Comissões</h3>
