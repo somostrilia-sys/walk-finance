@@ -560,26 +560,7 @@ const FolhaComissoes = () => {
   );
 };
 
-function periodoFechamentoLabel(c: any, mesCompetencia?: string) {
-  const diaInicio = c.dia_inicio_fechamento;
-  const diaFim = c.dia_fim_fechamento;
-  if (!diaInicio || !diaFim) return "—";
-
-  if (!mesCompetencia) {
-    return `Dia ${diaInicio} ao ${diaFim}`;
-  }
-
-  const [ano, m] = mesCompetencia.split("-").map(Number);
-  const pad = (d: number, mes: number, a: number) =>
-    `${String(d).padStart(2, "0")}/${String(mes).padStart(2, "0")}/${a}`;
-
-  if (diaInicio > diaFim) {
-    const mesAnterior = m === 1 ? 12 : m - 1;
-    const anoAnterior = m === 1 ? ano - 1 : ano;
-    return `${pad(diaInicio, mesAnterior, anoAnterior)} a ${pad(diaFim, m, ano)}`;
-  }
-  return `${pad(diaInicio, m, ano)} a ${pad(diaFim, m, ano)}`;
-}
+// periodoFechamentoLabel now imported from @/lib/utils
 
 function VencimentosTab({ colaboradores, comissoes }: { colaboradores: any[]; comissoes: any[] }) {
   const hoje = new Date();
