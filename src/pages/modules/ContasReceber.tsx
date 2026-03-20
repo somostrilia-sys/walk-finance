@@ -151,8 +151,34 @@ const ContasReceber = () => {
     }
 
     const { error } = await supabase.from("financial_transactions").insert(records as any);
+    if (error) { setSubmitting(false); return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" }); }
+
+    // Gerar comissão se consultor vinculado
+    const consultorId = form.consultor_id && form.consultor_id !== "none" ? form.consultor_id : null;
+    if (consultorId) {
+      const consul = consultores.find((c: any) => c.id === consultorId);
+      if (consul && consul.dia_inicio_fechamento && consul.dia_fim_fechamento && consul.dia_pagamento_comissao) {
+        const comissaoValor = Number(form.amount) * (consul.comissao_percent / 100);
+        const competencia = calcularCompetenciaComissao(form.date, consul);
+        if (competencia && comissaoValor > 0) {
+          await supabase.from("comissoes_folha").insert({
+            company_id: companyId!,
+            colaborador_id: consultorId,
+            cliente: form.entity_name,
+            valor: parseFloat(comissaoValor.toFixed(2)),
+            periodo: competencia.mes_competencia,
+            status: "prevista",
+            created_by: user?.id,
+          } as any);
+          queryClient.invalidateQueries({ queryKey: ["comissoes_folha", companyId] });
+          toast({ title: `Comissão de ${formatCurrency(comissaoValor)} gerada para ${consul.nome}` });
+        }
+      } else if (consul) {
+        toast({ title: `Atenção: ${consul.nome} não tem período de fechamento configurado. Comissão não gerada.`, variant: "destructive" });
+      }
+    }
+
     setSubmitting(false);
-    if (error) return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     setModalOpen(false);
     setForm({ ...emptyForm });
