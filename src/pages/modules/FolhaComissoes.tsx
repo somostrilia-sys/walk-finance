@@ -427,7 +427,33 @@ const FolhaComissoes = () => {
               <h3 className="font-semibold text-sm">Folha de Pagamento — Salários</h3>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => toast({ title: "Exportação CSV/Excel em desenvolvimento" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
-                <Button size="sm" onClick={() => toast({ title: "Folha fechada", description: "Lançamento gerado em Contas a Pagar." })}><FileText className="w-4 h-4 mr-1" />Fechar Folha</Button>
+                <Button size="sm" disabled={saving} onClick={async () => {
+                  if (folhaCalc.length === 0) { toast({ title: "Nenhum colaborador ativo", variant: "destructive" }); return; }
+                  setSaving(true);
+                  const mesRef = new Date().toLocaleString("pt-BR", { month: "short", year: "numeric" }).replace(".", "");
+                  const registros = folhaCalc.filter((c: any) => c.liquido > 0).map((c: any) => ({
+                    company_id: companyId!,
+                    fornecedor: c.nome,
+                    cpf_cnpj: c.cpf || "",
+                    descricao: `Salário ${mesRef} — ${c.nome}`,
+                    valor: c.liquido,
+                    vencimento: (() => {
+                      const hoje = new Date();
+                      const dia = c.dia_pagamento_salario || 5;
+                      let dt = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
+                      if (dt <= hoje) dt = new Date(hoje.getFullYear(), hoje.getMonth() + 1, dia);
+                      return dt.toISOString().slice(0, 10);
+                    })(),
+                    categoria: "Folha de Pagamento",
+                    status: "a_vencer",
+                  }));
+                  if (registros.length === 0) { toast({ title: "Nenhum valor a lançar" }); setSaving(false); return; }
+                  const { error } = await supabase.from("contas_pagar").insert(registros);
+                  setSaving(false);
+                  if (error) { toast({ title: "Erro ao fechar folha", description: error.message, variant: "destructive" }); return; }
+                  invalidate("contas_pagar");
+                  toast({ title: "Folha fechada!", description: `${registros.length} lançamento(s) criado(s) em Contas a Pagar.` });
+                }}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileText className="w-4 h-4 mr-1" />}Fechar Folha</Button>
               </div>
             </div>
             <Card><CardContent className="p-0">
