@@ -268,7 +268,20 @@ const ContasPagar = () => {
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>Cadastrar Conta a Pagar</DialogTitle></DialogHeader>
               <div className="space-y-3 pt-2">
-                <div><label className="text-sm font-medium">Prestador/Fornecedor *</label><Input className="mt-1" value={form.entity_name} onChange={e => setForm(f => ({ ...f, entity_name: e.target.value }))} /></div>
+                <div className="relative">
+                  <label className="text-sm font-medium">Prestador/Fornecedor *</label>
+                  <Input className="mt-1" value={form.entity_name} onChange={e => { setForm(f => ({ ...f, entity_name: e.target.value })); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} />
+                  {showSuggestions && fornecedorSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {fornecedorSuggestions.map((p: any) => (
+                        <button key={p.id} type="button" className="w-full text-left px-3 py-2 hover:bg-accent text-sm flex justify-between items-center" onMouseDown={() => { setForm(f => ({ ...f, entity_name: p.razao_social })); setShowSuggestions(false); }}>
+                          <span className="font-medium truncate">{p.razao_social}</span>
+                          {p.cpf_cnpj && <span className="text-xs text-muted-foreground ml-2 shrink-0">{p.cpf_cnpj}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Valor *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
