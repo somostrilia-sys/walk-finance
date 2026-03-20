@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { periodoFechamentoLabel } from "@/lib/utils";
 import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
