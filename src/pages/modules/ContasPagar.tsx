@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { useCompanies, useFinancialTransactions } from "@/hooks/useFinancialData";
+import { useCompanies, useFinancialTransactions, usePessoas } from "@/hooks/useFinancialData";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -53,6 +53,7 @@ const ContasPagar = () => {
   const queryClient = useQueryClient();
   const { data: companies } = useCompanies();
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
+  const { data: pessoas } = usePessoas(companyId);
   const company = companies?.find(c => c.id === companyId);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -64,8 +65,30 @@ const ContasPagar = () => {
   const [form, setForm] = useState({ ...emptyForm });
   const [editForm, setEditForm] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showEditSuggestions, setShowEditSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  const fornecedorSuggestions = useMemo(() => {
+    const q = form.entity_name?.toLowerCase().trim();
+    if (!q || q.length < 1 || !pessoas?.length) return [];
+    return pessoas.filter((p: any) =>
+      (p.razao_social?.toLowerCase().includes(q)) ||
+      (p.responsavel?.toLowerCase().includes(q)) ||
+      (p.cpf_cnpj?.includes(q))
+    ).slice(0, 8);
+  }, [form.entity_name, pessoas]);
+
+  const editFornecedorSuggestions = useMemo(() => {
+    const q = editForm?.entity_name?.toLowerCase().trim();
+    if (!q || q.length < 1 || !pessoas?.length) return [];
+    return pessoas.filter((p: any) =>
+      (p.razao_social?.toLowerCase().includes(q)) ||
+      (p.responsavel?.toLowerCase().includes(q)) ||
+      (p.cpf_cnpj?.includes(q))
+    ).slice(0, 8);
+  }, [editForm?.entity_name, pessoas]);
 
   const contas = useMemo(() => (transactions || []).filter((t: any) => t.type === "saida"), [transactions]);
 
@@ -245,7 +268,20 @@ const ContasPagar = () => {
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>Cadastrar Conta a Pagar</DialogTitle></DialogHeader>
               <div className="space-y-3 pt-2">
-                <div><label className="text-sm font-medium">Prestador/Fornecedor *</label><Input className="mt-1" value={form.entity_name} onChange={e => setForm(f => ({ ...f, entity_name: e.target.value }))} /></div>
+                <div className="relative">
+                  <label className="text-sm font-medium">Prestador/Fornecedor *</label>
+                  <Input className="mt-1" value={form.entity_name} onChange={e => { setForm(f => ({ ...f, entity_name: e.target.value })); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} />
+                  {showSuggestions && fornecedorSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {fornecedorSuggestions.map((p: any) => (
+                        <button key={p.id} type="button" className="w-full text-left px-3 py-2 hover:bg-accent text-sm flex justify-between items-center" onMouseDown={() => { setForm(f => ({ ...f, entity_name: p.razao_social })); setShowSuggestions(false); }}>
+                          <span className="font-medium truncate">{p.razao_social}</span>
+                          {p.cpf_cnpj && <span className="text-xs text-muted-foreground ml-2 shrink-0">{p.cpf_cnpj}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Valor *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
@@ -383,7 +419,20 @@ const ContasPagar = () => {
             <DialogHeader><DialogTitle>Editar Conta a Pagar</DialogTitle></DialogHeader>
             {editForm && (
               <div className="space-y-3 pt-2">
-                <div><label className="text-sm font-medium">Prestador/Fornecedor *</label><Input className="mt-1" value={editForm.entity_name} onChange={e => setEditForm((f: any) => ({ ...f, entity_name: e.target.value }))} /></div>
+                <div className="relative">
+                  <label className="text-sm font-medium">Prestador/Fornecedor *</label>
+                  <Input className="mt-1" value={editForm.entity_name} onChange={e => { setEditForm((f: any) => ({ ...f, entity_name: e.target.value })); setShowEditSuggestions(true); }} onFocus={() => setShowEditSuggestions(true)} onBlur={() => setTimeout(() => setShowEditSuggestions(false), 200)} />
+                  {showEditSuggestions && editFornecedorSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {editFornecedorSuggestions.map((p: any) => (
+                        <button key={p.id} type="button" className="w-full text-left px-3 py-2 hover:bg-accent text-sm flex justify-between items-center" onMouseDown={() => { setEditForm((f: any) => ({ ...f, entity_name: p.razao_social })); setShowEditSuggestions(false); }}>
+                          <span className="font-medium truncate">{p.razao_social}</span>
+                          {p.cpf_cnpj && <span className="text-xs text-muted-foreground ml-2 shrink-0">{p.cpf_cnpj}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={editForm.description} onChange={e => setEditForm((f: any) => ({ ...f, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Valor *</label><Input className="mt-1" type="number" step="0.01" value={editForm.amount} onChange={e => setEditForm((f: any) => ({ ...f, amount: e.target.value }))} /></div>
