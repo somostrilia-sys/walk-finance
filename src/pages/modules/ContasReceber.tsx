@@ -46,7 +46,7 @@ const addMonths = (dateStr: string, months: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", is_recurring: false, recurrence_months: "1" };
+const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", is_recurring: false, recurrence_months: "1", consultor_id: "" };
 
 const ContasReceber = () => {
   const { companyId } = useParams();
