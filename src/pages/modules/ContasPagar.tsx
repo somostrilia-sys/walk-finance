@@ -53,6 +53,29 @@ const ContasPagar = () => {
   const queryClient = useQueryClient();
   const { data: companies } = useCompanies();
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
+  const { data: pessoas } = usePessoas(companyId);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showEditSuggestions, setShowEditSuggestions] = useState(false);
+
+  const fornecedorSuggestions = useMemo(() => {
+    const q = form.entity_name?.toLowerCase().trim();
+    if (!q || q.length < 1 || !pessoas?.length) return [];
+    return pessoas.filter((p: any) =>
+      (p.razao_social?.toLowerCase().includes(q)) ||
+      (p.responsavel?.toLowerCase().includes(q)) ||
+      (p.cpf_cnpj?.includes(q))
+    ).slice(0, 8);
+  }, [form.entity_name, pessoas]);
+
+  const editFornecedorSuggestions = useMemo(() => {
+    const q = editForm?.entity_name?.toLowerCase().trim();
+    if (!q || q.length < 1 || !pessoas?.length) return [];
+    return pessoas.filter((p: any) =>
+      (p.razao_social?.toLowerCase().includes(q)) ||
+      (p.responsavel?.toLowerCase().includes(q)) ||
+      (p.cpf_cnpj?.includes(q))
+    ).slice(0, 8);
+  }, [editForm?.entity_name, pessoas]);
   const company = companies?.find(c => c.id === companyId);
 
   const [modalOpen, setModalOpen] = useState(false);
