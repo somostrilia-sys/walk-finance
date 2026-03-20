@@ -115,11 +115,23 @@ const FolhaComissoes = () => {
     !search || c.nome.toLowerCase().includes(search.toLowerCase()) || c.cargo.toLowerCase().includes(search.toLowerCase())
   ), [colaboradores, search]);
 
+  // Cálculo da Folha — apenas salário e descontos, sem comissão
   const folhaCalc = useMemo(() => ativos.map((c: any) => {
     const desc = descontos.filter((d: any) => d.colaborador_id === c.id).reduce((s: number, d: any) => s + Number(d.valor), 0);
-    const comiss = comissoes.filter((cm: any) => cm.colaborador_id === c.id && cm.status !== "prevista").reduce((s: number, cm: any) => s + Number(cm.valor), 0);
-    return { ...c, descontos_total: desc, comissao_total: comiss, liquido: Number(c.salario_base) - desc + comiss };
-  }), [ativos, descontos, comissoes]);
+    return { ...c, descontos_total: desc, liquido: Number(c.salario_base) - desc };
+  }), [ativos, descontos]);
+
+  // Cálculo de Comissões — apenas consultores com comissões
+  const comissaoCalc = useMemo(() => {
+    const consultores = ativos.filter((c: any) => c.is_consultor);
+    return consultores.map((c: any) => {
+      const previstas = comissoes.filter((cm: any) => cm.colaborador_id === c.id && cm.status === "prevista").reduce((s: number, cm: any) => s + Number(cm.valor), 0);
+      const pendentes = comissoes.filter((cm: any) => cm.colaborador_id === c.id && cm.status === "pendente").reduce((s: number, cm: any) => s + Number(cm.valor), 0);
+      const pagas = comissoes.filter((cm: any) => cm.colaborador_id === c.id && cm.status === "paga").reduce((s: number, cm: any) => s + Number(cm.valor), 0);
+      const total = previstas + pendentes;
+      return { ...c, comissao_prevista: previstas, comissao_pendente: pendentes, comissao_paga: pagas, comissao_total: total };
+    }).filter((c: any) => c.comissao_prevista > 0 || c.comissao_pendente > 0 || c.comissao_paga > 0 || c.comissao_percent > 0);
+  }, [ativos, comissoes]);
 
   const handleSaveColab = async () => {
     if (!formColab.nome || !companyId) { toast({ title: "Preencha o nome", variant: "destructive" }); return; }
