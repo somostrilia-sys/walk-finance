@@ -266,6 +266,28 @@ const FolhaComissoes = () => {
                       <Select value={formColab.comissao_tipo} onValueChange={v => setFormColab(f => ({ ...f, comissao_tipo: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="fixo">Fixo</SelectItem><SelectItem value="variável">Variável</SelectItem><SelectItem value="nenhum">Nenhum</SelectItem></SelectContent></Select></div>
                     <div><label className="text-sm font-medium">Dia Pgto Salário</label><Input type="number" min={1} max={31} placeholder="Ex: 5" value={formColab.dia_pagamento_salario} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_salario: e.target.value }))} /></div>
                     <div><label className="text-sm font-medium">Dia Pgto Comissão</label><Input type="number" min={1} max={31} placeholder="Ex: 15" value={formColab.dia_pagamento_comissao} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_comissao: e.target.value }))} /></div>
+                    <div><label className="text-sm font-medium">Fechamento Folha Salário</label>
+                      <Select value={formColab.fechamento_salario} onValueChange={v => setFormColab(f => ({ ...f, fechamento_salario: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1-30">Dia 1 ao 30</SelectItem>
+                          <SelectItem value="1-31">Dia 1 ao 31</SelectItem>
+                          <SelectItem value="16-15">Dia 16 ao 15</SelectItem>
+                          <SelectItem value="21-20">Dia 21 ao 20</SelectItem>
+                          <SelectItem value="26-25">Dia 26 ao 25</SelectItem>
+                        </SelectContent>
+                      </Select></div>
+                    <div><label className="text-sm font-medium">Fechamento Folha Comissão</label>
+                      <Select value={formColab.fechamento_comissao} onValueChange={v => setFormColab(f => ({ ...f, fechamento_comissao: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1-30">Dia 1 ao 30</SelectItem>
+                          <SelectItem value="1-31">Dia 1 ao 31</SelectItem>
+                          <SelectItem value="16-15">Dia 16 ao 15</SelectItem>
+                          <SelectItem value="21-20">Dia 21 ao 20</SelectItem>
+                          <SelectItem value="26-25">Dia 26 ao 25</SelectItem>
+                        </SelectContent>
+                      </Select></div>
                     <div className="col-span-2 flex items-center gap-2">
                       <input type="checkbox" id="is_consultor" checked={formColab.is_consultor} onChange={e => setFormColab(f => ({ ...f, is_consultor: e.target.checked }))} className="rounded" />
                       <label htmlFor="is_consultor" className="text-sm font-medium">É consultor (recebe comissões)</label>
