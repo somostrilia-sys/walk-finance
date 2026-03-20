@@ -367,7 +367,7 @@ const FolhaComissoes = () => {
             </div>
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Vendas Geradoras</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref. Venda</TableHead><TableHead>Mês Pgto</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Vendas Geradoras</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref. Venda</TableHead><TableHead>Período Apurado</TableHead><TableHead>Mês Pgto</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                 <TableBody>{comissoes.map((c: any) => {
                   // Calcular mês pagamento (mês seguinte ao período)
                   let mesPgto = "—";
@@ -380,18 +380,29 @@ const FolhaComissoes = () => {
                       mesPgto = next;
                     }
                   }
+                  // Período apurado from colaborador config
+                  const colab = colaboradores.find((col: any) => col.id === c.colaborador_id);
+                  let periodoApurado = "—";
+                  if (colab && c.periodo) {
+                    const parts = c.periodo.split("/");
+                    if (parts.length === 2) {
+                      const mesComp = `${parts[1]}-${String(parseInt(parts[0])).padStart(2, "0")}`;
+                      periodoApurado = periodoFechamentoLabel(colab, mesComp);
+                    }
+                  }
                   return (
                     <TableRow key={c.id}>
                       <TableCell className="font-medium">{c.colaboradores?.nome || "—"}</TableCell>
                       <TableCell>{c.cliente}</TableCell>
                       <TableCell className="text-right">{fmt(Number(c.valor))}</TableCell>
                       <TableCell>{c.periodo}</TableCell>
+                      <TableCell className="text-xs">{periodoApurado}</TableCell>
                       <TableCell>{mesPgto}</TableCell>
                       <TableCell><Badge className={c.status === "paga" ? "status-badge-positive" : c.status === "incluida" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "status-badge-warning"}>{c.status === "incluida" ? "Incluída" : c.status}</Badge></TableCell>
                     </TableRow>
                   );
                 })}
-                {comissoes.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhuma comissão registrada.</TableCell></TableRow>}
+                {comissoes.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhuma comissão registrada.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
