@@ -407,7 +407,10 @@ export type Database = {
           cpf: string | null
           created_at: string
           created_by: string | null
+          dia_pagamento_comissao: number | null
+          dia_pagamento_salario: number | null
           id: string
+          is_consultor: boolean
           nome: string
           salario_base: number
           status: string
@@ -429,7 +432,10 @@ export type Database = {
           cpf?: string | null
           created_at?: string
           created_by?: string | null
+          dia_pagamento_comissao?: number | null
+          dia_pagamento_salario?: number | null
           id?: string
+          is_consultor?: boolean
           nome: string
           salario_base?: number
           status?: string
@@ -451,7 +457,10 @@ export type Database = {
           cpf?: string | null
           created_at?: string
           created_by?: string | null
+          dia_pagamento_comissao?: number | null
+          dia_pagamento_salario?: number | null
           id?: string
+          is_consultor?: boolean
           nome?: string
           salario_base?: number
           status?: string
