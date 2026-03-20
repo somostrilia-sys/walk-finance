@@ -184,3 +184,20 @@ export const useCobrancas = (companyId: string | undefined) => {
     },
   });
 };
+
+export const useColaboradores = (companyId: string | undefined) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["colaboradores", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("colaboradores")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};

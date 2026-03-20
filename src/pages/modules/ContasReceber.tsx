@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { useCompanies, useFinancialTransactions, usePessoas } from "@/hooks/useFinancialData";
+import { useCompanies, useFinancialTransactions, usePessoas, useColaboradores } from "@/hooks/useFinancialData";
+import { calcularCompetenciaComissao } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -45,7 +46,7 @@ const addMonths = (dateStr: string, months: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", is_recurring: false, recurrence_months: "1" };
+const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", is_recurring: false, recurrence_months: "1", consultor_id: "" };
 
 const ContasReceber = () => {
   const { companyId } = useParams();
@@ -54,6 +55,8 @@ const ContasReceber = () => {
   const { data: companies } = useCompanies();
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
   const { data: pessoas } = usePessoas(companyId);
+  const { data: colaboradores } = useColaboradores(companyId);
+  const consultores = useMemo(() => (colaboradores || []).filter((c: any) => c.is_consultor && c.status === "ativo"), [colaboradores]);
   const company = companies?.find(c => c.id === companyId);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -148,8 +151,34 @@ const ContasReceber = () => {
     }
 
     const { error } = await supabase.from("financial_transactions").insert(records as any);
+    if (error) { setSubmitting(false); return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" }); }
+
+    // Gerar comissão se consultor vinculado
+    const consultorId = form.consultor_id && form.consultor_id !== "none" ? form.consultor_id : null;
+    if (consultorId) {
+      const consul = consultores.find((c: any) => c.id === consultorId);
+      if (consul && consul.dia_inicio_fechamento && consul.dia_fim_fechamento && consul.dia_pagamento_comissao) {
+        const comissaoValor = Number(form.amount) * (consul.comissao_percent / 100);
+        const competencia = calcularCompetenciaComissao(form.date, consul);
+        if (competencia && comissaoValor > 0) {
+          await supabase.from("comissoes_folha").insert({
+            company_id: companyId!,
+            colaborador_id: consultorId,
+            cliente: form.entity_name,
+            valor: parseFloat(comissaoValor.toFixed(2)),
+            periodo: competencia.mes_competencia,
+            status: "prevista",
+            created_by: user?.id,
+          } as any);
+          queryClient.invalidateQueries({ queryKey: ["comissoes_folha", companyId] });
+          toast({ title: `Comissão de ${formatCurrency(comissaoValor)} gerada para ${consul.nome}` });
+        }
+      } else if (consul) {
+        toast({ title: `Atenção: ${consul.nome} não tem período de fechamento configurado. Comissão não gerada.`, variant: "destructive" });
+      }
+    }
+
     setSubmitting(false);
-    if (error) return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     setModalOpen(false);
     setForm({ ...emptyForm });
@@ -292,7 +321,45 @@ const ContasReceber = () => {
                   </Select>
                 </div>
 
-                {/* Recorrência */}
+                {/* Consultor vinculado */}
+                {consultores.length > 0 && (
+                  <div>
+                    <label className="text-sm font-medium">Consultor (Comissão)</label>
+                    <Select value={form.consultor_id} onValueChange={v => setForm(f => ({ ...f, consultor_id: v }))}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Nenhum consultor vinculado" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {consultores.map((c: any) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nome} — {c.comissao_percent}%
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {form.consultor_id && form.consultor_id !== "none" && (() => {
+                      const consul = consultores.find((c: any) => c.id === form.consultor_id);
+                      if (!consul) return null;
+                      const comVal = form.amount ? (Number(form.amount) * (consul.comissao_percent / 100)) : 0;
+                      const hasPeriodo = consul.dia_inicio_fechamento && consul.dia_fim_fechamento && consul.dia_pagamento_comissao;
+                      return (
+                        <div className="mt-2 text-xs p-2 rounded-md bg-muted/50 border space-y-1">
+                          <p className="text-muted-foreground">
+                            Comissão: <span className="font-medium text-foreground">{formatCurrency(comVal)}</span> ({consul.comissao_percent}%)
+                          </p>
+                          {hasPeriodo ? (
+                            <p className="text-muted-foreground">
+                              Pgto dia {consul.dia_pagamento_comissao} · Fechamento: {consul.dia_inicio_fechamento} ao {consul.dia_fim_fechamento}
+                            </p>
+                          ) : (
+                            <p className="text-destructive">⚠ Período de fechamento não configurado</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+
                 <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                   <div className="flex items-center gap-2">
                     <Repeat className="w-4 h-4 text-muted-foreground" />
