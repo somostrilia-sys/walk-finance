@@ -248,6 +248,7 @@ const FolhaComissoes = () => {
             <TabsTrigger value="colaboradores">Colaboradores</TabsTrigger>
             <TabsTrigger value="comissoes">Comissões</TabsTrigger>
             <TabsTrigger value="calculo">Cálculo da Folha</TabsTrigger>
+            <TabsTrigger value="calculo_comissao">Cálculo Comissão</TabsTrigger>
             <TabsTrigger value="descontos">Descontos</TabsTrigger>
             <TabsTrigger value="campanhas">Campanhas</TabsTrigger>
             <TabsTrigger value="vencimentos">Vencimentos</TabsTrigger>
