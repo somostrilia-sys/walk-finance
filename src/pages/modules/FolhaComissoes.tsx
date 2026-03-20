@@ -421,39 +421,95 @@ const FolhaComissoes = () => {
             </CardContent></Card>
           </TabsContent>
 
-          {/* ── CÁLCULO DA FOLHA ── */}
+          {/* ── CÁLCULO DA FOLHA (só salários) ── */}
           <TabsContent value="calculo">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-sm">Folha de Pagamento — Resumo</h3>
+              <h3 className="font-semibold text-sm">Folha de Pagamento — Salários</h3>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => toast({ title: "Exportação CSV/Excel em desenvolvimento" })}><Download className="w-4 h-4 mr-1" />Exportar Excel/CSV</Button>
+                <Button variant="outline" size="sm" onClick={() => toast({ title: "Exportação CSV/Excel em desenvolvimento" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
                 <Button size="sm" onClick={() => toast({ title: "Folha fechada", description: "Lançamento gerado em Contas a Pagar." })}><FileText className="w-4 h-4 mr-1" />Fechar Folha</Button>
               </div>
             </div>
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Cargo</TableHead><TableHead className="text-right">Salário Base</TableHead><TableHead className="text-right">Comissão</TableHead><TableHead className="text-right">Descontos</TableHead><TableHead className="text-right font-bold">Valor Líquido</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Cargo</TableHead><TableHead>Contrato</TableHead><TableHead className="text-right">Salário Base</TableHead><TableHead className="text-right">Descontos</TableHead><TableHead className="text-right font-bold">Líquido</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {folhaCalc.map((c: any) => (
                     <TableRow key={c.id}>
                       <TableCell className="font-medium">{c.nome}</TableCell>
                       <TableCell>{c.cargo}</TableCell>
+                      <TableCell><Badge variant="outline">{c.contrato}</Badge></TableCell>
                       <TableCell className="text-right">{fmt(Number(c.salario_base))}</TableCell>
-                      <TableCell className="text-right text-emerald-600">{c.comissao_total > 0 ? `+${fmt(c.comissao_total)}` : "—"}</TableCell>
                       <TableCell className="text-right text-destructive">{c.descontos_total > 0 ? `-${fmt(c.descontos_total)}` : "—"}</TableCell>
                       <TableCell className="text-right font-bold">{fmt(c.liquido)}</TableCell>
                     </TableRow>
                   ))}
                   {folhaCalc.length > 0 && (
                     <TableRow className="font-bold border-t-2">
-                      <TableCell colSpan={2}>TOTAL</TableCell>
+                      <TableCell colSpan={3}>TOTAL</TableCell>
                       <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + Number(c.salario_base), 0))}</TableCell>
-                      <TableCell className="text-right text-emerald-600">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.comissao_total, 0))}</TableCell>
                       <TableCell className="text-right text-destructive">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.descontos_total, 0))}</TableCell>
                       <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.liquido, 0))}</TableCell>
                     </TableRow>
                   )}
                   {folhaCalc.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Cadastre colaboradores.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </CardContent></Card>
+          </TabsContent>
+
+          {/* ── CÁLCULO DE COMISSÃO ── */}
+          <TabsContent value="calculo_comissao">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-sm">Cálculo de Comissões — Consultores</h3>
+              <Button variant="outline" size="sm" onClick={() => toast({ title: "Exportação CSV/Excel em desenvolvimento" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
+            </div>
+            {(() => {
+              const consultoresAtivos = ativos.filter((c: any) => c.is_consultor && c.dia_inicio_fechamento && c.dia_fim_fechamento);
+              const mesAtual = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+              return consultoresAtivos.length > 0 ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900 px-4 py-3 mb-4 text-xs">
+                  <div className="font-bold text-primary mb-1.5">Períodos de apuração configurados:</div>
+                  {consultoresAtivos.map((c: any) => (
+                    <div key={c.id} className="text-foreground mb-0.5">
+                      <strong>{c.nome}:</strong> {periodoFechamentoLabel(c, mesAtual)}
+                      {c.dia_pagamento_comissao && ` → pagamento dia ${c.dia_pagamento_comissao}`}
+                    </div>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+            <Card><CardContent className="p-0">
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>Consultor</TableHead>
+                  <TableHead className="text-right">% Comissão</TableHead>
+                  <TableHead className="text-right">Previstas</TableHead>
+                  <TableHead className="text-right">Pendentes</TableHead>
+                  <TableHead className="text-right">Pagas</TableHead>
+                  <TableHead className="text-right font-bold">Total a Pagar</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {comissaoCalc.map((c: any) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">{c.nome}</TableCell>
+                      <TableCell className="text-right">{c.comissao_percent}%</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{c.comissao_prevista > 0 ? fmt(c.comissao_prevista) : "—"}</TableCell>
+                      <TableCell className="text-right text-amber-600">{c.comissao_pendente > 0 ? fmt(c.comissao_pendente) : "—"}</TableCell>
+                      <TableCell className="text-right text-emerald-600">{c.comissao_paga > 0 ? fmt(c.comissao_paga) : "—"}</TableCell>
+                      <TableCell className="text-right font-bold">{fmt(c.comissao_total)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {comissaoCalc.length > 0 && (
+                    <TableRow className="font-bold border-t-2">
+                      <TableCell colSpan={2}>TOTAL</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{fmt(comissaoCalc.reduce((s: number, c: any) => s + c.comissao_prevista, 0))}</TableCell>
+                      <TableCell className="text-right text-amber-600">{fmt(comissaoCalc.reduce((s: number, c: any) => s + c.comissao_pendente, 0))}</TableCell>
+                      <TableCell className="text-right text-emerald-600">{fmt(comissaoCalc.reduce((s: number, c: any) => s + c.comissao_paga, 0))}</TableCell>
+                      <TableCell className="text-right">{fmt(comissaoCalc.reduce((s: number, c: any) => s + c.comissao_total, 0))}</TableCell>
+                    </TableRow>
+                  )}
+                  {comissaoCalc.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhum consultor com comissões registradas.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
