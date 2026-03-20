@@ -252,7 +252,37 @@ const ContasReceber = () => {
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>Cadastrar Conta a Receber</DialogTitle></DialogHeader>
               <div className="space-y-3 pt-2">
-                <div><label className="text-sm font-medium">Cliente *</label><Input className="mt-1" value={form.entity_name} onChange={e => setForm(f => ({ ...f, entity_name: e.target.value }))} /></div>
+                <div className="relative">
+                  <label className="text-sm font-medium">Cliente *</label>
+                  <Input
+                    className="mt-1"
+                    value={form.entity_name}
+                    onChange={e => { setForm(f => ({ ...f, entity_name: e.target.value })); setShowSuggestions(true); }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    placeholder="Digite o nome do cliente..."
+                    autoComplete="off"
+                  />
+                  {showSuggestions && clienteSuggestions.length > 0 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {clienteSuggestions.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex justify-between items-center"
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            setForm(f => ({ ...f, entity_name: p.razao_social }));
+                            setShowSuggestions(false);
+                          }}
+                        >
+                          <span className="font-medium truncate">{p.razao_social}</span>
+                          {p.cpf_cnpj && <span className="text-xs text-muted-foreground ml-2 shrink-0">{p.cpf_cnpj}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Valor *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
