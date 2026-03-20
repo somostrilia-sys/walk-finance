@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useCompanies, useFinancialTransactions, usePessoas } from "@/hooks/useFinancialData";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import ModuleStatCard from "@/components/ModuleStatCard";
@@ -47,12 +47,32 @@ const addMonths = (dateStr: string, months: number) => {
 
 const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", is_recurring: false, recurrence_months: "1" };
 
+const useContasPagarLancamentos = (companyId?: string) => {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["contas_pagar", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contas_pagar")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};
+
 const ContasPagar = () => {
   const { companyId } = useParams();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: companies } = useCompanies();
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
+  const { data: lancamentosContasPagar = [], isLoading: isLoadingContasPagar } = useContasPagarLancamentos(companyId);
   const { data: pessoas } = usePessoas(companyId);
   const company = companies?.find(c => c.id === companyId);
 
@@ -90,7 +110,37 @@ const ContasPagar = () => {
     ).slice(0, 8);
   }, [editForm?.entity_name, pessoas]);
 
-  const contas = useMemo(() => (transactions || []).filter((t: any) => t.type === "saida"), [transactions]);
+  const contas = useMemo(() => {
+    const saidasFinanceiras = (transactions || [])
+      .filter((t: any) => t.type === "saida")
+      .map((t: any) => ({
+        id: t.id,
+        source: "financial_transactions" as const,
+        entity_name: t.entity_name || "",
+        description: t.description || "",
+        amount: Number(t.amount),
+        date: t.date,
+        payment_date: t.payment_date,
+        payment_method: t.payment_method,
+        status: t.status,
+        attachment_url: t.attachment_url,
+      }));
+
+    const contasFolha = (lancamentosContasPagar || []).map((c: any) => ({
+      id: c.id,
+      source: "contas_pagar" as const,
+      entity_name: c.fornecedor || "",
+      description: c.descricao || "",
+      amount: Number(c.valor),
+      date: c.vencimento,
+      payment_date: null,
+      payment_method: null,
+      status: c.status === "a_vencer" ? "pendente" : c.status === "pago" ? "confirmado" : c.status,
+      attachment_url: null,
+    }));
+
+    return [...saidasFinanceiras, ...contasFolha].sort((a, b) => a.date.localeCompare(b.date));
+  }, [transactions, lancamentosContasPagar]);
 
   const filtered = useMemo(() => contas.filter((c: any) => {
     if (filtroStatus === "pendente" && c.status !== "pendente") return false;
@@ -172,27 +222,54 @@ const ContasPagar = () => {
     toast({ title: months > 1 ? `${months} parcelas cadastradas com sucesso` : "Conta a pagar cadastrada com sucesso" });
   };
 
-  const handleBaixar = async (id: string) => {
-    const { error } = await supabase.from("financial_transactions").update({
-      status: "confirmado",
-      payment_date: new Date().toISOString().slice(0, 10),
-    } as any).eq("id", id);
+  const handleBaixar = async (conta: any) => {
+    const { error } = conta.source === "contas_pagar"
+      ? await supabase.from("contas_pagar").update({ status: "confirmado" } as any).eq("id", conta.id)
+      : await supabase.from("financial_transactions").update({
+          status: "confirmado",
+          payment_date: new Date().toISOString().slice(0, 10),
+        } as any).eq("id", conta.id);
+
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+
+    if (conta.source === "contas_pagar") {
+      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    }
+
     toast({ title: "Conta baixada como paga" });
   };
 
-  const handleCancelar = async (id: string) => {
-    const { error } = await supabase.from("financial_transactions").update({ status: "cancelado" } as any).eq("id", id);
+  const handleCancelar = async (conta: any) => {
+    const { error } = conta.source === "contas_pagar"
+      ? await supabase.from("contas_pagar").update({ status: "cancelado" } as any).eq("id", conta.id)
+      : await supabase.from("financial_transactions").update({ status: "cancelado" } as any).eq("id", conta.id);
+
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+
+    if (conta.source === "contas_pagar") {
+      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    }
+
     toast({ title: "Conta cancelada" });
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("financial_transactions").delete().eq("id", id);
+  const handleDelete = async (conta: any) => {
+    const { error } = conta.source === "contas_pagar"
+      ? await supabase.from("contas_pagar").delete().eq("id", conta.id)
+      : await supabase.from("financial_transactions").delete().eq("id", conta.id);
+
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+
+    if (conta.source === "contas_pagar") {
+      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    }
+
     setDeleteConfirmId(null);
     toast({ title: "Conta excluída" });
   };
@@ -200,6 +277,7 @@ const ContasPagar = () => {
   const openEdit = (c: any) => {
     setEditForm({
       id: c.id,
+      source: c.source,
       entity_name: c.entity_name || "",
       description: c.description || "",
       amount: String(c.amount),
@@ -214,18 +292,34 @@ const ContasPagar = () => {
   const handleEdit = async () => {
     if (!editForm) return;
     setSubmitting(true);
-    const { error } = await supabase.from("financial_transactions").update({
-      entity_name: editForm.entity_name,
-      description: editForm.description,
-      amount: Number(editForm.amount),
-      date: editForm.date,
-      payment_method: editForm.payment_method,
-      status: editForm.status,
-      attachment_url: editForm.attachment_url || null,
-    } as any).eq("id", editForm.id);
+
+    const { error } = editForm.source === "contas_pagar"
+      ? await supabase.from("contas_pagar").update({
+          fornecedor: editForm.entity_name,
+          descricao: editForm.description,
+          valor: Number(editForm.amount),
+          vencimento: editForm.date,
+          status: editForm.status,
+        } as any).eq("id", editForm.id)
+      : await supabase.from("financial_transactions").update({
+          entity_name: editForm.entity_name,
+          description: editForm.description,
+          amount: Number(editForm.amount),
+          date: editForm.date,
+          payment_method: editForm.payment_method,
+          status: editForm.status,
+          attachment_url: editForm.attachment_url || null,
+        } as any).eq("id", editForm.id);
+
     setSubmitting(false);
     if (error) return toast({ title: "Erro ao editar", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+
+    if (editForm.source === "contas_pagar") {
+      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    }
+
     setEditModalOpen(false);
     setEditForm(null);
     toast({ title: "Conta atualizada com sucesso" });
@@ -344,7 +438,7 @@ const ContasPagar = () => {
           </Dialog>
         </div>
 
-        {isLoading ? (
+        {isLoading || isLoadingContasPagar ? (
           <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (
           <Card><CardContent className="p-0">
@@ -385,7 +479,7 @@ const ContasPagar = () => {
                       <TableCell>
                         <div className="flex gap-1">
                           {c.status === "pendente" && (
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => handleBaixar(c.id)} title="Baixar como pago">
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => handleBaixar(c)} title="Baixar como pago">
                               <Check className="w-3 h-3" />
                             </Button>
                           )}
@@ -393,7 +487,7 @@ const ContasPagar = () => {
                             <Pencil className="w-3 h-3" />
                           </Button>
                           {c.status === "pendente" && (
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-orange-500" onClick={() => handleCancelar(c.id)} title="Cancelar">
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-orange-500" onClick={() => handleCancelar(c)} title="Cancelar">
                               <X className="w-3 h-3" />
                             </Button>
                           )}
@@ -489,7 +583,7 @@ const ContasPagar = () => {
             <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.</p>
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>Cancelar</Button>
-              <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}>Excluir</Button>
+                <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(filtered.find((c: any) => c.id === deleteConfirmId))}>Excluir</Button>
             </div>
           </DialogContent>
         </Dialog>
