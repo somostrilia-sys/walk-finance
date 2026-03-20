@@ -55,6 +55,8 @@ const ContasReceber = () => {
   const { data: companies } = useCompanies();
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
   const { data: pessoas } = usePessoas(companyId);
+  const { data: colaboradores } = useColaboradores(companyId);
+  const consultores = useMemo(() => (colaboradores || []).filter((c: any) => c.is_consultor && c.status === "ativo"), [colaboradores]);
   const company = companies?.find(c => c.id === companyId);
 
   const [modalOpen, setModalOpen] = useState(false);
