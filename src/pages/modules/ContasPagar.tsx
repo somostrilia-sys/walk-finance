@@ -54,8 +54,21 @@ const ContasPagar = () => {
   const { data: companies } = useCompanies();
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
   const { data: pessoas } = usePessoas(companyId);
+  const company = companies?.find(c => c.id === companyId);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [filtroStatus, setFiltroStatus] = useState("todos");
+  const [search, setSearch] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({ ...emptyForm });
+  const [editForm, setEditForm] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showEditSuggestions, setShowEditSuggestions] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const fornecedorSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
@@ -76,19 +89,6 @@ const ContasPagar = () => {
       (p.cpf_cnpj?.includes(q))
     ).slice(0, 8);
   }, [editForm?.entity_name, pessoas]);
-  const company = companies?.find(c => c.id === companyId);
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [filtroStatus, setFiltroStatus] = useState("todos");
-  const [search, setSearch] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ ...emptyForm });
-  const [editForm, setEditForm] = useState<any>(null);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const contas = useMemo(() => (transactions || []).filter((t: any) => t.type === "saida"), [transactions]);
 
