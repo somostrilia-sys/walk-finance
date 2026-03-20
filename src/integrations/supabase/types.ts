@@ -409,6 +409,8 @@ export type Database = {
           created_by: string | null
           dia_pagamento_comissao: number | null
           dia_pagamento_salario: number | null
+          fechamento_comissao: string | null
+          fechamento_salario: string | null
           id: string
           is_consultor: boolean
           nome: string
@@ -434,6 +436,8 @@ export type Database = {
           created_by?: string | null
           dia_pagamento_comissao?: number | null
           dia_pagamento_salario?: number | null
+          fechamento_comissao?: string | null
+          fechamento_salario?: string | null
           id?: string
           is_consultor?: boolean
           nome: string
@@ -459,6 +463,8 @@ export type Database = {
           created_by?: string | null
           dia_pagamento_comissao?: number | null
           dia_pagamento_salario?: number | null
+          fechamento_comissao?: string | null
+          fechamento_salario?: string | null
           id?: string
           is_consultor?: boolean
           nome?: string
