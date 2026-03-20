@@ -505,6 +505,11 @@ const FolhaComissoes = () => {
               )}
             </div>
           </TabsContent>
+
+          {/* ── VENCIMENTOS ── */}
+          <TabsContent value="vencimentos">
+            <VencimentosTab colaboradores={ativos} comissoes={comissoes} />
+          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
