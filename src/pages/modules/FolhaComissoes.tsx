@@ -516,4 +516,95 @@ const FolhaComissoes = () => {
   );
 };
 
+function VencimentosTab({ colaboradores, comissoes }: { colaboradores: any[]; comissoes: any[] }) {
+  const vencimentos = useMemo(() => {
+    const hoje = new Date();
+    const items: { id: string; descricao: string; valor: number; vencimento: string; _tipo: "salario" | "comissao" }[] = [];
+
+    // Salários
+    colaboradores
+      .filter(c => c.dia_pagamento_salario)
+      .forEach(c => {
+        const data = new Date(hoje.getFullYear(), hoje.getMonth(), parseInt(c.dia_pagamento_salario));
+        if (data < hoje) data.setMonth(data.getMonth() + 1);
+        items.push({
+          id: "sal-" + c.id,
+          descricao: "Salário — " + c.nome,
+          valor: Number(c.salario_base) || 0,
+          vencimento: data.toISOString().slice(0, 10),
+          _tipo: "salario",
+        });
+      });
+
+    // Comissões
+    colaboradores
+      .filter(c => c.is_consultor && c.dia_pagamento_comissao)
+      .forEach(c => {
+        const data = new Date(hoje.getFullYear(), hoje.getMonth(), parseInt(c.dia_pagamento_comissao));
+        if (data < hoje) data.setMonth(data.getMonth() + 1);
+        const totalPendente = comissoes
+          .filter((cm: any) => cm.colaborador_id === c.id && cm.status === "pendente")
+          .reduce((s: number, cm: any) => s + Number(cm.valor), 0);
+        if (totalPendente > 0) {
+          items.push({
+            id: "com-" + c.id,
+            descricao: "Comissões — " + c.nome,
+            valor: totalPendente,
+            vencimento: data.toISOString().slice(0, 10),
+            _tipo: "comissao",
+          });
+        }
+      });
+
+    return items.sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  }, [colaboradores, comissoes]);
+
+  return (
+    <>
+      <div className="flex items-center gap-2 mb-4">
+        <CalendarClock className="w-5 h-5 text-primary" />
+        <h3 className="font-semibold text-sm">Próximos Vencimentos — Salários e Comissões</h3>
+      </div>
+      <Card><CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Descrição</TableHead>
+              <TableHead>Vencimento</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {vencimentos.map(v => (
+              <TableRow key={v.id}>
+                <TableCell>
+                  <Badge variant="outline" className={v._tipo === "salario" ? "status-badge-info" : "status-badge-positive"}>
+                    {v._tipo === "salario" ? "Salário" : "Comissão"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="font-medium">{v.descricao}</TableCell>
+                <TableCell>{new Date(v.vencimento + "T12:00:00").toLocaleDateString("pt-BR")}</TableCell>
+                <TableCell className="text-right font-semibold">{fmt(v.valor)}</TableCell>
+              </TableRow>
+            ))}
+            {vencimentos.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  Nenhum vencimento programado. Configure o dia de pagamento nos colaboradores.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent></Card>
+      {vencimentos.length > 0 && (
+        <div className="mt-3 text-right text-sm text-muted-foreground">
+          Total: <span className="font-bold text-foreground">{fmt(vencimentos.reduce((s, v) => s + v.valor, 0))}</span>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default FolhaComissoes;
