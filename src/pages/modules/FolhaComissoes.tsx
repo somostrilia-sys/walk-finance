@@ -240,7 +240,7 @@ const FolhaComissoes = () => {
           <ModuleStatCard label="Colaboradores Ativos" value={ativos.length} icon={<Users className="w-4 h-4" />} />
           <ModuleStatCard label="Folha Bruta" value={fmt(totalFolha)} icon={<DollarSign className="w-4 h-4" />} />
           <ModuleStatCard label="Comissões Pendentes" value={fmt(totalComissoesPendentes)} icon={<Percent className="w-4 h-4" />} />
-          <ModuleStatCard label="Total Líquido" value={fmt(totalFolha - totalDescontos + totalComissoesPendentes)} icon={<Calculator className="w-4 h-4" />} />
+          <ModuleStatCard label="Líquido Folha" value={fmt(totalFolha - totalDescontos)} icon={<Calculator className="w-4 h-4" />} />
         </div>
 
         <Tabs defaultValue="colaboradores">
