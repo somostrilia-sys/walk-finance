@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { useCompanies, useFinancialTransactions } from "@/hooks/useFinancialData";
+import { useCompanies, useFinancialTransactions, usePessoas } from "@/hooks/useFinancialData";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -53,6 +53,7 @@ const ContasReceber = () => {
   const queryClient = useQueryClient();
   const { data: companies } = useCompanies();
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
+  const { data: pessoas } = usePessoas(companyId);
   const company = companies?.find(c => c.id === companyId);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -62,10 +63,21 @@ const ContasReceber = () => {
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [editForm, setEditForm] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  const clienteSuggestions = useMemo(() => {
+    const q = form.entity_name?.toLowerCase().trim();
+    if (!q || q.length < 1 || !pessoas?.length) return [];
+    return pessoas.filter(p =>
+      (p.razao_social?.toLowerCase().includes(q)) ||
+      (p.responsavel?.toLowerCase().includes(q)) ||
+      (p.cpf_cnpj?.includes(q))
+    ).slice(0, 8);
+  }, [form.entity_name, pessoas]);
 
   const contas = useMemo(() => (transactions || []).filter((t: any) => t.type === "entrada"), [transactions]);
 
@@ -240,7 +252,37 @@ const ContasReceber = () => {
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>Cadastrar Conta a Receber</DialogTitle></DialogHeader>
               <div className="space-y-3 pt-2">
-                <div><label className="text-sm font-medium">Cliente *</label><Input className="mt-1" value={form.entity_name} onChange={e => setForm(f => ({ ...f, entity_name: e.target.value }))} /></div>
+                <div className="relative">
+                  <label className="text-sm font-medium">Cliente *</label>
+                  <Input
+                    className="mt-1"
+                    value={form.entity_name}
+                    onChange={e => { setForm(f => ({ ...f, entity_name: e.target.value })); setShowSuggestions(true); }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    placeholder="Digite o nome do cliente..."
+                    autoComplete="off"
+                  />
+                  {showSuggestions && clienteSuggestions.length > 0 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {clienteSuggestions.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex justify-between items-center"
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            setForm(f => ({ ...f, entity_name: p.razao_social }));
+                            setShowSuggestions(false);
+                          }}
+                        >
+                          <span className="font-medium truncate">{p.razao_social}</span>
+                          {p.cpf_cnpj && <span className="text-xs text-muted-foreground ml-2 shrink-0">{p.cpf_cnpj}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Valor *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
