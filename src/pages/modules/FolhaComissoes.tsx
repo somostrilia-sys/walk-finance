@@ -279,21 +279,27 @@ const FolhaComissoes = () => {
                           <SelectItem value="26-25">Dia 26 ao 25</SelectItem>
                         </SelectContent>
                       </Select></div>
-                    <div><label className="text-sm font-medium">Fechamento Folha Comissão</label>
-                      <Select value={formColab.fechamento_comissao} onValueChange={v => setFormColab(f => ({ ...f, fechamento_comissao: v }))}>
-                        <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1-30">Dia 1 ao 30</SelectItem>
-                          <SelectItem value="1-31">Dia 1 ao 31</SelectItem>
-                          <SelectItem value="16-15">Dia 16 ao 15</SelectItem>
-                          <SelectItem value="21-20">Dia 21 ao 20</SelectItem>
-                          <SelectItem value="26-25">Dia 26 ao 25</SelectItem>
-                        </SelectContent>
-                      </Select></div>
                     <div className="col-span-2 flex items-center gap-2">
                       <input type="checkbox" id="is_consultor" checked={formColab.is_consultor} onChange={e => setFormColab(f => ({ ...f, is_consultor: e.target.checked }))} className="rounded" />
                       <label htmlFor="is_consultor" className="text-sm font-medium">É consultor (recebe comissões)</label>
                     </div>
+                    {formColab.is_consultor && (
+                      <div className="col-span-2 rounded-lg border border-border bg-muted/30 p-4">
+                        <div className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-wide">
+                          Período de Fechamento de Comissões
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div><label className="text-sm font-medium">Dia início</label><Input type="number" min={1} max={31} placeholder="Ex: 16" value={formColab.dia_inicio_fechamento || ""} onChange={e => setFormColab(f => ({ ...f, dia_inicio_fechamento: parseInt(e.target.value) || null }))} /></div>
+                          <div><label className="text-sm font-medium">Dia fim</label><Input type="number" min={1} max={31} placeholder="Ex: 15" value={formColab.dia_fim_fechamento || ""} onChange={e => setFormColab(f => ({ ...f, dia_fim_fechamento: parseInt(e.target.value) || null }))} /></div>
+                          <div><label className="text-sm font-medium">Dia pagamento</label><Input type="number" min={1} max={31} placeholder="Ex: 25" value={formColab.dia_pagamento_comissao} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_comissao: e.target.value }))} /></div>
+                        </div>
+                        {formColab.dia_inicio_fechamento && formColab.dia_fim_fechamento && formColab.dia_pagamento_comissao && (
+                          <div className="mt-2.5 text-xs text-primary bg-primary/5 rounded-md px-3 py-2">
+                            Vendas do dia <strong>{formColab.dia_inicio_fechamento}</strong> ao dia <strong>{formColab.dia_fim_fechamento}</strong> → pagamento no dia <strong>{formColab.dia_pagamento_comissao}</strong> do mês de fechamento
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="col-span-2"><Button className="w-full" onClick={handleSaveColab} disabled={saving}>{saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}{editColabId ? "Salvar" : "Cadastrar"}</Button></div>
                   </div>
                 </DialogContent>
