@@ -123,13 +123,15 @@ const FolhaComissoes = () => {
   const handleSaveColab = async () => {
     if (!formColab.nome || !companyId) { toast({ title: "Preencha o nome", variant: "destructive" }); return; }
     setSaving(true);
-    const { dia_pagamento_salario, dia_pagamento_comissao, is_consultor, ...rest } = formColab;
+    const { dia_pagamento_salario, dia_pagamento_comissao, is_consultor, fechamento_salario, fechamento_comissao, ...rest } = formColab;
     const payload = {
       ...rest,
       company_id: companyId,
       dia_pagamento_salario: dia_pagamento_salario ? parseInt(dia_pagamento_salario) : null,
       dia_pagamento_comissao: dia_pagamento_comissao ? parseInt(dia_pagamento_comissao) : null,
       is_consultor,
+      fechamento_salario: fechamento_salario || null,
+      fechamento_comissao: fechamento_comissao || null,
     } as any;
     if (!payload.admissao) delete payload.admissao;
     if (editColabId) {
