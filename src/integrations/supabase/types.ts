@@ -407,6 +407,8 @@ export type Database = {
           cpf: string | null
           created_at: string
           created_by: string | null
+          dia_fim_fechamento: number | null
+          dia_inicio_fechamento: number | null
           dia_pagamento_comissao: number | null
           dia_pagamento_salario: number | null
           fechamento_comissao: string | null
@@ -434,6 +436,8 @@ export type Database = {
           cpf?: string | null
           created_at?: string
           created_by?: string | null
+          dia_fim_fechamento?: number | null
+          dia_inicio_fechamento?: number | null
           dia_pagamento_comissao?: number | null
           dia_pagamento_salario?: number | null
           fechamento_comissao?: string | null
@@ -461,6 +465,8 @@ export type Database = {
           cpf?: string | null
           created_at?: string
           created_by?: string | null
+          dia_fim_fechamento?: number | null
+          dia_inicio_fechamento?: number | null
           dia_pagamento_comissao?: number | null
           dia_pagamento_salario?: number | null
           fechamento_comissao?: string | null
