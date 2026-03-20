@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { periodoFechamentoLabel } from "@/lib/utils";
 import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
@@ -267,7 +268,7 @@ const FolhaComissoes = () => {
                     <div><label className="text-sm font-medium">Tipo Comissão</label>
                       <Select value={formColab.comissao_tipo} onValueChange={v => setFormColab(f => ({ ...f, comissao_tipo: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="fixo">Fixo</SelectItem><SelectItem value="variável">Variável</SelectItem><SelectItem value="nenhum">Nenhum</SelectItem></SelectContent></Select></div>
                     <div><label className="text-sm font-medium">Dia Pgto Salário</label><Input type="number" min={1} max={31} placeholder="Ex: 5" value={formColab.dia_pagamento_salario} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_salario: e.target.value }))} /></div>
-                    <div><label className="text-sm font-medium">Dia Pgto Comissão</label><Input type="number" min={1} max={31} placeholder="Ex: 15" value={formColab.dia_pagamento_comissao} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_comissao: e.target.value }))} /></div>
+                    {/* Dia Pgto Comissão moved inside consultor block below */}
                     <div><label className="text-sm font-medium">Fechamento Folha Salário</label>
                       <Select value={formColab.fechamento_salario} onValueChange={v => setFormColab(f => ({ ...f, fechamento_salario: v }))}>
                         <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
@@ -366,7 +367,7 @@ const FolhaComissoes = () => {
             </div>
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Vendas Geradoras</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref. Venda</TableHead><TableHead>Mês Pgto</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Vendas Geradoras</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref. Venda</TableHead><TableHead>Período Apurado</TableHead><TableHead>Mês Pgto</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                 <TableBody>{comissoes.map((c: any) => {
                   // Calcular mês pagamento (mês seguinte ao período)
                   let mesPgto = "—";
@@ -379,18 +380,29 @@ const FolhaComissoes = () => {
                       mesPgto = next;
                     }
                   }
+                  // Período apurado from colaborador config
+                  const colab = colaboradores.find((col: any) => col.id === c.colaborador_id);
+                  let periodoApurado = "—";
+                  if (colab && c.periodo) {
+                    const parts = c.periodo.split("/");
+                    if (parts.length === 2) {
+                      const mesComp = `${parts[1]}-${String(parseInt(parts[0])).padStart(2, "0")}`;
+                      periodoApurado = periodoFechamentoLabel(colab, mesComp);
+                    }
+                  }
                   return (
                     <TableRow key={c.id}>
                       <TableCell className="font-medium">{c.colaboradores?.nome || "—"}</TableCell>
                       <TableCell>{c.cliente}</TableCell>
                       <TableCell className="text-right">{fmt(Number(c.valor))}</TableCell>
                       <TableCell>{c.periodo}</TableCell>
+                      <TableCell className="text-xs">{periodoApurado}</TableCell>
                       <TableCell>{mesPgto}</TableCell>
                       <TableCell><Badge className={c.status === "paga" ? "status-badge-positive" : c.status === "incluida" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "status-badge-warning"}>{c.status === "incluida" ? "Incluída" : c.status}</Badge></TableCell>
                     </TableRow>
                   );
                 })}
-                {comissoes.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhuma comissão registrada.</TableCell></TableRow>}
+                {comissoes.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhuma comissão registrada.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
@@ -548,26 +560,7 @@ const FolhaComissoes = () => {
   );
 };
 
-function periodoFechamentoLabel(c: any, mesCompetencia?: string) {
-  const diaInicio = c.dia_inicio_fechamento;
-  const diaFim = c.dia_fim_fechamento;
-  if (!diaInicio || !diaFim) return "—";
-
-  if (!mesCompetencia) {
-    return `Dia ${diaInicio} ao ${diaFim}`;
-  }
-
-  const [ano, m] = mesCompetencia.split("-").map(Number);
-  const pad = (d: number, mes: number, a: number) =>
-    `${String(d).padStart(2, "0")}/${String(mes).padStart(2, "0")}/${a}`;
-
-  if (diaInicio > diaFim) {
-    const mesAnterior = m === 1 ? 12 : m - 1;
-    const anoAnterior = m === 1 ? ano - 1 : ano;
-    return `${pad(diaInicio, mesAnterior, anoAnterior)} a ${pad(diaFim, m, ano)}`;
-  }
-  return `${pad(diaInicio, m, ano)} a ${pad(diaFim, m, ano)}`;
-}
+// periodoFechamentoLabel now imported from @/lib/utils
 
 function VencimentosTab({ colaboradores, comissoes }: { colaboradores: any[]; comissoes: any[] }) {
   const hoje = new Date();
