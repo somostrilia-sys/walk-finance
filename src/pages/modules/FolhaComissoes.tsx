@@ -267,7 +267,7 @@ const FolhaComissoes = () => {
                     <div><label className="text-sm font-medium">Tipo Comissão</label>
                       <Select value={formColab.comissao_tipo} onValueChange={v => setFormColab(f => ({ ...f, comissao_tipo: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="fixo">Fixo</SelectItem><SelectItem value="variável">Variável</SelectItem><SelectItem value="nenhum">Nenhum</SelectItem></SelectContent></Select></div>
                     <div><label className="text-sm font-medium">Dia Pgto Salário</label><Input type="number" min={1} max={31} placeholder="Ex: 5" value={formColab.dia_pagamento_salario} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_salario: e.target.value }))} /></div>
-                    <div><label className="text-sm font-medium">Dia Pgto Comissão</label><Input type="number" min={1} max={31} placeholder="Ex: 15" value={formColab.dia_pagamento_comissao} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_comissao: e.target.value }))} /></div>
+                    {/* Dia Pgto Comissão moved inside consultor block below */}
                     <div><label className="text-sm font-medium">Fechamento Folha Salário</label>
                       <Select value={formColab.fechamento_salario} onValueChange={v => setFormColab(f => ({ ...f, fechamento_salario: v }))}>
                         <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
