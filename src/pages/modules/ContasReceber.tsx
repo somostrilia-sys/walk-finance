@@ -144,9 +144,6 @@ const ContasReceber = () => {
         created_by: user?.id,
         entity_name: form.entity_name,
         payment_method: form.payment_method,
-        recurrence_months: form.is_recurring ? months : 0,
-        recurrence_group_id: groupId,
-        attachment_url: (form as any).attachment_url || null,
       });
     }
 
