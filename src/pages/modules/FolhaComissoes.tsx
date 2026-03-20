@@ -430,29 +430,37 @@ const FolhaComissoes = () => {
                 <Button size="sm" disabled={saving} onClick={async () => {
                   if (folhaCalc.length === 0) { toast({ title: "Nenhum colaborador ativo", variant: "destructive" }); return; }
                   setSaving(true);
-                  const mesRef = new Date().toLocaleString("pt-BR", { month: "short", year: "numeric" }).replace(".", "");
-                  const registros = folhaCalc.filter((c: any) => c.liquido > 0).map((c: any) => ({
-                    company_id: companyId!,
-                    fornecedor: c.nome,
-                    cpf_cnpj: c.cpf || "",
-                    descricao: `Salário ${mesRef} — ${c.nome}`,
-                    valor: c.liquido,
-                    vencimento: (() => {
-                      const hoje = new Date();
-                      const dia = c.dia_pagamento_salario || 5;
-                      let dt = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
-                      if (dt <= hoje) dt = new Date(hoje.getFullYear(), hoje.getMonth() + 1, dia);
-                      return dt.toISOString().slice(0, 10);
-                    })(),
-                    categoria: "Folha de Pagamento",
-                    status: "a_vencer",
-                  }));
-                  if (registros.length === 0) { toast({ title: "Nenhum valor a lançar" }); setSaving(false); return; }
-                  const { error } = await supabase.from("contas_pagar").insert(registros);
-                  setSaving(false);
-                  if (error) { toast({ title: "Erro ao fechar folha", description: error.message, variant: "destructive" }); return; }
-                  invalidate("contas_pagar");
-                  toast({ title: "Folha fechada!", description: `${registros.length} lançamento(s) criado(s) em Contas a Pagar.` });
+                  try {
+                    const mesRef = new Date().toLocaleString("pt-BR", { month: "short", year: "numeric" }).replace(".", "");
+                    const registros = folhaCalc.filter((c: any) => c.liquido > 0).map((c: any) => ({
+                      company_id: companyId!,
+                      fornecedor: c.nome,
+                      cpf_cnpj: c.cpf || null,
+                      descricao: `Salário ${mesRef} — ${c.nome}`,
+                      valor: c.liquido,
+                      vencimento: (() => {
+                        const hoje = new Date();
+                        const dia = c.dia_pagamento_salario || 5;
+                        let dt = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
+                        if (dt <= hoje) dt = new Date(hoje.getFullYear(), hoje.getMonth() + 1, dia);
+                        return dt.toISOString().slice(0, 10);
+                      })(),
+                      categoria: "Folha de Pagamento",
+                      status: "a_vencer",
+                    }));
+                    if (registros.length === 0) { toast({ title: "Nenhum valor a lançar" }); setSaving(false); return; }
+                    console.log("Fechando folha — registros:", registros);
+                    const { data, error } = await supabase.from("contas_pagar").insert(registros).select();
+                    console.log("Resultado insert contas_pagar:", { data, error });
+                    if (error) { toast({ title: "Erro ao fechar folha", description: error.message, variant: "destructive" }); return; }
+                    invalidate("contas_pagar");
+                    toast({ title: "Folha fechada!", description: `${registros.length} lançamento(s) criado(s) em Contas a Pagar.` });
+                  } catch (err: any) {
+                    console.error("Erro fechar folha:", err);
+                    toast({ title: "Erro inesperado", description: err?.message || "Tente novamente", variant: "destructive" });
+                  } finally {
+                    setSaving(false);
+                  }
                 }}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileText className="w-4 h-4 mr-1" />}Fechar Folha</Button>
               </div>
             </div>
