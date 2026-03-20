@@ -146,7 +146,7 @@ const FolhaComissoes = () => {
       toast({ title: "Colaborador cadastrado" });
     }
     setSaving(false); setModalColab(false); setEditColabId(null);
-    setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false, fechamento_salario: "", fechamento_comissao: "" });
+    setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false, fechamento_salario: "", fechamento_comissao: "", dia_inicio_fechamento: null, dia_fim_fechamento: null });
     invalidate("colaboradores");
   };
 
