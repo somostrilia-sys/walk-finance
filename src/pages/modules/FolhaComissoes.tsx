@@ -18,7 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-import { Users, Plus, Download, DollarSign, Percent, FileText, Calculator, Search, Pencil, Trash2, Loader2, Megaphone, Trophy } from "lucide-react";
+import { Users, Plus, Download, DollarSign, Percent, FileText, Calculator, Search, Pencil, Trash2, Loader2, Megaphone, Trophy, CalendarClock } from "lucide-react";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -92,7 +92,7 @@ const FolhaComissoes = () => {
 
   const [modalColab, setModalColab] = useState(false);
   const [editColabId, setEditColabId] = useState<string | null>(null);
-  const [formColab, setFormColab] = useState({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum" });
+  const [formColab, setFormColab] = useState({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false });
 
   const [modalComissao, setModalComissao] = useState(false);
   const [formComissao, setFormComissao] = useState({ colaborador_id: "", cliente: "", valor: 0, status: "pendente", periodo: "" });
@@ -123,7 +123,14 @@ const FolhaComissoes = () => {
   const handleSaveColab = async () => {
     if (!formColab.nome || !companyId) { toast({ title: "Preencha o nome", variant: "destructive" }); return; }
     setSaving(true);
-    const payload = { ...formColab, company_id: companyId } as any;
+    const { dia_pagamento_salario, dia_pagamento_comissao, is_consultor, ...rest } = formColab;
+    const payload = {
+      ...rest,
+      company_id: companyId,
+      dia_pagamento_salario: dia_pagamento_salario ? parseInt(dia_pagamento_salario) : null,
+      dia_pagamento_comissao: dia_pagamento_comissao ? parseInt(dia_pagamento_comissao) : null,
+      is_consultor,
+    } as any;
     if (!payload.admissao) delete payload.admissao;
     if (editColabId) {
       const { error } = await supabase.from("colaboradores").update(payload).eq("id", editColabId);
@@ -135,12 +142,12 @@ const FolhaComissoes = () => {
       toast({ title: "Colaborador cadastrado" });
     }
     setSaving(false); setModalColab(false); setEditColabId(null);
-    setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum" });
+    setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false });
     invalidate("colaboradores");
   };
 
   const handleEditColab = (c: any) => {
-    setFormColab({ nome: c.nome, cpf: c.cpf || "", cargo: c.cargo, admissao: c.admissao || "", contrato: c.contrato, salario_base: c.salario_base, tipo_remuneracao: c.tipo_remuneracao, banco: c.banco || "", agencia: c.agencia || "", conta: c.conta || "", chave_pix: c.chave_pix || "", comissao_percent: c.comissao_percent, comissao_tipo: c.comissao_tipo });
+    setFormColab({ nome: c.nome, cpf: c.cpf || "", cargo: c.cargo, admissao: c.admissao || "", contrato: c.contrato, salario_base: c.salario_base, tipo_remuneracao: c.tipo_remuneracao, banco: c.banco || "", agencia: c.agencia || "", conta: c.conta || "", chave_pix: c.chave_pix || "", comissao_percent: c.comissao_percent, comissao_tipo: c.comissao_tipo, dia_pagamento_salario: c.dia_pagamento_salario?.toString() || "", dia_pagamento_comissao: c.dia_pagamento_comissao?.toString() || "", is_consultor: c.is_consultor || false });
     setEditColabId(c.id); setModalColab(true);
   };
 
@@ -226,6 +233,7 @@ const FolhaComissoes = () => {
             <TabsTrigger value="calculo">Cálculo da Folha</TabsTrigger>
             <TabsTrigger value="descontos">Descontos</TabsTrigger>
             <TabsTrigger value="campanhas">Campanhas</TabsTrigger>
+            <TabsTrigger value="vencimentos">Vencimentos</TabsTrigger>
           </TabsList>
 
           {/* ── COLABORADORES ── */}
@@ -254,6 +262,12 @@ const FolhaComissoes = () => {
                     <div><label className="text-sm font-medium">% Comissão</label><Input type="number" value={formColab.comissao_percent || ""} onChange={e => setFormColab(f => ({ ...f, comissao_percent: Number(e.target.value) }))} /></div>
                     <div><label className="text-sm font-medium">Tipo Comissão</label>
                       <Select value={formColab.comissao_tipo} onValueChange={v => setFormColab(f => ({ ...f, comissao_tipo: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="fixo">Fixo</SelectItem><SelectItem value="variável">Variável</SelectItem><SelectItem value="nenhum">Nenhum</SelectItem></SelectContent></Select></div>
+                    <div><label className="text-sm font-medium">Dia Pgto Salário</label><Input type="number" min={1} max={31} placeholder="Ex: 5" value={formColab.dia_pagamento_salario} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_salario: e.target.value }))} /></div>
+                    <div><label className="text-sm font-medium">Dia Pgto Comissão</label><Input type="number" min={1} max={31} placeholder="Ex: 15" value={formColab.dia_pagamento_comissao} onChange={e => setFormColab(f => ({ ...f, dia_pagamento_comissao: e.target.value }))} /></div>
+                    <div className="col-span-2 flex items-center gap-2">
+                      <input type="checkbox" id="is_consultor" checked={formColab.is_consultor} onChange={e => setFormColab(f => ({ ...f, is_consultor: e.target.checked }))} className="rounded" />
+                      <label htmlFor="is_consultor" className="text-sm font-medium">É consultor (recebe comissões)</label>
+                    </div>
                     <div className="col-span-2"><Button className="w-full" onClick={handleSaveColab} disabled={saving}>{saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}{editColabId ? "Salvar" : "Cadastrar"}</Button></div>
                   </div>
                 </DialogContent>
@@ -491,10 +505,106 @@ const FolhaComissoes = () => {
               )}
             </div>
           </TabsContent>
+
+          {/* ── VENCIMENTOS ── */}
+          <TabsContent value="vencimentos">
+            <VencimentosTab colaboradores={ativos} comissoes={comissoes} />
+          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
   );
 };
+
+function VencimentosTab({ colaboradores, comissoes }: { colaboradores: any[]; comissoes: any[] }) {
+  const vencimentos = useMemo(() => {
+    const hoje = new Date();
+    const items: { id: string; descricao: string; valor: number; vencimento: string; _tipo: "salario" | "comissao" }[] = [];
+
+    // Salários
+    colaboradores
+      .filter(c => c.dia_pagamento_salario)
+      .forEach(c => {
+        const data = new Date(hoje.getFullYear(), hoje.getMonth(), parseInt(c.dia_pagamento_salario));
+        if (data < hoje) data.setMonth(data.getMonth() + 1);
+        items.push({
+          id: "sal-" + c.id,
+          descricao: "Salário — " + c.nome,
+          valor: Number(c.salario_base) || 0,
+          vencimento: data.toISOString().slice(0, 10),
+          _tipo: "salario",
+        });
+      });
+
+    // Comissões
+    colaboradores
+      .filter(c => c.is_consultor && c.dia_pagamento_comissao)
+      .forEach(c => {
+        const data = new Date(hoje.getFullYear(), hoje.getMonth(), parseInt(c.dia_pagamento_comissao));
+        if (data < hoje) data.setMonth(data.getMonth() + 1);
+        const totalPendente = comissoes
+          .filter((cm: any) => cm.colaborador_id === c.id && cm.status === "pendente")
+          .reduce((s: number, cm: any) => s + Number(cm.valor), 0);
+        if (totalPendente > 0) {
+          items.push({
+            id: "com-" + c.id,
+            descricao: "Comissões — " + c.nome,
+            valor: totalPendente,
+            vencimento: data.toISOString().slice(0, 10),
+            _tipo: "comissao",
+          });
+        }
+      });
+
+    return items.sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  }, [colaboradores, comissoes]);
+
+  return (
+    <>
+      <div className="flex items-center gap-2 mb-4">
+        <CalendarClock className="w-5 h-5 text-primary" />
+        <h3 className="font-semibold text-sm">Próximos Vencimentos — Salários e Comissões</h3>
+      </div>
+      <Card><CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Descrição</TableHead>
+              <TableHead>Vencimento</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {vencimentos.map(v => (
+              <TableRow key={v.id}>
+                <TableCell>
+                  <Badge variant="outline" className={v._tipo === "salario" ? "status-badge-info" : "status-badge-positive"}>
+                    {v._tipo === "salario" ? "Salário" : "Comissão"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="font-medium">{v.descricao}</TableCell>
+                <TableCell>{new Date(v.vencimento + "T12:00:00").toLocaleDateString("pt-BR")}</TableCell>
+                <TableCell className="text-right font-semibold">{fmt(v.valor)}</TableCell>
+              </TableRow>
+            ))}
+            {vencimentos.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  Nenhum vencimento programado. Configure o dia de pagamento nos colaboradores.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent></Card>
+      {vencimentos.length > 0 && (
+        <div className="mt-3 text-right text-sm text-muted-foreground">
+          Total: <span className="font-bold text-foreground">{fmt(vencimentos.reduce((s, v) => s + v.valor, 0))}</span>
+        </div>
+      )}
+    </>
+  );
+}
 
 export default FolhaComissoes;
