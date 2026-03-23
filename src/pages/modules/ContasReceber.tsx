@@ -72,6 +72,12 @@ const ContasReceber = () => {
   const [totalParcelas, setTotalParcelas] = useState(1);
 
   // Month filter state
+  const mesAtual = new Date().toISOString().slice(0, 7);
+  const [filtroMes, setFiltroMes] = useState(mesAtual);
+  const [verTodas, setVerTodas] = useState(false);
+
+  // Group expansion state
+  const [grupoExpandido, setGrupoExpandido] = useState<string | null>(null);
 
   const clienteSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
