@@ -396,6 +396,7 @@ export type Database = {
         Row: {
           admissao: string | null
           agencia: string | null
+          ajuda_custo: number
           banco: string | null
           cargo: string
           chave_pix: string | null
@@ -408,7 +409,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           dia_fim_fechamento: number | null
+          dia_fim_fechamento_ajuda: number | null
           dia_inicio_fechamento: number | null
+          dia_inicio_fechamento_ajuda: number | null
           dia_pagamento_comissao: number | null
           dia_pagamento_salario: number | null
           fechamento_comissao: string | null
@@ -425,6 +428,7 @@ export type Database = {
         Insert: {
           admissao?: string | null
           agencia?: string | null
+          ajuda_custo?: number
           banco?: string | null
           cargo?: string
           chave_pix?: string | null
@@ -437,7 +441,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           dia_fim_fechamento?: number | null
+          dia_fim_fechamento_ajuda?: number | null
           dia_inicio_fechamento?: number | null
+          dia_inicio_fechamento_ajuda?: number | null
           dia_pagamento_comissao?: number | null
           dia_pagamento_salario?: number | null
           fechamento_comissao?: string | null
@@ -454,6 +460,7 @@ export type Database = {
         Update: {
           admissao?: string | null
           agencia?: string | null
+          ajuda_custo?: number
           banco?: string | null
           cargo?: string
           chave_pix?: string | null
@@ -466,7 +473,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           dia_fim_fechamento?: number | null
+          dia_fim_fechamento_ajuda?: number | null
           dia_inicio_fechamento?: number | null
+          dia_inicio_fechamento_ajuda?: number | null
           dia_pagamento_comissao?: number | null
           dia_pagamento_salario?: number | null
           fechamento_comissao?: string | null
