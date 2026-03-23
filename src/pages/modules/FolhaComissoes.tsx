@@ -118,7 +118,8 @@ const FolhaComissoes = () => {
   // Cálculo da Folha — apenas salário e descontos, sem comissão
   const folhaCalc = useMemo(() => ativos.map((c: any) => {
     const desc = descontos.filter((d: any) => d.colaborador_id === c.id).reduce((s: number, d: any) => s + Number(d.valor), 0);
-    return { ...c, descontos_total: desc, liquido: Number(c.salario_base) - desc };
+    const ajuda = Number(c.ajuda_custo) || 0;
+    return { ...c, descontos_total: desc, ajuda_custo_valor: ajuda, liquido: Number(c.salario_base) + ajuda - desc };
   }), [ativos, descontos]);
 
   // Cálculo de Comissões — apenas consultores com comissões
