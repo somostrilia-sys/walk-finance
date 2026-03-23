@@ -212,7 +212,7 @@ const ContasReceber = () => {
       if (consultorId) {
         const consul = consultores.find((c: any) => c.id === consultorId);
         if (consul && consul.dia_inicio_fechamento && consul.dia_fim_fechamento && consul.dia_pagamento_comissao) {
-          const comissaoValor = valorTotal * (consul.comissao_percent / 100);
+          const comissaoValor = (valorParcela * totalParcelas) * (consul.comissao_percent / 100);
           const competencia = calcularCompetenciaComissao(form.date, consul);
           if (competencia && comissaoValor > 0) {
             await supabase.from("comissoes_folha").insert({
