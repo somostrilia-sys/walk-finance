@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowDownCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle,
   Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat
@@ -87,6 +88,8 @@ const ContasPagar = () => {
   const [uploading, setUploading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showEditSuggestions, setShowEditSuggestions] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"delete" | "baixar" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -274,6 +277,54 @@ const ContasPagar = () => {
     toast({ title: "Conta excluída" });
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((c: any) => c.id)));
+    }
+  };
+
+  const handleBulkBaixar = async () => {
+    const selected = filtered.filter((c: any) => selectedIds.has(c.id) && c.status === "pendente");
+    if (!selected.length) return toast({ title: "Nenhuma conta pendente selecionada", variant: "destructive" });
+
+    const ftIds = selected.filter((c: any) => c.source !== "contas_pagar").map((c: any) => c.id);
+    const cpIds = selected.filter((c: any) => c.source === "contas_pagar").map((c: any) => c.id);
+
+    if (ftIds.length) await supabase.from("financial_transactions").update({ status: "confirmado", payment_date: new Date().toISOString().slice(0, 10) } as any).in("id", ftIds);
+    if (cpIds.length) await supabase.from("contas_pagar").update({ status: "confirmado" } as any).in("id", cpIds);
+
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    toast({ title: `${selected.length} conta(s) baixada(s) como paga(s)` });
+  };
+
+  const handleBulkDelete = async () => {
+    const selected = filtered.filter((c: any) => selectedIds.has(c.id));
+    const ftIds = selected.filter((c: any) => c.source !== "contas_pagar").map((c: any) => c.id);
+    const cpIds = selected.filter((c: any) => c.source === "contas_pagar").map((c: any) => c.id);
+
+    if (ftIds.length) await supabase.from("financial_transactions").delete().in("id", ftIds);
+    if (cpIds.length) await supabase.from("contas_pagar").delete().in("id", cpIds);
+
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    toast({ title: `${selected.length} conta(s) excluída(s)` });
+  };
+
   const openEdit = (c: any) => {
     setEditForm({
       id: c.id,
@@ -442,8 +493,28 @@ const ContasPagar = () => {
           <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (
           <Card><CardContent className="p-0">
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-primary/10 border-b">
+                <span className="text-sm font-medium">{selectedIds.size} selecionada(s)</span>
+                <Button variant="outline" size="sm" onClick={() => setBulkAction("baixar")}>
+                  <Check className="w-3.5 h-3.5 mr-1" />Dar Baixa
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => setBulkAction("delete")}>
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />Excluir
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                  <X className="w-3.5 h-3.5 mr-1" />Limpar
+                </Button>
+              </div>
+            )}
             <Table>
               <TableHeader><TableRow className="bg-muted/30">
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead className="font-semibold">Prestador</TableHead>
                 <TableHead className="font-semibold">Descrição</TableHead>
                 <TableHead className="text-right font-semibold">Valor</TableHead>
@@ -455,14 +526,20 @@ const ContasPagar = () => {
               </TableRow></TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma conta encontrada</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma conta encontrada</TableCell></TableRow>
                 ) : filtered.map((c: any, i: number) => {
                   const vencido = isVencido(c.date, c.status);
                   const cfg = vencido
                     ? { label: "Vencido", badge: "status-badge-danger", icon: <AlertTriangle className="w-3.5 h-3.5" /> }
                     : statusConfig[c.status as StatusCP] || statusConfig.pendente;
                   return (
-                    <TableRow key={c.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
+                    <TableRow key={c.id} className={`${i % 2 === 0 ? "" : "bg-muted/20"} ${selectedIds.has(c.id) ? "bg-primary/5" : ""}`}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(c.id)}
+                          onCheckedChange={() => toggleSelect(c.id)}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-1">
                           {c.entity_name || "—"}
@@ -583,7 +660,31 @@ const ContasPagar = () => {
             <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.</p>
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>Cancelar</Button>
-                <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(filtered.find((c: any) => c.id === deleteConfirmId))}>Excluir</Button>
+              <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(filtered.find((c: any) => c.id === deleteConfirmId))}>Excluir</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Confirmação de Ação em Lote */}
+        <Dialog open={!!bulkAction} onOpenChange={o => { if (!o) setBulkAction(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{bulkAction === "delete" ? "Excluir Selecionadas" : "Dar Baixa nas Selecionadas"}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {bulkAction === "delete"
+                ? `Tem certeza que deseja excluir ${selectedIds.size} conta(s)? Esta ação não pode ser desfeita.`
+                : `Deseja dar baixa em ${selectedIds.size} conta(s) selecionada(s)?`}
+            </p>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" size="sm" onClick={() => setBulkAction(null)}>Cancelar</Button>
+              <Button
+                variant={bulkAction === "delete" ? "destructive" : "default"}
+                size="sm"
+                onClick={bulkAction === "delete" ? handleBulkDelete : handleBulkBaixar}
+              >
+                {bulkAction === "delete" ? "Excluir Todas" : "Confirmar Baixa"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
