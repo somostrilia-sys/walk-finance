@@ -228,6 +228,18 @@ const FolhaComissoes = () => {
     invalidate("campanhas");
   };
 
+  const handleDeleteComissao = async (id: string) => {
+    await supabase.from("comissoes_folha").delete().eq("id", id);
+    toast({ title: "Comissão excluída" });
+    invalidate("comissoes_folha");
+  };
+
+  const handleDeleteDesconto = async (id: string) => {
+    await supabase.from("descontos_folha").delete().eq("id", id);
+    toast({ title: "Desconto excluído" });
+    invalidate("descontos_folha");
+  };
+
   if (loadColab) return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>
