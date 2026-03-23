@@ -616,16 +616,25 @@ const FolhaComissoes = () => {
             </div>
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Tipo</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref.</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Tipo</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref.</TableHead><TableHead className="w-10"></TableHead></TableRow></TableHeader>
                 <TableBody>{descontos.map((d: any) => (
                   <TableRow key={d.id}>
                     <TableCell className="font-medium">{d.colaboradores?.nome || "—"}</TableCell>
                     <TableCell><Badge variant="outline">{d.tipo}</Badge></TableCell>
                     <TableCell className="text-right text-destructive">-{fmt(Number(d.valor))}</TableCell>
                     <TableCell>{d.referencia}</TableCell>
+                    <TableCell>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="w-4 h-4" /></Button></AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader><AlertDialogTitle>Excluir desconto?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription></AlertDialogHeader>
+                          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteDesconto(d.id)}>Excluir</AlertDialogAction></AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
                   </TableRow>
                 ))}
-                {descontos.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum desconto.</TableCell></TableRow>}
+                {descontos.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Nenhum desconto.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
