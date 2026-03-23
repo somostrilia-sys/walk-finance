@@ -285,7 +285,7 @@ const ContasReceber = () => {
       setModalOpen(false);
       setForm({ ...emptyForm });
       setTotalParcelas(1);
-      setValoresParcelas(['']);
+      
       toast({ title: "Conta a receber cadastrada com sucesso" });
     }
   };
