@@ -247,6 +247,45 @@ const ContasReceber = () => {
     toast({ title: "Conta atualizada com sucesso" });
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((c: any) => c.id)));
+    }
+  };
+
+  const handleBulkBaixar = async () => {
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("financial_transactions").update({
+      status: "confirmado",
+      payment_date: new Date().toISOString().slice(0, 10),
+    } as any).in("id", ids);
+    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    toast({ title: `${ids.length} contas baixadas como recebidas` });
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("financial_transactions").delete().in("id", ids);
+    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    toast({ title: `${ids.length} contas excluídas` });
+  };
+
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
