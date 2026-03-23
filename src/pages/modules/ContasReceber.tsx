@@ -308,7 +308,7 @@ const ContasReceber = () => {
 
   const handleDelete = async (id: string, deleteGroup = false) => {
     if (deleteGroup) {
-      const item = filtered.find((c: any) => c.id === id);
+      const item = contas.find((c: any) => c.id === id);
       if (item?.grupo_parcela) {
         const { error } = await supabase.from("financial_transactions").delete().eq("grupo_parcela", item.grupo_parcela);
         if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
