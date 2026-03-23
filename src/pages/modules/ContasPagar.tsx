@@ -332,12 +332,21 @@ const ContasPagar = () => {
     toast({ title: "Conta cancelada" });
   };
 
-  const handleDelete = async (conta: any) => {
-    const { error } = conta.source === "contas_pagar"
-      ? await supabase.from("contas_pagar").delete().eq("id", conta.id)
-      : await supabase.from("financial_transactions").delete().eq("id", conta.id);
-
-    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+  const handleDelete = async (conta: any, deleteGroup = false) => {
+    if (deleteGroup && conta.grupo_parcela) {
+      if (conta.source === "contas_pagar") {
+        const { error } = await supabase.from("contas_pagar").delete().eq("grupo_parcela", conta.grupo_parcela);
+        if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+      } else {
+        const { error } = await supabase.from("financial_transactions").delete().eq("grupo_parcela", conta.grupo_parcela);
+        if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+      }
+    } else {
+      const { error } = conta.source === "contas_pagar"
+        ? await supabase.from("contas_pagar").delete().eq("id", conta.id)
+        : await supabase.from("financial_transactions").delete().eq("id", conta.id);
+      if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+    }
 
     if (conta.source === "contas_pagar") {
       queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
@@ -346,7 +355,7 @@ const ContasPagar = () => {
     }
 
     setDeleteConfirmId(null);
-    toast({ title: "Conta excluída" });
+    toast({ title: deleteGroup ? "Todas as parcelas excluídas" : "Conta excluída" });
   };
 
   const toggleSelect = (id: string) => {
@@ -781,11 +790,30 @@ const ContasPagar = () => {
         <Dialog open={!!deleteConfirmId} onOpenChange={o => { if (!o) setDeleteConfirmId(null); }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Confirmar Exclusão</DialogTitle></DialogHeader>
-            <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.</p>
-            <div className="flex gap-2 justify-end pt-2">
-              <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>Cancelar</Button>
-              <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(filtered.find((c: any) => c.id === deleteConfirmId))}>Excluir</Button>
-            </div>
+            {(() => {
+              const conta = filtered.find((c: any) => c.id === deleteConfirmId);
+              const hasParcelas = conta && (conta.total_parcelas || 0) > 1 && conta.grupo_parcela;
+              return (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    {hasParcelas
+                      ? `Esta conta faz parte de um grupo de ${conta.total_parcelas} parcelas. Deseja excluir todas as parcelas do grupo?`
+                      : "Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita."}
+                  </p>
+                  <div className="flex gap-2 justify-end pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>Cancelar</Button>
+                    {hasParcelas ? (
+                      <>
+                        <Button variant="secondary" size="sm" onClick={() => conta && handleDelete(conta, false)}>Só esta</Button>
+                        <Button variant="destructive" size="sm" onClick={() => conta && handleDelete(conta, true)}>Todas as parcelas</Button>
+                      </>
+                    ) : (
+                      <Button variant="destructive" size="sm" onClick={() => conta && handleDelete(conta, false)}>Excluir</Button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 
