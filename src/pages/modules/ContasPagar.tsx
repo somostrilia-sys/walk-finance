@@ -293,7 +293,7 @@ const ContasPagar = () => {
       setModalOpen(false);
       setForm({ ...emptyForm });
       setTotalParcelas(1);
-      setValoresParcelas(['']);
+      
       toast({ title: "Conta a pagar cadastrada com sucesso" });
     }
   };
