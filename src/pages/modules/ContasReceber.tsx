@@ -531,39 +531,13 @@ const ContasReceber = () => {
                     min="1"
                     max="60"
                     value={totalParcelas}
-                    onChange={e => handleChangeParcelas(e.target.value)}
+                    onChange={e => setTotalParcelas(Math.max(1, Math.min(60, parseInt(e.target.value) || 1)))}
                   />
                 </div>
 
-                {totalParcelas > 1 && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <label className="text-sm font-medium">Valor por parcela</label>
-                      <Button type="button" variant="outline" size="sm" onClick={distribuirValorIgual}>
-                        Distribuir igualmente
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {valoresParcelas.map((v, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground min-w-[32px]">
-                            {i + 1}x{totalParcelas}
-                          </span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder={`Parcela ${i + 1}`}
-                            value={v}
-                            onChange={e => setValoresParcelas(prev =>
-                              prev.map((x, j) => j === i ? e.target.value : x)
-                            )}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Soma das parcelas: {formatCurrency(valoresParcelas.reduce((s, v) => s + (parseFloat(v) || 0), 0))}
-                    </p>
+                {totalParcelas > 1 && form.amount && parseFloat(form.amount) > 0 && (
+                  <div className="text-xs text-muted-foreground p-2 rounded-md bg-muted/50 border">
+                    {totalParcelas}x de {formatCurrency(parseFloat(form.amount) / totalParcelas)} · Total: {formatCurrency(parseFloat(form.amount))}
                   </div>
                 )}
 
