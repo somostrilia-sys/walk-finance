@@ -176,12 +176,11 @@ const ContasReceber = () => {
     const consultorId = form.consultor_id && form.consultor_id !== "none" ? form.consultor_id : null;
 
     if (totalParcelas > 1) {
-      const valorTotal = parseFloat(form.amount);
-      if (!valorTotal || valorTotal <= 0) {
+      const valorParcela = parseFloat(form.amount);
+      if (!valorParcela || valorParcela <= 0) {
         setSubmitting(false);
-        return toast({ title: "Preencha o valor total", variant: "destructive" });
+        return toast({ title: "Preencha o valor da parcela", variant: "destructive" });
       }
-      const valorParcela = parseFloat((valorTotal / totalParcelas).toFixed(2));
       const valoresParcelas = Array.from({ length: totalParcelas }, () => valorParcela);
 
       const parcelas = gerarParcelas(
@@ -213,7 +212,7 @@ const ContasReceber = () => {
       if (consultorId) {
         const consul = consultores.find((c: any) => c.id === consultorId);
         if (consul && consul.dia_inicio_fechamento && consul.dia_fim_fechamento && consul.dia_pagamento_comissao) {
-          const comissaoValor = valorTotal * (consul.comissao_percent / 100);
+          const comissaoValor = (valorParcela * totalParcelas) * (consul.comissao_percent / 100);
           const competencia = calcularCompetenciaComissao(form.date, consul);
           if (competencia && comissaoValor > 0) {
             await supabase.from("comissoes_folha").insert({
@@ -473,7 +472,7 @@ const ContasReceber = () => {
                 </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-sm font-medium">Valor Total *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium">Valor da Parcela *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
                   <div><label className="text-sm font-medium">Vencimento 1ª Parcela *</label><Input className="mt-1" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
                 </div>
                 <div><label className="text-sm font-medium">Forma de Recebimento</label>
@@ -537,7 +536,7 @@ const ContasReceber = () => {
 
                 {totalParcelas > 1 && form.amount && parseFloat(form.amount) > 0 && (
                   <div className="text-xs text-muted-foreground p-2 rounded-md bg-muted/50 border">
-                    {totalParcelas}x de {formatCurrency(parseFloat(form.amount) / totalParcelas)} · Total: {formatCurrency(parseFloat(form.amount))}
+                    {totalParcelas}x de {formatCurrency(parseFloat(form.amount))} · Total: {formatCurrency(parseFloat(form.amount) * totalParcelas)}
                   </div>
                 )}
 
