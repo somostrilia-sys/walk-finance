@@ -660,7 +660,31 @@ const ContasPagar = () => {
             <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.</p>
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>Cancelar</Button>
-                <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(filtered.find((c: any) => c.id === deleteConfirmId))}>Excluir</Button>
+              <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(filtered.find((c: any) => c.id === deleteConfirmId))}>Excluir</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Confirmação de Ação em Lote */}
+        <Dialog open={!!bulkAction} onOpenChange={o => { if (!o) setBulkAction(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{bulkAction === "delete" ? "Excluir Selecionadas" : "Dar Baixa nas Selecionadas"}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {bulkAction === "delete"
+                ? `Tem certeza que deseja excluir ${selectedIds.size} conta(s)? Esta ação não pode ser desfeita.`
+                : `Deseja dar baixa em ${selectedIds.size} conta(s) selecionada(s)?`}
+            </p>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" size="sm" onClick={() => setBulkAction(null)}>Cancelar</Button>
+              <Button
+                variant={bulkAction === "delete" ? "destructive" : "default"}
+                size="sm"
+                onClick={bulkAction === "delete" ? handleBulkDelete : handleBulkBaixar}
+              >
+                {bulkAction === "delete" ? "Excluir Todas" : "Confirmar Baixa"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
