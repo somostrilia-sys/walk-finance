@@ -306,7 +306,17 @@ const ContasReceber = () => {
     toast({ title: "Conta cancelada" });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, deleteGroup = false) => {
+    if (deleteGroup) {
+      const item = filtered.find((c: any) => c.id === id);
+      if (item?.grupo_parcela) {
+        const { error } = await supabase.from("financial_transactions").delete().eq("grupo_parcela", item.grupo_parcela);
+        if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+        setDeleteConfirmId(null);
+        return toast({ title: "Todas as parcelas excluídas" });
+      }
+    }
     const { error } = await supabase.from("financial_transactions").delete().eq("id", id);
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });

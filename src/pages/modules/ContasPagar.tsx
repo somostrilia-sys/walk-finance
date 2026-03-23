@@ -332,12 +332,21 @@ const ContasPagar = () => {
     toast({ title: "Conta cancelada" });
   };
 
-  const handleDelete = async (conta: any) => {
-    const { error } = conta.source === "contas_pagar"
-      ? await supabase.from("contas_pagar").delete().eq("id", conta.id)
-      : await supabase.from("financial_transactions").delete().eq("id", conta.id);
-
-    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+  const handleDelete = async (conta: any, deleteGroup = false) => {
+    if (deleteGroup && conta.grupo_parcela) {
+      if (conta.source === "contas_pagar") {
+        const { error } = await supabase.from("contas_pagar").delete().eq("grupo_parcela", conta.grupo_parcela);
+        if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+      } else {
+        const { error } = await supabase.from("financial_transactions").delete().eq("grupo_parcela", conta.grupo_parcela);
+        if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+      }
+    } else {
+      const { error } = conta.source === "contas_pagar"
+        ? await supabase.from("contas_pagar").delete().eq("id", conta.id)
+        : await supabase.from("financial_transactions").delete().eq("id", conta.id);
+      if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+    }
 
     if (conta.source === "contas_pagar") {
       queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
@@ -346,7 +355,7 @@ const ContasPagar = () => {
     }
 
     setDeleteConfirmId(null);
-    toast({ title: "Conta excluída" });
+    toast({ title: deleteGroup ? "Todas as parcelas excluídas" : "Conta excluída" });
   };
 
   const toggleSelect = (id: string) => {
