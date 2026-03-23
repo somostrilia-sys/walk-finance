@@ -70,6 +70,8 @@ const ContasReceber = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [editForm, setEditForm] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"baixar" | "delete" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
