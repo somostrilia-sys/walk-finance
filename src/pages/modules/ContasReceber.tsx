@@ -778,11 +778,30 @@ const ContasReceber = () => {
         <Dialog open={!!deleteConfirmId} onOpenChange={o => { if (!o) setDeleteConfirmId(null); }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Confirmar Exclusão</DialogTitle></DialogHeader>
-            <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.</p>
-            <div className="flex gap-2 justify-end pt-2">
-              <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>Cancelar</Button>
-              <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}>Excluir</Button>
-            </div>
+            {(() => {
+              const conta = filtered.find((c: any) => c.id === deleteConfirmId);
+              const hasParcelas = conta && (conta.total_parcelas || 0) > 1 && conta.grupo_parcela;
+              return (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    {hasParcelas
+                      ? `Esta conta faz parte de um grupo de ${conta.total_parcelas} parcelas. Deseja excluir todas as parcelas do grupo?`
+                      : "Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita."}
+                  </p>
+                  <div className="flex gap-2 justify-end pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>Cancelar</Button>
+                    {hasParcelas ? (
+                      <>
+                        <Button variant="secondary" size="sm" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId, false)}>Só esta</Button>
+                        <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId, true)}>Todas as parcelas</Button>
+                      </>
+                    ) : (
+                      <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId, false)}>Excluir</Button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 
