@@ -621,6 +621,30 @@ const ContasReceber = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Modal de Confirmação de Ação em Lote */}
+        <Dialog open={!!bulkAction} onOpenChange={o => { if (!o) setBulkAction(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{bulkAction === "delete" ? "Excluir Selecionadas" : "Dar Baixa nas Selecionadas"}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {bulkAction === "delete"
+                ? `Tem certeza que deseja excluir ${selectedIds.size} conta(s)? Esta ação não pode ser desfeita.`
+                : `Deseja marcar ${selectedIds.size} conta(s) como recebida(s)?`}
+            </p>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" size="sm" onClick={() => setBulkAction(null)}>Cancelar</Button>
+              <Button
+                variant={bulkAction === "delete" ? "destructive" : "default"}
+                size="sm"
+                onClick={bulkAction === "delete" ? handleBulkDelete : handleBulkBaixar}
+              >
+                {bulkAction === "delete" ? "Excluir" : "Confirmar"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
