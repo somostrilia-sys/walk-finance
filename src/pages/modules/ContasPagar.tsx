@@ -493,8 +493,28 @@ const ContasPagar = () => {
           <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (
           <Card><CardContent className="p-0">
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-primary/10 border-b">
+                <span className="text-sm font-medium">{selectedIds.size} selecionada(s)</span>
+                <Button variant="outline" size="sm" onClick={() => setBulkAction("baixar")}>
+                  <Check className="w-3.5 h-3.5 mr-1" />Dar Baixa
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => setBulkAction("delete")}>
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />Excluir
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                  <X className="w-3.5 h-3.5 mr-1" />Limpar
+                </Button>
+              </div>
+            )}
             <Table>
               <TableHeader><TableRow className="bg-muted/30">
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead className="font-semibold">Prestador</TableHead>
                 <TableHead className="font-semibold">Descrição</TableHead>
                 <TableHead className="text-right font-semibold">Valor</TableHead>
@@ -506,14 +526,20 @@ const ContasPagar = () => {
               </TableRow></TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma conta encontrada</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma conta encontrada</TableCell></TableRow>
                 ) : filtered.map((c: any, i: number) => {
                   const vencido = isVencido(c.date, c.status);
                   const cfg = vencido
                     ? { label: "Vencido", badge: "status-badge-danger", icon: <AlertTriangle className="w-3.5 h-3.5" /> }
                     : statusConfig[c.status as StatusCP] || statusConfig.pendente;
                   return (
-                    <TableRow key={c.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
+                    <TableRow key={c.id} className={`${i % 2 === 0 ? "" : "bg-muted/20"} ${selectedIds.has(c.id) ? "bg-primary/5" : ""}`}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(c.id)}
+                          onCheckedChange={() => toggleSelect(c.id)}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-1">
                           {c.entity_name || "—"}
