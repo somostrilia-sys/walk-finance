@@ -228,6 +228,18 @@ const FolhaComissoes = () => {
     invalidate("campanhas");
   };
 
+  const handleDeleteComissao = async (id: string) => {
+    await supabase.from("comissoes_folha").delete().eq("id", id);
+    toast({ title: "Comissão excluída" });
+    invalidate("comissoes_folha");
+  };
+
+  const handleDeleteDesconto = async (id: string) => {
+    await supabase.from("descontos_folha").delete().eq("id", id);
+    toast({ title: "Desconto excluído" });
+    invalidate("descontos_folha");
+  };
+
   if (loadColab) return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>
@@ -396,9 +408,8 @@ const FolhaComissoes = () => {
             </div>
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Vendas Geradoras</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref. Venda</TableHead><TableHead>Período Apurado</TableHead><TableHead>Mês Pgto</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Vendas Geradoras</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref. Venda</TableHead><TableHead>Período Apurado</TableHead><TableHead>Mês Pgto</TableHead><TableHead>Status</TableHead><TableHead className="w-10"></TableHead></TableRow></TableHeader>
                 <TableBody>{comissoes.map((c: any) => {
-                  // Calcular mês pagamento (mês seguinte ao período)
                   let mesPgto = "—";
                   if (c.periodo) {
                     const parts = c.periodo.split("/");
@@ -409,7 +420,6 @@ const FolhaComissoes = () => {
                       mesPgto = next;
                     }
                   }
-                  // Período apurado from colaborador config
                   const colab = colaboradores.find((col: any) => col.id === c.colaborador_id);
                   let periodoApurado = "—";
                   if (colab && c.periodo) {
@@ -428,10 +438,19 @@ const FolhaComissoes = () => {
                       <TableCell className="text-xs">{periodoApurado}</TableCell>
                       <TableCell>{mesPgto}</TableCell>
                       <TableCell><Badge className={c.status === "paga" ? "status-badge-positive" : c.status === "incluida" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "status-badge-warning"}>{c.status === "incluida" ? "Incluída" : c.status}</Badge></TableCell>
+                      <TableCell>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="w-4 h-4" /></Button></AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader><AlertDialogTitle>Excluir comissão?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription></AlertDialogHeader>
+                            <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteComissao(c.id)}>Excluir</AlertDialogAction></AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
-                {comissoes.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhuma comissão registrada.</TableCell></TableRow>}
+                {comissoes.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma comissão registrada.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
@@ -597,16 +616,25 @@ const FolhaComissoes = () => {
             </div>
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Tipo</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref.</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Colaborador</TableHead><TableHead>Tipo</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Mês Ref.</TableHead><TableHead className="w-10"></TableHead></TableRow></TableHeader>
                 <TableBody>{descontos.map((d: any) => (
                   <TableRow key={d.id}>
                     <TableCell className="font-medium">{d.colaboradores?.nome || "—"}</TableCell>
                     <TableCell><Badge variant="outline">{d.tipo}</Badge></TableCell>
                     <TableCell className="text-right text-destructive">-{fmt(Number(d.valor))}</TableCell>
                     <TableCell>{d.referencia}</TableCell>
+                    <TableCell>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="w-4 h-4" /></Button></AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader><AlertDialogTitle>Excluir desconto?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription></AlertDialogHeader>
+                          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteDesconto(d.id)}>Excluir</AlertDialogAction></AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
                   </TableRow>
                 ))}
-                {descontos.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum desconto.</TableCell></TableRow>}
+                {descontos.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Nenhum desconto.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
