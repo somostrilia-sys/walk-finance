@@ -88,6 +88,8 @@ const ContasPagar = () => {
   const [uploading, setUploading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showEditSuggestions, setShowEditSuggestions] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"delete" | "baixar" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
