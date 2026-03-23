@@ -176,15 +176,17 @@ const ContasReceber = () => {
     const consultorId = form.consultor_id && form.consultor_id !== "none" ? form.consultor_id : null;
 
     if (totalParcelas > 1) {
-      const todosPreenchidos = valoresParcelas.every(v => parseFloat(v) > 0);
-      if (!todosPreenchidos) {
+      const valorTotal = parseFloat(form.amount);
+      if (!valorTotal || valorTotal <= 0) {
         setSubmitting(false);
-        return toast({ title: "Preencha o valor de todas as parcelas", variant: "destructive" });
+        return toast({ title: "Preencha o valor total", variant: "destructive" });
       }
+      const valorParcela = parseFloat((valorTotal / totalParcelas).toFixed(2));
+      const valoresParcelas = Array.from({ length: totalParcelas }, () => valorParcela);
 
       const parcelas = gerarParcelas(
         {},
-        valoresParcelas.map(v => parseFloat(v)),
+        valoresParcelas,
         form.date,
         totalParcelas
       );
@@ -211,8 +213,7 @@ const ContasReceber = () => {
       if (consultorId) {
         const consul = consultores.find((c: any) => c.id === consultorId);
         if (consul && consul.dia_inicio_fechamento && consul.dia_fim_fechamento && consul.dia_pagamento_comissao) {
-          const totalValor = valoresParcelas.reduce((s, v) => s + (parseFloat(v) || 0), 0);
-          const comissaoValor = totalValor * (consul.comissao_percent / 100);
+          const comissaoValor = valorTotal * (consul.comissao_percent / 100);
           const competencia = calcularCompetenciaComissao(form.date, consul);
           if (competencia && comissaoValor > 0) {
             await supabase.from("comissoes_folha").insert({
@@ -237,7 +238,6 @@ const ContasReceber = () => {
       setModalOpen(false);
       setForm({ ...emptyForm });
       setTotalParcelas(1);
-      setValoresParcelas(['']);
       toast({ title: `${totalParcelas} parcelas cadastradas com sucesso` });
     } else {
       const { error } = await supabase.from("financial_transactions").insert({
