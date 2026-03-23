@@ -295,6 +295,19 @@ const FolhaComissoes = () => {
                           <SelectItem value="26-25">Dia 26 ao 25</SelectItem>
                         </SelectContent>
                       </Select></div>
+                    <div className="col-span-2 rounded-lg border border-border bg-muted/30 p-4">
+                      <div className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-wide">Ajuda de Custo</div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div><label className="text-sm font-medium">Valor (R$)</label><Input type="number" placeholder="Ex: 500" value={formColab.ajuda_custo || ""} onChange={e => setFormColab(f => ({ ...f, ajuda_custo: Number(e.target.value) }))} /></div>
+                        <div><label className="text-sm font-medium">Dia início período</label><Input type="number" min={1} max={31} placeholder="Ex: 1" value={formColab.dia_inicio_fechamento_ajuda || ""} onChange={e => setFormColab(f => ({ ...f, dia_inicio_fechamento_ajuda: parseInt(e.target.value) || null }))} /></div>
+                        <div><label className="text-sm font-medium">Dia fim período</label><Input type="number" min={1} max={31} placeholder="Ex: 30" value={formColab.dia_fim_fechamento_ajuda || ""} onChange={e => setFormColab(f => ({ ...f, dia_fim_fechamento_ajuda: parseInt(e.target.value) || null }))} /></div>
+                      </div>
+                      {formColab.ajuda_custo > 0 && formColab.dia_inicio_fechamento_ajuda && formColab.dia_fim_fechamento_ajuda && (
+                        <div className="mt-2.5 text-xs text-primary bg-primary/5 rounded-md px-3 py-2">
+                          Ajuda de custo de <strong>{fmt(formColab.ajuda_custo)}</strong> — período do dia <strong>{formColab.dia_inicio_fechamento_ajuda}</strong> ao dia <strong>{formColab.dia_fim_fechamento_ajuda}</strong>
+                        </div>
+                      )}
+                    </div>
                     <div className="col-span-2 flex items-center gap-2">
                       <input type="checkbox" id="is_consultor" checked={formColab.is_consultor} onChange={e => setFormColab(f => ({ ...f, is_consultor: e.target.checked }))} className="rounded" />
                       <label htmlFor="is_consultor" className="text-sm font-medium">É consultor (recebe comissões)</label>
