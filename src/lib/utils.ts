@@ -69,3 +69,30 @@ export function periodoFechamentoLabel(colaborador: any, mesCompetencia?: string
   }
   return `${pad(diaInicio, m, ano)} a ${pad(diaFim, m, ano)}`;
 }
+
+export function gerarParcelas(dadosBase: any, valorParcelas: number[], primeiroVencimento: string, totalParcelas: number) {
+  const grupoParcela = crypto.randomUUID();
+  const [ano, mes, dia] = primeiroVencimento.split("-").map(Number);
+
+  return Array.from({ length: totalParcelas }, (_, i) => {
+    const dataVenc = new Date(ano, mes - 1 + i, dia);
+    if (dataVenc.getDate() !== dia) {
+      dataVenc.setDate(0);
+    }
+
+    return {
+      ...dadosBase,
+      valor: valorParcelas[i],
+      vencimento: dataVenc.toISOString().slice(0, 10),
+      parcela_atual: i + 1,
+      total_parcelas: totalParcelas,
+      grupo_parcela: grupoParcela,
+      status: "pendente",
+    };
+  });
+}
+
+export function labelParcela(atual: number, total: number) {
+  if (!total || total <= 1) return "";
+  return `${atual}x${total}`;
+}

@@ -4,6 +4,7 @@ import { useCompanies, useFinancialTransactions, usePessoas } from "@/hooks/useF
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { gerarParcelas, labelParcela } from "@/lib/utils";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import ModuleStatCard from "@/components/ModuleStatCard";
@@ -20,7 +21,7 @@ import { formatCurrency } from "@/data/mockData";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowDownCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle,
-  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat
+  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat, ChevronDown, ChevronUp, Calendar
 } from "lucide-react";
 
 type StatusCP = "pendente" | "confirmado" | "cancelado";
@@ -40,13 +41,7 @@ const isVencido = (date: string, status: string) => {
   return status === "pendente" && new Date(date) < new Date(new Date().toISOString().slice(0, 10));
 };
 
-const addMonths = (dateStr: string, months: number) => {
-  const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
-};
-
-const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", is_recurring: false, recurrence_months: "1" };
+const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX" };
 
 const useContasPagarLancamentos = (companyId?: string) => {
   const { user } = useAuth();
@@ -93,6 +88,31 @@ const ContasPagar = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Parcelas state
+  const [totalParcelas, setTotalParcelas] = useState(1);
+  const [valoresParcelas, setValoresParcelas] = useState<string[]>(['']);
+
+  // Month filter state
+  const mesAtual = new Date().toISOString().slice(0, 7);
+  const [filtroMes, setFiltroMes] = useState(mesAtual);
+  const [verTodas, setVerTodas] = useState(false);
+
+  // Group expansion state
+  const [grupoExpandido, setGrupoExpandido] = useState<string | null>(null);
+
+  const handleChangeParcelas = (n: string) => {
+    const num = Math.max(1, Math.min(60, parseInt(n) || 1));
+    setTotalParcelas(num);
+    setValoresParcelas(prev => Array.from({ length: num }, (_, i) => prev[i] || ''));
+  };
+
+  const distribuirValorIgual = () => {
+    const valorTotal = parseFloat(form.amount);
+    if (!valorTotal || totalParcelas <= 0) return;
+    const por = (valorTotal / totalParcelas).toFixed(2);
+    setValoresParcelas(Array(totalParcelas).fill(por));
+  };
+
   const fornecedorSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
     if (!q || q.length < 1 || !pessoas?.length) return [];
@@ -127,6 +147,9 @@ const ContasPagar = () => {
         payment_method: t.payment_method,
         status: t.status,
         attachment_url: t.attachment_url,
+        parcela_atual: t.parcela_atual || 1,
+        total_parcelas: t.total_parcelas || 1,
+        grupo_parcela: t.grupo_parcela || null,
       }));
 
     const contasFolha = (lancamentosContasPagar || []).map((c: any) => ({
@@ -140,26 +163,54 @@ const ContasPagar = () => {
       payment_method: null,
       status: c.status === "a_vencer" ? "pendente" : c.status === "pago" ? "confirmado" : c.status,
       attachment_url: null,
+      parcela_atual: c.parcela_atual || 1,
+      total_parcelas: c.total_parcelas || 1,
+      grupo_parcela: c.grupo_parcela || null,
     }));
 
     return [...saidasFinanceiras, ...contasFolha].sort((a, b) => a.date.localeCompare(b.date));
   }, [transactions, lancamentosContasPagar]);
 
-  const filtered = useMemo(() => contas.filter((c: any) => {
-    if (filtroStatus === "pendente" && c.status !== "pendente") return false;
-    if (filtroStatus === "confirmado" && c.status !== "confirmado") return false;
-    if (filtroStatus === "vencido" && !isVencido(c.date, c.status)) return false;
-    if (filtroStatus === "cancelado" && c.status !== "cancelado") return false;
+  const filtered = useMemo(() => {
+    let lista = contas;
+
+    // Month filter
+    if (!verTodas) {
+      lista = lista.filter((c: any) => c.date && c.date.startsWith(filtroMes));
+    }
+
+    // Status filter
+    if (filtroStatus === "pendente") lista = lista.filter((c: any) => c.status === "pendente");
+    else if (filtroStatus === "confirmado") lista = lista.filter((c: any) => c.status === "confirmado");
+    else if (filtroStatus === "vencido") lista = lista.filter((c: any) => isVencido(c.date, c.status));
+    else if (filtroStatus === "cancelado") lista = lista.filter((c: any) => c.status === "cancelado");
+
+    // Search filter
     if (search) {
       const s = search.toLowerCase();
-      if (!(c.description?.toLowerCase().includes(s) || (c as any).entity_name?.toLowerCase().includes(s))) return false;
+      lista = lista.filter((c: any) =>
+        c.description?.toLowerCase().includes(s) || c.entity_name?.toLowerCase().includes(s)
+      );
     }
-    return true;
-  }), [contas, filtroStatus, search]);
+
+    return lista.sort((a, b) => a.date.localeCompare(b.date));
+  }, [contas, filtroStatus, search, filtroMes, verTodas]);
+
+  const contasOutrosMeses = useMemo(() => {
+    if (verTodas) return 0;
+    return contas.filter((c: any) => !c.date?.startsWith(filtroMes)).length;
+  }, [contas, filtroMes, verTodas]);
 
   const totalPendente = contas.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount), 0);
   const totalPago = contas.filter((c: any) => c.status === "confirmado").reduce((s: number, c: any) => s + Number(c.amount), 0);
   const totalVencido = contas.filter((c: any) => isVencido(c.date, c.status)).reduce((s: number, c: any) => s + Number(c.amount), 0);
+
+  const parcelasDoGrupo = (grupoParcela: string) => {
+    if (!grupoParcela) return [];
+    return contas
+      .filter((c: any) => c.grupo_parcela === grupoParcela)
+      .sort((a, b) => a.parcela_atual - b.parcela_atual);
+  };
 
   const uploadFile = async (file: File): Promise<string | null> => {
     const ext = file.name.split(".").pop();
@@ -183,7 +234,6 @@ const ContasPagar = () => {
 
     if (target === "new") {
       setForm(f => ({ ...f, attachment_url: url } as any));
-      // Try to extract boleto info from filename
       const name = file.name.toLowerCase();
       if (name.includes("boleto") || name.includes("bol")) {
         toast({ title: "Arquivo de boleto detectado", description: "Preencha os dados do boleto nos campos do formulário." });
@@ -198,31 +248,67 @@ const ContasPagar = () => {
     if (!form.entity_name || !form.amount || !form.date) return toast({ title: "Preencha campos obrigatórios", variant: "destructive" });
     setSubmitting(true);
 
-    const groupId = form.is_recurring ? crypto.randomUUID() : null;
-    const months = form.is_recurring ? Math.max(1, Math.min(60, parseInt(form.recurrence_months) || 1)) : 1;
+    if (totalParcelas > 1) {
+      const todosPreenchidos = valoresParcelas.every(v => parseFloat(v) > 0);
+      if (!todosPreenchidos) {
+        setSubmitting(false);
+        return toast({ title: "Preencha o valor de todas as parcelas", variant: "destructive" });
+      }
 
-    const records = [];
-    for (let i = 0; i < months; i++) {
-      records.push({
+      const parcelas = gerarParcelas(
+        {},
+        valoresParcelas.map(v => parseFloat(v)),
+        form.date,
+        totalParcelas
+      );
+
+      const records = parcelas.map(p => ({
         company_id: companyId!,
         type: "saida",
         description: form.description || `Conta - ${form.entity_name}`,
-        amount: Number(form.amount),
-        date: addMonths(form.date, i),
+        amount: p.valor,
+        date: p.vencimento,
         status: "pendente",
         created_by: user?.id,
         entity_name: form.entity_name,
         payment_method: form.payment_method,
-      });
-    }
+        parcela_atual: p.parcela_atual,
+        total_parcelas: p.total_parcelas,
+        grupo_parcela: p.grupo_parcela,
+      }));
 
-    const { error } = await supabase.from("financial_transactions").insert(records as any);
-    setSubmitting(false);
-    if (error) return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
-    setModalOpen(false);
-    setForm({ ...emptyForm });
-    toast({ title: months > 1 ? `${months} parcelas cadastradas com sucesso` : "Conta a pagar cadastrada com sucesso" });
+      const { error } = await supabase.from("financial_transactions").insert(records as any);
+      setSubmitting(false);
+      if (error) return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      setModalOpen(false);
+      setForm({ ...emptyForm });
+      setTotalParcelas(1);
+      setValoresParcelas(['']);
+      toast({ title: `${totalParcelas} parcelas cadastradas com sucesso` });
+    } else {
+      const { error } = await supabase.from("financial_transactions").insert({
+        company_id: companyId!,
+        type: "saida",
+        description: form.description || `Conta - ${form.entity_name}`,
+        amount: Number(form.amount),
+        date: form.date,
+        status: "pendente",
+        created_by: user?.id,
+        entity_name: form.entity_name,
+        payment_method: form.payment_method,
+        parcela_atual: 1,
+        total_parcelas: 1,
+      } as any);
+      setSubmitting(false);
+      if (error) return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      setModalOpen(false);
+      setForm({ ...emptyForm });
+      setTotalParcelas(1);
+      setValoresParcelas(['']);
+      toast({ title: "Conta a pagar cadastrada com sucesso" });
+    }
   };
 
   const handleBaixar = async (conta: any) => {
@@ -403,11 +489,29 @@ const ContasPagar = () => {
               <SelectItem value="cancelado">Cancelado</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Month filter */}
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <Input
+              type="month"
+              value={filtroMes}
+              onChange={e => { setFiltroMes(e.target.value); setVerTodas(false); }}
+              className="w-[160px]"
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setVerTodas(v => !v)}>
+            {verTodas ? "Ver mês" : "Ver todas"}
+          </Button>
+          {!verTodas && contasOutrosMeses > 0 && (
+            <span className="text-xs text-muted-foreground">{contasOutrosMeses} em outros meses</span>
+          )}
+
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Relatório exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
-          <Dialog open={modalOpen} onOpenChange={o => { setModalOpen(o); if (!o) setForm({ ...emptyForm }); }}>
+          <Dialog open={modalOpen} onOpenChange={o => { setModalOpen(o); if (!o) { setForm({ ...emptyForm }); setTotalParcelas(1); setValoresParcelas(['']); } }}>
             <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" />Nova Conta a Pagar</Button></DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Cadastrar Conta a Pagar</DialogTitle></DialogHeader>
               <div className="space-y-3 pt-2">
                 <div className="relative">
@@ -426,8 +530,8 @@ const ContasPagar = () => {
                 </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-sm font-medium">Valor *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
-                  <div><label className="text-sm font-medium">Vencimento *</label><Input className="mt-1" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium">Valor Total *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium">Vencimento 1ª Parcela *</label><Input className="mt-1" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
                 </div>
                 <div><label className="text-sm font-medium">Forma de Pagamento</label>
                   <Select value={form.payment_method} onValueChange={v => setForm(f => ({ ...f, payment_method: v }))}>
@@ -436,26 +540,48 @@ const ContasPagar = () => {
                   </Select>
                 </div>
 
-                {/* Recorrência */}
-                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <Repeat className="w-4 h-4 text-muted-foreground" />
-                    <label className="text-sm font-medium">Pagamento Recorrente</label>
-                  </div>
-                  <Switch checked={form.is_recurring} onCheckedChange={v => setForm(f => ({ ...f, is_recurring: v }))} />
+                {/* Parcelas */}
+                <div>
+                  <label className="text-sm font-medium">Número de parcelas</label>
+                  <Input
+                    className="mt-1"
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={totalParcelas}
+                    onChange={e => handleChangeParcelas(e.target.value)}
+                  />
                 </div>
-                {form.is_recurring && (
-                  <div>
-                    <label className="text-sm font-medium">Quantidade de Meses</label>
-                    <Select value={form.recurrence_months} onValueChange={v => setForm(f => ({ ...f, recurrence_months: v }))}>
-                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24, 36, 48, 60].map(n => (
-                          <SelectItem key={n} value={String(n)}>{n} meses</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">Serão criadas {form.recurrence_months} parcelas mensais a partir da data de vencimento.</p>
+
+                {totalParcelas > 1 && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-sm font-medium">Valor por parcela</label>
+                      <Button type="button" variant="outline" size="sm" onClick={distribuirValorIgual}>
+                        Distribuir igualmente
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {valoresParcelas.map((v, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground min-w-[32px]">
+                            {i + 1}x{totalParcelas}
+                          </span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder={`Parcela ${i + 1}`}
+                            value={v}
+                            onChange={e => setValoresParcelas(prev =>
+                              prev.map((x, j) => j === i ? e.target.value : x)
+                            )}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Soma das parcelas: {formatCurrency(valoresParcelas.reduce((s, v) => s + (parseFloat(v) || 0), 0))}
+                    </p>
                   </div>
                 )}
 
@@ -482,7 +608,7 @@ const ContasPagar = () => {
 
                 <Button onClick={handleAdd} className="w-full" disabled={submitting}>
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  {form.is_recurring ? `Cadastrar ${form.recurrence_months} Parcelas` : "Cadastrar"}
+                  {totalParcelas > 1 ? `Cadastrar ${totalParcelas} Parcelas` : "Cadastrar"}
                 </Button>
               </div>
             </DialogContent>
@@ -533,47 +659,85 @@ const ContasPagar = () => {
                     ? { label: "Vencido", badge: "status-badge-danger", icon: <AlertTriangle className="w-3.5 h-3.5" /> }
                     : statusConfig[c.status as StatusCP] || statusConfig.pendente;
                   return (
-                    <TableRow key={c.id} className={`${i % 2 === 0 ? "" : "bg-muted/20"} ${selectedIds.has(c.id) ? "bg-primary/5" : ""}`}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedIds.has(c.id)}
-                          onCheckedChange={() => toggleSelect(c.id)}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-1">
-                          {c.entity_name || "—"}
-                          {c.attachment_url && <Paperclip className="w-3 h-3 text-muted-foreground" />}
-                          {c.recurrence_months > 0 && <Repeat className="w-3 h-3 text-muted-foreground" />}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{c.description}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(Number(c.amount))}</TableCell>
-                      <TableCell>{fmtDate(c.date)}</TableCell>
-                      <TableCell>{c.payment_date ? fmtDate(c.payment_date) : "—"}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-[10px]">{c.payment_method || "—"}</Badge></TableCell>
-                      <TableCell><Badge className={`${cfg.badge} text-[10px]`}>{cfg.icon}<span className="ml-1">{cfg.label}</span></Badge></TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {c.status === "pendente" && (
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => handleBaixar(c)} title="Baixar como pago">
-                              <Check className="w-3 h-3" />
-                            </Button>
+                    <>
+                      <TableRow key={c.id} className={`${i % 2 === 0 ? "" : "bg-muted/20"} ${selectedIds.has(c.id) ? "bg-primary/5" : ""}`}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(c.id)}
+                            onCheckedChange={() => toggleSelect(c.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-1">
+                            {c.entity_name || "—"}
+                            {c.attachment_url && <Paperclip className="w-3 h-3 text-muted-foreground" />}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                          {c.description}
+                          {c.total_parcelas > 1 && (
+                            <span className="ml-1.5 text-xs opacity-70">{labelParcela(c.parcela_atual, c.total_parcelas)}</span>
                           )}
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openEdit(c)} title="Editar">
-                            <Pencil className="w-3 h-3" />
-                          </Button>
-                          {c.status === "pendente" && (
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-orange-500" onClick={() => handleCancelar(c)} title="Cancelar">
-                              <X className="w-3 h-3" />
+                        </TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(Number(c.amount))}</TableCell>
+                        <TableCell>{fmtDate(c.date)}</TableCell>
+                        <TableCell>{c.payment_date ? fmtDate(c.payment_date) : "—"}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-[10px]">{c.payment_method || "—"}</Badge></TableCell>
+                        <TableCell><Badge className={`${cfg.badge} text-[10px]`}>{cfg.icon}<span className="ml-1">{cfg.label}</span></Badge></TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {c.total_parcelas > 1 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => setGrupoExpandido(grupoExpandido === c.grupo_parcela ? null : c.grupo_parcela)}
+                                title="Ver todas as parcelas"
+                              >
+                                {grupoExpandido === c.grupo_parcela ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </Button>
+                            )}
+                            {c.status === "pendente" && (
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => handleBaixar(c)} title="Baixar como pago">
+                                <Check className="w-3 h-3" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openEdit(c)} title="Editar">
+                              <Pencil className="w-3 h-3" />
                             </Button>
-                          )}
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive" onClick={() => setDeleteConfirmId(c.id)} title="Excluir">
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                            {c.status === "pendente" && (
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-orange-500" onClick={() => handleCancelar(c)} title="Cancelar">
+                                <X className="w-3 h-3" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive" onClick={() => setDeleteConfirmId(c.id)} title="Excluir">
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {grupoExpandido === c.grupo_parcela && c.grupo_parcela && parcelasDoGrupo(c.grupo_parcela).filter(p => p.id !== c.id).map(parcela => {
+                        const pVencido = isVencido(parcela.date, parcela.status);
+                        const pCfg = pVencido
+                          ? { label: "Vencido", badge: "status-badge-danger", icon: <AlertTriangle className="w-3.5 h-3.5" /> }
+                          : statusConfig[parcela.status as StatusCP] || statusConfig.pendente;
+                        return (
+                          <TableRow key={parcela.id} className="bg-muted/10">
+                            <TableCell />
+                            <TableCell className="text-xs text-muted-foreground pl-8">
+                              {labelParcela(parcela.parcela_atual, parcela.total_parcelas)} — {parcela.description}
+                            </TableCell>
+                            <TableCell />
+                            <TableCell className="text-right text-xs">{formatCurrency(parcela.amount)}</TableCell>
+                            <TableCell className="text-xs">{fmtDate(parcela.date)}</TableCell>
+                            <TableCell className="text-xs">{parcela.payment_date ? fmtDate(parcela.payment_date) : "—"}</TableCell>
+                            <TableCell />
+                            <TableCell><Badge className={`${pCfg.badge} text-[10px]`}>{pCfg.icon}<span className="ml-1">{pCfg.label}</span></Badge></TableCell>
+                            <TableCell />
+                          </TableRow>
+                        );
+                      })}
+                    </>
                   );
                 })}
               </TableBody>
