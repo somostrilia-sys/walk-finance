@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowDownCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle,
   Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat
