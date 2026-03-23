@@ -90,7 +90,6 @@ const ContasPagar = () => {
 
   // Parcelas state
   const [totalParcelas, setTotalParcelas] = useState(1);
-  const [valoresParcelas, setValoresParcelas] = useState<string[]>(['']);
 
   // Month filter state
   const mesAtual = new Date().toISOString().slice(0, 7);
@@ -99,19 +98,6 @@ const ContasPagar = () => {
 
   // Group expansion state
   const [grupoExpandido, setGrupoExpandido] = useState<string | null>(null);
-
-  const handleChangeParcelas = (n: string) => {
-    const num = Math.max(1, Math.min(60, parseInt(n) || 1));
-    setTotalParcelas(num);
-    setValoresParcelas(prev => Array.from({ length: num }, (_, i) => prev[i] || ''));
-  };
-
-  const distribuirValorIgual = () => {
-    const valorTotal = parseFloat(form.amount);
-    if (!valorTotal || totalParcelas <= 0) return;
-    const por = (valorTotal / totalParcelas).toFixed(2);
-    setValoresParcelas(Array(totalParcelas).fill(por));
-  };
 
   const fornecedorSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
@@ -249,15 +235,17 @@ const ContasPagar = () => {
     setSubmitting(true);
 
     if (totalParcelas > 1) {
-      const todosPreenchidos = valoresParcelas.every(v => parseFloat(v) > 0);
-      if (!todosPreenchidos) {
+      const valorTotal = parseFloat(form.amount);
+      if (!valorTotal || valorTotal <= 0) {
         setSubmitting(false);
-        return toast({ title: "Preencha o valor de todas as parcelas", variant: "destructive" });
+        return toast({ title: "Preencha o valor total", variant: "destructive" });
       }
+      const valorParcela = parseFloat((valorTotal / totalParcelas).toFixed(2));
+      const valoresParcelas = Array.from({ length: totalParcelas }, () => valorParcela);
 
       const parcelas = gerarParcelas(
         {},
-        valoresParcelas.map(v => parseFloat(v)),
+        valoresParcelas,
         form.date,
         totalParcelas
       );
@@ -284,7 +272,6 @@ const ContasPagar = () => {
       setModalOpen(false);
       setForm({ ...emptyForm });
       setTotalParcelas(1);
-      setValoresParcelas(['']);
       toast({ title: `${totalParcelas} parcelas cadastradas com sucesso` });
     } else {
       const { error } = await supabase.from("financial_transactions").insert({
@@ -306,7 +293,7 @@ const ContasPagar = () => {
       setModalOpen(false);
       setForm({ ...emptyForm });
       setTotalParcelas(1);
-      setValoresParcelas(['']);
+      
       toast({ title: "Conta a pagar cadastrada com sucesso" });
     }
   };
@@ -509,7 +496,7 @@ const ContasPagar = () => {
 
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Relatório exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
-          <Dialog open={modalOpen} onOpenChange={o => { setModalOpen(o); if (!o) { setForm({ ...emptyForm }); setTotalParcelas(1); setValoresParcelas(['']); } }}>
+          <Dialog open={modalOpen} onOpenChange={o => { setModalOpen(o); if (!o) { setForm({ ...emptyForm }); setTotalParcelas(1);  } }}>
             <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" />Nova Conta a Pagar</Button></DialogTrigger>
             <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Cadastrar Conta a Pagar</DialogTitle></DialogHeader>
@@ -549,39 +536,13 @@ const ContasPagar = () => {
                     min="1"
                     max="60"
                     value={totalParcelas}
-                    onChange={e => handleChangeParcelas(e.target.value)}
+                    onChange={e => setTotalParcelas(Math.max(1, Math.min(60, parseInt(e.target.value) || 1)))}
                   />
                 </div>
 
-                {totalParcelas > 1 && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <label className="text-sm font-medium">Valor por parcela</label>
-                      <Button type="button" variant="outline" size="sm" onClick={distribuirValorIgual}>
-                        Distribuir igualmente
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {valoresParcelas.map((v, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground min-w-[32px]">
-                            {i + 1}x{totalParcelas}
-                          </span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder={`Parcela ${i + 1}`}
-                            value={v}
-                            onChange={e => setValoresParcelas(prev =>
-                              prev.map((x, j) => j === i ? e.target.value : x)
-                            )}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Soma das parcelas: {formatCurrency(valoresParcelas.reduce((s, v) => s + (parseFloat(v) || 0), 0))}
-                    </p>
+                {totalParcelas > 1 && form.amount && parseFloat(form.amount) > 0 && (
+                  <div className="text-xs text-muted-foreground p-2 rounded-md bg-muted/50 border">
+                    {totalParcelas}x de {formatCurrency(parseFloat(form.amount) / totalParcelas)} · Total: {formatCurrency(parseFloat(form.amount))}
                   </div>
                 )}
 
