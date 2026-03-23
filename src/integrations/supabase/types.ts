@@ -631,8 +631,11 @@ export type Database = {
           created_by: string | null
           descricao: string | null
           fornecedor: string
+          grupo_parcela: string | null
           id: string
+          parcela_atual: number | null
           status: string
+          total_parcelas: number | null
           unidade: string | null
           updated_at: string
           valor: number
@@ -647,8 +650,11 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           fornecedor: string
+          grupo_parcela?: string | null
           id?: string
+          parcela_atual?: number | null
           status?: string
+          total_parcelas?: number | null
           unidade?: string | null
           updated_at?: string
           valor?: number
@@ -663,8 +669,11 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           fornecedor?: string
+          grupo_parcela?: string | null
           id?: string
+          parcela_atual?: number | null
           status?: string
+          total_parcelas?: number | null
           unidade?: string | null
           updated_at?: string
           valor?: number
@@ -1048,10 +1057,13 @@ export type Database = {
           date: string
           description: string
           entity_name: string | null
+          grupo_parcela: string | null
           id: string
+          parcela_atual: number | null
           payment_date: string | null
           payment_method: string | null
           status: string
+          total_parcelas: number | null
           type: string
           updated_at: string
         }
@@ -1064,10 +1076,13 @@ export type Database = {
           date?: string
           description: string
           entity_name?: string | null
+          grupo_parcela?: string | null
           id?: string
+          parcela_atual?: number | null
           payment_date?: string | null
           payment_method?: string | null
           status?: string
+          total_parcelas?: number | null
           type: string
           updated_at?: string
         }
@@ -1080,10 +1095,13 @@ export type Database = {
           date?: string
           description?: string
           entity_name?: string | null
+          grupo_parcela?: string | null
           id?: string
+          parcela_atual?: number | null
           payment_date?: string | null
           payment_method?: string | null
           status?: string
+          total_parcelas?: number | null
           type?: string
           updated_at?: string
         }
