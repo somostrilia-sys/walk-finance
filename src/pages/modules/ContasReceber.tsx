@@ -501,9 +501,7 @@ const ContasReceber = () => {
                     {form.consultor_id && form.consultor_id !== "none" && (() => {
                       const consul = consultores.find((c: any) => c.id === form.consultor_id);
                       if (!consul) return null;
-                      const baseVal = totalParcelas > 1
-                        ? valoresParcelas.reduce((s, v) => s + (parseFloat(v) || 0), 0)
-                        : Number(form.amount) || 0;
+                      const baseVal = Number(form.amount) || 0;
                       const comVal = baseVal * (consul.comissao_percent / 100);
                       const hasPeriodo = consul.dia_inicio_fechamento && consul.dia_fim_fechamento && consul.dia_pagamento_comissao;
                       return (
