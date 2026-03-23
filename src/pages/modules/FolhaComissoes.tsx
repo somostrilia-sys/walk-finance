@@ -482,7 +482,7 @@ const FolhaComissoes = () => {
             </div>
             <Card><CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Cargo</TableHead><TableHead>Contrato</TableHead><TableHead className="text-right">Salário Base</TableHead><TableHead className="text-right">Descontos</TableHead><TableHead className="text-right font-bold">Líquido</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Cargo</TableHead><TableHead>Contrato</TableHead><TableHead className="text-right">Salário Base</TableHead><TableHead className="text-right">Ajuda de Custo</TableHead><TableHead className="text-right">Descontos</TableHead><TableHead className="text-right font-bold">Líquido</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {folhaCalc.map((c: any) => (
                     <TableRow key={c.id}>
@@ -490,6 +490,7 @@ const FolhaComissoes = () => {
                       <TableCell>{c.cargo}</TableCell>
                       <TableCell><Badge variant="outline">{c.contrato}</Badge></TableCell>
                       <TableCell className="text-right">{fmt(Number(c.salario_base))}</TableCell>
+                      <TableCell className="text-right">{c.ajuda_custo_valor > 0 ? fmt(c.ajuda_custo_valor) : "—"}</TableCell>
                       <TableCell className="text-right text-destructive">{c.descontos_total > 0 ? `-${fmt(c.descontos_total)}` : "—"}</TableCell>
                       <TableCell className="text-right font-bold">{fmt(c.liquido)}</TableCell>
                     </TableRow>
@@ -498,11 +499,12 @@ const FolhaComissoes = () => {
                     <TableRow className="font-bold border-t-2">
                       <TableCell colSpan={3}>TOTAL</TableCell>
                       <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + Number(c.salario_base), 0))}</TableCell>
+                      <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.ajuda_custo_valor, 0))}</TableCell>
                       <TableCell className="text-right text-destructive">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.descontos_total, 0))}</TableCell>
                       <TableCell className="text-right">{fmt(folhaCalc.reduce((s: number, c: any) => s + c.liquido, 0))}</TableCell>
                     </TableRow>
                   )}
-                  {folhaCalc.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Cadastre colaboradores.</TableCell></TableRow>}
+                  {folhaCalc.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Cadastre colaboradores.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent></Card>
