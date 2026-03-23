@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,6 +70,8 @@ const ContasReceber = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [editForm, setEditForm] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"baixar" | "delete" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -244,6 +247,45 @@ const ContasReceber = () => {
     toast({ title: "Conta atualizada com sucesso" });
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((c: any) => c.id)));
+    }
+  };
+
+  const handleBulkBaixar = async () => {
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("financial_transactions").update({
+      status: "confirmado",
+      payment_date: new Date().toISOString().slice(0, 10),
+    } as any).in("id", ids);
+    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    toast({ title: `${ids.length} contas baixadas como recebidas` });
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("financial_transactions").delete().in("id", ids);
+    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    toast({ title: `${ids.length} contas excluídas` });
+  };
+
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
@@ -412,12 +454,37 @@ const ContasReceber = () => {
           </Dialog>
         </div>
 
+        {selectedIds.size > 0 && (
+          <Card className="mb-2">
+            <CardContent className="p-3 flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium">{selectedIds.size} selecionada(s)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setBulkAction("baixar")}>
+                  <Check className="w-3 h-3 mr-1" />Dar Baixa
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => setBulkAction("delete")}>
+                  <Trash2 className="w-3 h-3 mr-1" />Excluir
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                  <X className="w-3 h-3 mr-1" />Limpar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (
           <Card><CardContent className="p-0">
             <Table>
               <TableHeader><TableRow className="bg-muted/30">
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead className="font-semibold">Cliente</TableHead>
                 <TableHead className="font-semibold">Descrição</TableHead>
                 <TableHead className="text-right font-semibold">Valor</TableHead>
@@ -429,7 +496,7 @@ const ContasReceber = () => {
               </TableRow></TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma conta encontrada</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma conta encontrada</TableCell></TableRow>
                 ) : filtered.map((c: any, i: number) => {
                   const vencido = isVencido(c.date, c.status);
                   const cfg = vencido
@@ -437,6 +504,12 @@ const ContasReceber = () => {
                     : statusConfig[c.status as StatusCR] || statusConfig.pendente;
                   return (
                     <TableRow key={c.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(c.id)}
+                          onCheckedChange={() => toggleSelect(c.id)}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-1">
                           {c.entity_name || "—"}
@@ -545,6 +618,30 @@ const ContasReceber = () => {
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>Cancelar</Button>
               <Button variant="destructive" size="sm" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}>Excluir</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Confirmação de Ação em Lote */}
+        <Dialog open={!!bulkAction} onOpenChange={o => { if (!o) setBulkAction(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{bulkAction === "delete" ? "Excluir Selecionadas" : "Dar Baixa nas Selecionadas"}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {bulkAction === "delete"
+                ? `Tem certeza que deseja excluir ${selectedIds.size} conta(s)? Esta ação não pode ser desfeita.`
+                : `Deseja marcar ${selectedIds.size} conta(s) como recebida(s)?`}
+            </p>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" size="sm" onClick={() => setBulkAction(null)}>Cancelar</Button>
+              <Button
+                variant={bulkAction === "delete" ? "destructive" : "default"}
+                size="sm"
+                onClick={bulkAction === "delete" ? handleBulkDelete : handleBulkBaixar}
+              >
+                {bulkAction === "delete" ? "Excluir" : "Confirmar"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
