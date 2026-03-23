@@ -93,7 +93,7 @@ const FolhaComissoes = () => {
 
   const [modalColab, setModalColab] = useState(false);
   const [editColabId, setEditColabId] = useState<string | null>(null);
-  const [formColab, setFormColab] = useState({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false, fechamento_salario: "", fechamento_comissao: "", dia_inicio_fechamento: null as number | null, dia_fim_fechamento: null as number | null });
+  const [formColab, setFormColab] = useState({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false, fechamento_salario: "", fechamento_comissao: "", dia_inicio_fechamento: null as number | null, dia_fim_fechamento: null as number | null, ajuda_custo: 0, dia_inicio_fechamento_ajuda: null as number | null, dia_fim_fechamento_ajuda: null as number | null });
 
   const [modalComissao, setModalComissao] = useState(false);
   const [formComissao, setFormComissao] = useState({ colaborador_id: "", cliente: "", valor: 0, status: "pendente", periodo: "" });
@@ -136,7 +136,7 @@ const FolhaComissoes = () => {
   const handleSaveColab = async () => {
     if (!formColab.nome || !companyId) { toast({ title: "Preencha o nome", variant: "destructive" }); return; }
     setSaving(true);
-    const { dia_pagamento_salario, dia_pagamento_comissao, is_consultor, fechamento_salario, fechamento_comissao, dia_inicio_fechamento, dia_fim_fechamento, ...rest } = formColab;
+    const { dia_pagamento_salario, dia_pagamento_comissao, is_consultor, fechamento_salario, fechamento_comissao, dia_inicio_fechamento, dia_fim_fechamento, dia_inicio_fechamento_ajuda, dia_fim_fechamento_ajuda, ...rest } = formColab;
     const payload = {
       ...rest,
       company_id: companyId,
@@ -147,6 +147,8 @@ const FolhaComissoes = () => {
       fechamento_comissao: fechamento_comissao || null,
       dia_inicio_fechamento: dia_inicio_fechamento || null,
       dia_fim_fechamento: dia_fim_fechamento || null,
+      dia_inicio_fechamento_ajuda: dia_inicio_fechamento_ajuda || null,
+      dia_fim_fechamento_ajuda: dia_fim_fechamento_ajuda || null,
     } as any;
     if (!payload.admissao) delete payload.admissao;
     if (editColabId) {
@@ -159,12 +161,12 @@ const FolhaComissoes = () => {
       toast({ title: "Colaborador cadastrado" });
     }
     setSaving(false); setModalColab(false); setEditColabId(null);
-    setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false, fechamento_salario: "", fechamento_comissao: "", dia_inicio_fechamento: null, dia_fim_fechamento: null });
+    setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false, fechamento_salario: "", fechamento_comissao: "", dia_inicio_fechamento: null, dia_fim_fechamento: null, ajuda_custo: 0, dia_inicio_fechamento_ajuda: null, dia_fim_fechamento_ajuda: null });
     invalidate("colaboradores");
   };
 
   const handleEditColab = (c: any) => {
-    setFormColab({ nome: c.nome, cpf: c.cpf || "", cargo: c.cargo, admissao: c.admissao || "", contrato: c.contrato, salario_base: c.salario_base, tipo_remuneracao: c.tipo_remuneracao, banco: c.banco || "", agencia: c.agencia || "", conta: c.conta || "", chave_pix: c.chave_pix || "", comissao_percent: c.comissao_percent, comissao_tipo: c.comissao_tipo, dia_pagamento_salario: c.dia_pagamento_salario?.toString() || "", dia_pagamento_comissao: c.dia_pagamento_comissao?.toString() || "", is_consultor: c.is_consultor || false, fechamento_salario: c.fechamento_salario || "", fechamento_comissao: c.fechamento_comissao || "", dia_inicio_fechamento: c.dia_inicio_fechamento || null, dia_fim_fechamento: c.dia_fim_fechamento || null });
+    setFormColab({ nome: c.nome, cpf: c.cpf || "", cargo: c.cargo, admissao: c.admissao || "", contrato: c.contrato, salario_base: c.salario_base, tipo_remuneracao: c.tipo_remuneracao, banco: c.banco || "", agencia: c.agencia || "", conta: c.conta || "", chave_pix: c.chave_pix || "", comissao_percent: c.comissao_percent, comissao_tipo: c.comissao_tipo, dia_pagamento_salario: c.dia_pagamento_salario?.toString() || "", dia_pagamento_comissao: c.dia_pagamento_comissao?.toString() || "", is_consultor: c.is_consultor || false, fechamento_salario: c.fechamento_salario || "", fechamento_comissao: c.fechamento_comissao || "", dia_inicio_fechamento: c.dia_inicio_fechamento || null, dia_fim_fechamento: c.dia_fim_fechamento || null, ajuda_custo: c.ajuda_custo || 0, dia_inicio_fechamento_ajuda: c.dia_inicio_fechamento_ajuda || null, dia_fim_fechamento_ajuda: c.dia_fim_fechamento_ajuda || null });
     setEditColabId(c.id); setModalColab(true);
   };
 
@@ -293,6 +295,19 @@ const FolhaComissoes = () => {
                           <SelectItem value="26-25">Dia 26 ao 25</SelectItem>
                         </SelectContent>
                       </Select></div>
+                    <div className="col-span-2 rounded-lg border border-border bg-muted/30 p-4">
+                      <div className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-wide">Ajuda de Custo</div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div><label className="text-sm font-medium">Valor (R$)</label><Input type="number" placeholder="Ex: 500" value={formColab.ajuda_custo || ""} onChange={e => setFormColab(f => ({ ...f, ajuda_custo: Number(e.target.value) }))} /></div>
+                        <div><label className="text-sm font-medium">Dia início período</label><Input type="number" min={1} max={31} placeholder="Ex: 1" value={formColab.dia_inicio_fechamento_ajuda || ""} onChange={e => setFormColab(f => ({ ...f, dia_inicio_fechamento_ajuda: parseInt(e.target.value) || null }))} /></div>
+                        <div><label className="text-sm font-medium">Dia fim período</label><Input type="number" min={1} max={31} placeholder="Ex: 30" value={formColab.dia_fim_fechamento_ajuda || ""} onChange={e => setFormColab(f => ({ ...f, dia_fim_fechamento_ajuda: parseInt(e.target.value) || null }))} /></div>
+                      </div>
+                      {formColab.ajuda_custo > 0 && formColab.dia_inicio_fechamento_ajuda && formColab.dia_fim_fechamento_ajuda && (
+                        <div className="mt-2.5 text-xs text-primary bg-primary/5 rounded-md px-3 py-2">
+                          Ajuda de custo de <strong>{fmt(formColab.ajuda_custo)}</strong> — período do dia <strong>{formColab.dia_inicio_fechamento_ajuda}</strong> ao dia <strong>{formColab.dia_fim_fechamento_ajuda}</strong>
+                        </div>
+                      )}
+                    </div>
                     <div className="col-span-2 flex items-center gap-2">
                       <input type="checkbox" id="is_consultor" checked={formColab.is_consultor} onChange={e => setFormColab(f => ({ ...f, is_consultor: e.target.checked }))} className="rounded" />
                       <label htmlFor="is_consultor" className="text-sm font-medium">É consultor (recebe comissões)</label>
