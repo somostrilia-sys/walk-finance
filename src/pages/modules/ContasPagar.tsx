@@ -235,12 +235,11 @@ const ContasPagar = () => {
     setSubmitting(true);
 
     if (totalParcelas > 1) {
-      const valorTotal = parseFloat(form.amount);
-      if (!valorTotal || valorTotal <= 0) {
+      const valorParcela = parseFloat(form.amount);
+      if (!valorParcela || valorParcela <= 0) {
         setSubmitting(false);
-        return toast({ title: "Preencha o valor total", variant: "destructive" });
+        return toast({ title: "Preencha o valor da parcela", variant: "destructive" });
       }
-      const valorParcela = parseFloat((valorTotal / totalParcelas).toFixed(2));
       const valoresParcelas = Array.from({ length: totalParcelas }, () => valorParcela);
 
       const parcelas = gerarParcelas(
