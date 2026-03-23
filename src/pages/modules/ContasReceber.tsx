@@ -536,7 +536,7 @@ const ContasReceber = () => {
 
                 {totalParcelas > 1 && form.amount && parseFloat(form.amount) > 0 && (
                   <div className="text-xs text-muted-foreground p-2 rounded-md bg-muted/50 border">
-                    {totalParcelas}x de {formatCurrency(parseFloat(form.amount) / totalParcelas)} · Total: {formatCurrency(parseFloat(form.amount))}
+                    {totalParcelas}x de {formatCurrency(parseFloat(form.amount))} · Total: {formatCurrency(parseFloat(form.amount) * totalParcelas)}
                   </div>
                 )}
 
