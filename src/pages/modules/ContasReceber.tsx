@@ -70,28 +70,8 @@ const ContasReceber = () => {
 
   // Parcelas state
   const [totalParcelas, setTotalParcelas] = useState(1);
-  const [valoresParcelas, setValoresParcelas] = useState<string[]>(['']);
 
   // Month filter state
-  const mesAtual = new Date().toISOString().slice(0, 7);
-  const [filtroMes, setFiltroMes] = useState(mesAtual);
-  const [verTodas, setVerTodas] = useState(false);
-
-  // Group expansion state
-  const [grupoExpandido, setGrupoExpandido] = useState<string | null>(null);
-
-  const handleChangeParcelas = (n: string) => {
-    const num = Math.max(1, Math.min(60, parseInt(n) || 1));
-    setTotalParcelas(num);
-    setValoresParcelas(prev => Array.from({ length: num }, (_, i) => prev[i] || ''));
-  };
-
-  const distribuirValorIgual = () => {
-    const valorTotal = parseFloat(form.amount);
-    if (!valorTotal || totalParcelas <= 0) return;
-    const por = (valorTotal / totalParcelas).toFixed(2);
-    setValoresParcelas(Array(totalParcelas).fill(por));
-  };
 
   const clienteSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
