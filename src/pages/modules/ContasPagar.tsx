@@ -235,15 +235,17 @@ const ContasPagar = () => {
     setSubmitting(true);
 
     if (totalParcelas > 1) {
-      const todosPreenchidos = valoresParcelas.every(v => parseFloat(v) > 0);
-      if (!todosPreenchidos) {
+      const valorTotal = parseFloat(form.amount);
+      if (!valorTotal || valorTotal <= 0) {
         setSubmitting(false);
-        return toast({ title: "Preencha o valor de todas as parcelas", variant: "destructive" });
+        return toast({ title: "Preencha o valor total", variant: "destructive" });
       }
+      const valorParcela = parseFloat((valorTotal / totalParcelas).toFixed(2));
+      const valoresParcelas = Array.from({ length: totalParcelas }, () => valorParcela);
 
       const parcelas = gerarParcelas(
         {},
-        valoresParcelas.map(v => parseFloat(v)),
+        valoresParcelas,
         form.date,
         totalParcelas
       );
@@ -270,7 +272,6 @@ const ContasPagar = () => {
       setModalOpen(false);
       setForm({ ...emptyForm });
       setTotalParcelas(1);
-      setValoresParcelas(['']);
       toast({ title: `${totalParcelas} parcelas cadastradas com sucesso` });
     } else {
       const { error } = await supabase.from("financial_transactions").insert({
