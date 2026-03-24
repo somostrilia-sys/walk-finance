@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText } from "lucide-react";
+import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText, Plus, Pencil, Trash2 } from "lucide-react";
 
 // ---------- CSV / OFX parser helpers ----------
 
@@ -187,6 +187,14 @@ const ConciliacaoBancariaModule = () => {
   const [pendingFileAfterBank, setPendingFileAfterBank] = useState<FileList | null>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
 
+  // Bank account management states
+  const [editAccountDialogOpen, setEditAccountDialogOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<any>(null);
+  const [accountForm, setAccountForm] = useState({ bank_name: "", account_number: "", agency: "", current_balance: "" });
+  const [addAccountDialogOpen, setAddAccountDialogOpen] = useState(false);
+  const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
+  const [submittingAccount, setSubmittingAccount] = useState(false);
+
   const handleClickUpload = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -342,6 +350,71 @@ const ConciliacaoBancariaModule = () => {
     toast({ title: "Conciliação desfeita" });
   };
 
+  const handleAddAccount = async () => {
+    if (!accountForm.bank_name.trim() || !companyId) return;
+    setSubmittingAccount(true);
+    try {
+      const { error } = await supabase.from("bank_accounts").insert({
+        company_id: companyId,
+        bank_name: accountForm.bank_name,
+        account_number: accountForm.account_number || null,
+        agency: accountForm.agency || null,
+        current_balance: parseFloat(accountForm.current_balance) || 0,
+      });
+      if (error) throw error;
+      toast({ title: "Conta bancária adicionada!" });
+      setAddAccountDialogOpen(false);
+      setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" });
+      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+    setSubmittingAccount(false);
+  };
+
+  const handleEditAccount = async () => {
+    if (!editingAccount || !accountForm.bank_name.trim()) return;
+    setSubmittingAccount(true);
+    try {
+      const { error } = await supabase.from("bank_accounts").update({
+        bank_name: accountForm.bank_name,
+        account_number: accountForm.account_number || null,
+        agency: accountForm.agency || null,
+        current_balance: parseFloat(accountForm.current_balance) || 0,
+      }).eq("id", editingAccount.id);
+      if (error) throw error;
+      toast({ title: "Conta atualizada!" });
+      setEditAccountDialogOpen(false);
+      setEditingAccount(null);
+      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+    setSubmittingAccount(false);
+  };
+
+  const handleDeleteAccount = async (accountId: string) => {
+    try {
+      const { error } = await supabase.from("bank_accounts").delete().eq("id", accountId);
+      if (error) throw error;
+      toast({ title: "Conta excluída!" });
+      setDeletingAccountId(null);
+      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+  };
+
+  const openEditAccount = (account: any) => {
+    setEditingAccount(account);
+    setAccountForm({
+      bank_name: account.bank_name,
+      account_number: account.account_number || "",
+      agency: account.agency || "",
+      current_balance: String(account.current_balance || 0),
+    });
+    setEditAccountDialogOpen(true);
+  };
+
+  const openAddAccount = () => {
+    setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" });
+    setAddAccountDialogOpen(true);
+  };
+
   const isLoading = loadingRecon;
 
   return (
@@ -364,6 +437,7 @@ const ConciliacaoBancariaModule = () => {
               <TabsTrigger value="conciliacao">Conciliação</TabsTrigger>
               <TabsTrigger value="extrato">Extrato Bancário</TabsTrigger>
               <TabsTrigger value="importar">Importar</TabsTrigger>
+              <TabsTrigger value="contas">Contas Bancárias</TabsTrigger>
               <TabsTrigger value="conexao">Conexão Bancária</TabsTrigger>
             </TabsList>
 
@@ -488,6 +562,48 @@ const ConciliacaoBancariaModule = () => {
               </CardContent></Card>
             </TabsContent>
 
+            <TabsContent value="contas">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-base">Contas Bancárias</CardTitle>
+                  <Button size="sm" onClick={openAddAccount}><Plus className="w-4 h-4 mr-1" />Nova Conta</Button>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {accounts.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground text-sm">Nenhuma conta bancária cadastrada.</div>
+                  ) : (
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead>Banco</TableHead>
+                        <TableHead>Agência</TableHead>
+                        <TableHead>Conta</TableHead>
+                        <TableHead className="text-right">Saldo</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {accounts.map(acc => (
+                          <TableRow key={acc.id}>
+                            <TableCell className="font-medium">{acc.bank_name}</TableCell>
+                            <TableCell>{acc.agency || "—"}</TableCell>
+                            <TableCell>{acc.account_number || "—"}</TableCell>
+                            <TableCell className={`text-right font-medium ${Number(acc.current_balance) >= 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                              {formatCurrency(Number(acc.current_balance))}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => openEditAccount(acc)}><Pencil className="w-3.5 h-3.5" /></Button>
+                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeletingAccountId(acc.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="conexao">
               <Card><CardContent className="p-6 space-y-4">
                 <h3 className="text-base font-semibold flex items-center gap-2"><Landmark className="w-4 h-4 text-muted-foreground" />Conectar Conta Bancária via API</h3>
@@ -510,12 +626,10 @@ const ConciliacaoBancariaModule = () => {
         )}
       </div>
 
-      {/* Dialog to create bank account when none exists */}
+      {/* Dialog to create bank account when importing without accounts */}
       <Dialog open={bankDialogOpen} onOpenChange={setBankDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Criar Conta Bancária</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Criar Conta Bancária</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Para importar o extrato, é necessário ter pelo menos uma conta bancária cadastrada.</p>
           <div className="space-y-2">
             <Label>Nome do Banco</Label>
@@ -524,6 +638,56 @@ const ConciliacaoBancariaModule = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBankDialogOpen(false); setPendingFileAfterBank(null); }}>Cancelar</Button>
             <Button onClick={handleCreateBankAndImport} disabled={!newBankName.trim()}>Criar e Importar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to add new bank account */}
+      <Dialog open={addAccountDialogOpen} onOpenChange={setAddAccountDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nova Conta Bancária</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>Banco</Label><Input placeholder="Ex: Itaú, Bradesco..." value={accountForm.bank_name} onChange={e => setAccountForm({ ...accountForm, bank_name: e.target.value })} required /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Agência</Label><Input placeholder="0001" value={accountForm.agency} onChange={e => setAccountForm({ ...accountForm, agency: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Conta</Label><Input placeholder="12345-6" value={accountForm.account_number} onChange={e => setAccountForm({ ...accountForm, account_number: e.target.value })} /></div>
+            </div>
+            <div className="space-y-2"><Label>Saldo Atual (R$)</Label><Input type="number" step="0.01" placeholder="0,00" value={accountForm.current_balance} onChange={e => setAccountForm({ ...accountForm, current_balance: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddAccountDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleAddAccount} disabled={!accountForm.bank_name.trim() || submittingAccount}>{submittingAccount ? "Salvando..." : "Salvar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to edit bank account */}
+      <Dialog open={editAccountDialogOpen} onOpenChange={setEditAccountDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar Conta Bancária</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>Banco</Label><Input value={accountForm.bank_name} onChange={e => setAccountForm({ ...accountForm, bank_name: e.target.value })} required /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Agência</Label><Input value={accountForm.agency} onChange={e => setAccountForm({ ...accountForm, agency: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Conta</Label><Input value={accountForm.account_number} onChange={e => setAccountForm({ ...accountForm, account_number: e.target.value })} /></div>
+            </div>
+            <div className="space-y-2"><Label>Saldo Atual (R$)</Label><Input type="number" step="0.01" value={accountForm.current_balance} onChange={e => setAccountForm({ ...accountForm, current_balance: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditAccountDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleEditAccount} disabled={!accountForm.bank_name.trim() || submittingAccount}>{submittingAccount ? "Salvando..." : "Atualizar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to confirm delete */}
+      <Dialog open={!!deletingAccountId} onOpenChange={() => setDeletingAccountId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Excluir Conta Bancária</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir esta conta? Os lançamentos vinculados a ela também poderão ser afetados.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingAccountId(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => deletingAccountId && handleDeleteAccount(deletingAccountId)}>Excluir</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
