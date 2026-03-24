@@ -383,12 +383,42 @@ const ConciliacaoBancariaModule = () => {
     toast({ title: "Lançamento ignorado" });
   };
 
-  // Undo (back to pendente)
-  const handleDesfazer = async (id: string) => {
-    const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "pendente", transaction_id: null }).eq("id", id);
-    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-    toast({ title: "Status revertido para pendente" });
+  // Desconciliar: revert reconciliation AND revert linked title status
+  const handleDesfazer = async (entry: any) => {
+    try {
+      // If was conciliado with a linked transaction (contas a receber), revert it
+      if (entry.transaction_id) {
+        await supabase.from("financial_transactions").update({ status: "pendente" }).eq("id", entry.transaction_id);
+        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      }
+
+      // Check if there's a linked contas_pagar — search by amount, date match
+      // For contas_pagar linked via association, we find the matching paid record
+      if (entry.status === "conciliado" && !entry.transaction_id) {
+        // It was likely associated with a conta a pagar — find matching pago title
+        const amt = Math.abs(Number(entry.amount));
+        const { data: matchingPagar } = await supabase
+          .from("contas_pagar")
+          .select("id")
+          .eq("company_id", companyId!)
+          .eq("status", "pago")
+          .eq("valor", amt)
+          .limit(1);
+        if (matchingPagar && matchingPagar.length > 0) {
+          await supabase.from("contas_pagar").update({ status: "a_vencer" }).eq("id", matchingPagar[0].id);
+          queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+        }
+      }
+
+      // Reset the reconciliation entry
+      const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "pendente", transaction_id: null }).eq("id", entry.id);
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      toast({ title: "Desconciliado", description: "Baixa revertida e lançamento retornado a pendente." });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
   };
 
   // ===== Bank account CRUD =====
