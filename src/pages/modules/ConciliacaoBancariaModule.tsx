@@ -665,10 +665,20 @@ const ConciliacaoBancariaModule = () => {
                           <div className="flex items-start justify-between gap-4">
                             {/* Left: Entry info */}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <span className="text-xs text-muted-foreground">{new Date(entry.date).toLocaleDateString("pt-BR")}</span>
                                 <Badge className={statusBadge[entry.status]?.cls || ""}>{statusBadge[entry.status]?.label || entry.status}</Badge>
                                 <span className="text-xs text-muted-foreground">• {bankName}</span>
+                                {isTransfer && (
+                                  <Badge variant="outline" className="text-xs gap-1">
+                                    <Repeat className="w-3 h-3" />Transferência
+                                  </Badge>
+                                )}
+                                {transferPairStatus === "aguardando" && (
+                                  <Badge className="bg-[hsl(var(--status-warning)/0.1)] text-[hsl(var(--status-warning))] text-xs gap-1">
+                                    <AlertTriangle className="w-3 h-3" />Aguardando par
+                                  </Badge>
+                                )}
                               </div>
                               <p className="font-medium text-foreground truncate">{entry.external_description}</p>
                               {txDesc && (
