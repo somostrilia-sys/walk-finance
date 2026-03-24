@@ -201,6 +201,7 @@ const ContasReceber = () => {
         created_by: user?.id,
         entity_name: form.entity_name,
         payment_method: form.payment_method,
+        category_id: form.category_id || null,
         parcela_atual: p.parcela_atual,
         total_parcelas: p.total_parcelas,
         grupo_parcela: p.grupo_parcela,
