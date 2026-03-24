@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText } from "lucide-react";
+import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText, Plus, Pencil, Trash2 } from "lucide-react";
 
 // ---------- CSV / OFX parser helpers ----------
 
