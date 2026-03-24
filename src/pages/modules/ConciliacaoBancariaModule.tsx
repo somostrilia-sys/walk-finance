@@ -870,6 +870,27 @@ const ConciliacaoBancariaModule = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Select account for import dialog */}
+      <Dialog open={selectAccountDialogOpen} onOpenChange={setSelectAccountDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Selecionar Conta Bancária</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Selecione a conta corrente para importar o extrato:</p>
+          <div className="space-y-2">
+            <Label>Conta</Label>
+            <Select value={selectedImportAccountId} onValueChange={setSelectedImportAccountId}>
+              <SelectTrigger><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
+              <SelectContent>
+                {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSelectAccountDialogOpen(false); setPendingFileForAccount(null); }}>Cancelar</Button>
+            <Button onClick={handleConfirmAccountImport} disabled={!selectedImportAccountId}>Importar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
