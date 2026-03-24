@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useCompanies, useBankAccounts, useBankReconciliation, useFinancialTransactions } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +36,41 @@ const ConciliacaoBancariaModule = () => {
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroConta, setFiltroConta] = useState("todos");
   const [search, setSearch] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const inputFileRef = useRef<HTMLInputElement>(null);
+
+  const handleClickUpload = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (inputFileRef.current) {
+      inputFileRef.current.value = '';
+      inputFileRef.current.click();
+    }
+  };
+
+  const handleFiles = (files: FileList) => {
+    const file = files[0];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!['ofx', 'csv', 'ret', 'txt', 'xlsx', 'cnab'].includes(ext || '')) {
+      return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx", variant: "destructive" });
+    }
+    toast({ title: "Arquivo recebido", description: `${file.name} (${(file.size / 1024).toFixed(1)} KB) — processamento em breve.` });
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) handleFiles(e.target.files);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(true); };
+  const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(true); };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation(); setDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+  };
 
   const entries = reconciliation || [];
   const accounts = bankAccounts || [];
@@ -171,13 +206,30 @@ const ConciliacaoBancariaModule = () => {
 
             <TabsContent value="importar">
               <Card><CardContent className="p-8 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Upload className="w-8 h-8 text-muted-foreground" /></div>
-                <h3 className="text-lg font-semibold">Importar Extrato Bancário</h3>
-                <p className="text-sm text-muted-foreground max-w-md mx-auto">Importe arquivos OFX, CNAB ou CSV do seu banco para conciliação automática com Contas a Pagar e Contas a Receber.</p>
-                <div className="flex justify-center gap-3">
-                  <Button onClick={() => toast({ title: "Selecione o arquivo OFX/CNAB para importação" })}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button>
+                <div
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={handleClickUpload}
+                  className={`cursor-pointer rounded-lg border-2 border-dashed p-8 transition-colors ${dragging ? 'border-primary bg-primary/5' : 'border-border'}`}
+                >
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Upload className="w-8 h-8 text-muted-foreground" /></div>
+                  <h3 className="text-lg font-semibold mt-4">Importar Extrato Bancário</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto mt-2">Arraste um arquivo aqui ou clique para selecionar. Importe arquivos OFX, CNAB ou CSV do seu banco para conciliação automática.</p>
+                  <div className="flex justify-center gap-3 mt-4">
+                    <Button type="button" onClick={handleClickUpload}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">Formatos aceitos: .ofx, .cnab, .csv, .ret, .txt, .xlsx</div>
                 </div>
-                <div className="text-xs text-muted-foreground">Formatos aceitos: .ofx, .cnab, .csv</div>
+                <input
+                  ref={inputFileRef}
+                  type="file"
+                  multiple
+                  accept=".ofx,.csv,.ret,.txt,.xlsx,.cnab"
+                  style={{ display: 'none' }}
+                  onChange={handleInputChange}
+                />
               </CardContent></Card>
             </TabsContent>
 
