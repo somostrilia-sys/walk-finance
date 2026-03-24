@@ -50,6 +50,7 @@ const ContasReceber = () => {
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
   const { data: pessoas } = usePessoas(companyId);
   const { data: colaboradores } = useColaboradores(companyId);
+  const { data: categorias } = useExpenseCategories(companyId);
   const consultores = useMemo(() => (colaboradores || []).filter((c: any) => c.is_consultor && c.status === "ativo"), [colaboradores]);
   const company = companies?.find(c => c.id === companyId);
 
