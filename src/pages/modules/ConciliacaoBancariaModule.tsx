@@ -17,11 +17,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText, Plus, Pencil, Trash2, ArrowRightLeft, Eye, EyeOff, Repeat, AlertTriangle } from "lucide-react";
+import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Loader2, FileText, Plus, Pencil, Trash2, ArrowRightLeft, EyeOff, Repeat, AlertTriangle, Wifi, PlusCircle, ListChecks } from "lucide-react";
+import { createPortal } from "react-dom";
 
-// ---------- CSV / OFX / CNAB / XLSX parser helpers ----------
+// ---------- Parsers ----------
 
 interface ParsedEntry { date: string; description: string; amount: number; }
 
@@ -119,12 +121,7 @@ function parseXLSX(buffer: ArrayBuffer): ParsedEntry[] {
   return entries;
 }
 
-const statusBadge: Record<string, { label: string; cls: string }> = {
-  conciliado: { label: "Conciliado", cls: "bg-[hsl(var(--status-positive)/0.1)] text-[hsl(var(--status-positive))]" },
-  pendente: { label: "Pendente", cls: "bg-[hsl(var(--status-warning)/0.1)] text-[hsl(var(--status-warning))]" },
-  nao_identificado: { label: "Não Identificado", cls: "bg-[hsl(var(--status-danger)/0.1)] text-[hsl(var(--status-danger))]" },
-  ignorado: { label: "Ignorado", cls: "bg-muted text-muted-foreground" },
-};
+// ---------- Component ----------
 
 const ConciliacaoBancariaModule = () => {
   const { companyId } = useParams();
@@ -138,21 +135,21 @@ const ConciliacaoBancariaModule = () => {
   const { data: contasPagar } = useContasPagar(companyId);
   const queryClient = useQueryClient();
 
-  // Filters
-  const [filtroStatus, setFiltroStatus] = useState("todos");
+  // Main tab state — default to movimentacao
+  const [activeTab, setActiveTab] = useState("movimentacao");
   const [filtroConta, setFiltroConta] = useState("todos");
   const [search, setSearch] = useState("");
 
   // Import state
   const [dragging, setDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState("conciliacao");
   const [importing, setImporting] = useState(false);
   const [parsedEntries, setParsedEntries] = useState<ParsedEntry[]>([]);
   const [parsedFileName, setParsedFileName] = useState("");
+  const [importAccountId, setImportAccountId] = useState("");
+  const inputFileRef = useRef<HTMLInputElement>(null);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [newBankName, setNewBankName] = useState("");
   const [pendingFileAfterBank, setPendingFileAfterBank] = useState<FileList | null>(null);
-  const inputFileRef = useRef<HTMLInputElement>(null);
   const [selectAccountDialogOpen, setSelectAccountDialogOpen] = useState(false);
   const [selectedImportAccountId, setSelectedImportAccountId] = useState("");
   const [pendingFileForAccount, setPendingFileForAccount] = useState<File | null>(null);
@@ -165,68 +162,93 @@ const ConciliacaoBancariaModule = () => {
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
   const [submittingAccount, setSubmittingAccount] = useState(false);
 
-  // Association dialog
-  const [associateDialogOpen, setAssociateDialogOpen] = useState(false);
-  const [associatingEntry, setAssociatingEntry] = useState<any>(null);
+  // Lateral action panel
+  const [actionEntry, setActionEntry] = useState<any>(null);
+  const [actionMode, setActionMode] = useState<"novo" | "transferencia" | "conta_pr" | "associar" | null>(null);
+
+  // New lancamento form
+  const [novoForm, setNovoForm] = useState({ entity_name: "", category_id: "", observacao: "" });
+
+  // Transfer form
+  const [transferForm, setTransferForm] = useState({ origin_account_id: "", destination_account_id: "", description: "" });
+  const [submittingTransfer, setSubmittingTransfer] = useState(false);
+
+  // New conta pagar/receber form
+  const [contaPrForm, setContaPrForm] = useState({ type: "saida" as "saida" | "entrada", description: "", entity_name: "", category_id: "", date: "", amount: "" });
+
+  // Associate state
   const [associateSearch, setAssociateSearch] = useState("");
   const [associateTab, setAssociateTab] = useState<"pagar" | "receber">("pagar");
 
-  // Create new title dialog
-  const [createTitleDialogOpen, setCreateTitleDialogOpen] = useState(false);
-  const [creatingForEntry, setCreatingForEntry] = useState<any>(null);
-  const [newTitleForm, setNewTitleForm] = useState({
-    type: "saida" as "saida" | "entrada",
-    description: "",
-    entity_name: "",
-    category_id: "",
-    date: "",
-    amount: "",
-  });
-
-  // Transfer between accounts
-  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
-  const [submittingTransfer, setSubmittingTransfer] = useState(false);
-  const [transferForm, setTransferForm] = useState({
-    origin_account_id: "",
-    destination_account_id: "",
-    amount: "",
-    date: new Date().toISOString().slice(0, 10),
-    description: "",
-  });
-
-  // Check if company is "Objetivo" (blocked from transfers)
   const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
+  const entries = reconciliation || [];
+  const accounts = bankAccounts || [];
 
   // ===== File handling =====
-  const handleClickUpload = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    if (inputFileRef.current) { inputFileRef.current.value = ''; inputFileRef.current.click(); }
-  };
+  const handleClickUpload = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); if (inputFileRef.current) { inputFileRef.current.value = ''; inputFileRef.current.click(); } };
+
+  const autoMatch = useCallback(async (importedEntries: { id: string; description: string; amount: number; date: string }[]) => {
+    // Auto-match by beneficiary name + compatible amount
+    const cpList = contasPagar || [];
+    const crList = (transactions || []).filter(t => t.type === "entrada" && t.status === "pendente");
+    let matched = 0;
+
+    for (const entry of importedEntries) {
+      const absAmt = Math.abs(entry.amount);
+      const descLower = entry.description.toLowerCase();
+      const isDebit = entry.amount < 0;
+
+      if (isDebit) {
+        // Try matching contas a pagar
+        const match = cpList.find(c => (c.status === "a_vencer" || c.status === "pendente") && Math.abs(Number(c.valor) - absAmt) < 0.02 && c.fornecedor.toLowerCase().split(/\s+/).some(w => w.length > 3 && descLower.includes(w)));
+        if (match) {
+          await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", entry.id);
+          await supabase.from("contas_pagar").update({ status: "pago" }).eq("id", match.id);
+          matched++;
+        }
+      } else {
+        // Try matching contas a receber
+        const match = crList.find(t => Math.abs(Number(t.amount) - absAmt) < 0.02 && (t.entity_name || t.description).toLowerCase().split(/\s+/).some(w => w.length > 3 && descLower.includes(w)));
+        if (match) {
+          await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transaction_id: match.id }).eq("id", entry.id);
+          await supabase.from("financial_transactions").update({ status: "recebido" }).eq("id", match.id);
+          matched++;
+        }
+      }
+    }
+    return matched;
+  }, [contasPagar, transactions]);
 
   const processFile = useCallback(async (file: File, accountId: string) => {
     setImporting(true);
     try {
       const ext = file.name.split('.').pop()?.toLowerCase();
-      let entries: ParsedEntry[] = [];
-      if (ext === 'xlsx') { entries = parseXLSX(await file.arrayBuffer()); }
+      let parsed: ParsedEntry[] = [];
+      if (ext === 'xlsx') { parsed = parseXLSX(await file.arrayBuffer()); }
       else {
         const text = await file.text();
-        if (ext === 'ofx') entries = parseOFX(text);
-        else if (ext === 'ret' || ext === 'cnab') entries = parseCNAB(text);
-        else if (ext === 'txt') { const c = parseCNAB(text); entries = c.length > 0 ? c : parseCSV(text); }
-        else entries = parseCSV(text);
+        if (ext === 'ofx') parsed = parseOFX(text);
+        else if (ext === 'ret' || ext === 'cnab') parsed = parseCNAB(text);
+        else if (ext === 'txt') { const c = parseCNAB(text); parsed = c.length > 0 ? c : parseCSV(text); }
+        else parsed = parseCSV(text);
       }
-      if (entries.length === 0) { toast({ title: "Nenhum lançamento encontrado", description: "Verifique o formato do arquivo.", variant: "destructive" }); setImporting(false); return; }
-      const rows = entries.map(e => ({ company_id: companyId!, bank_account_id: accountId, date: e.date, external_description: e.description, amount: e.amount, status: "pendente" as const }));
-      const { error } = await supabase.from("bank_reconciliation_entries").insert(rows);
+      if (parsed.length === 0) { toast({ title: "Nenhum lançamento encontrado", description: "Verifique o formato do arquivo.", variant: "destructive" }); setImporting(false); return; }
+      const rows = parsed.map(e => ({ company_id: companyId!, bank_account_id: accountId, date: e.date, external_description: e.description, amount: e.amount, status: "pendente" as const }));
+      const { data: inserted, error } = await supabase.from("bank_reconciliation_entries").insert(rows).select("id, external_description, amount, date");
       if (error) { toast({ title: "Erro ao importar", description: error.message, variant: "destructive" }); setImporting(false); return; }
+
+      // Auto-match
+      const matchedCount = inserted ? await autoMatch(inserted.map(r => ({ id: r.id, description: r.external_description, amount: Number(r.amount), date: r.date }))) : 0;
+
       queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-      setParsedEntries(entries); setParsedFileName(file.name);
-      toast({ title: "Importação concluída", description: `${entries.length} lançamentos importados de ${file.name}.` });
-      setActiveTab("conciliacao");
+      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      setParsedEntries(parsed); setParsedFileName(file.name);
+      toast({ title: "Importação concluída", description: `${parsed.length} lançamentos importados. ${matchedCount} conciliados automaticamente.` });
+      setActiveTab("movimentacao");
     } catch (err: any) { toast({ title: "Erro ao processar arquivo", description: err?.message || "Verifique o formato.", variant: "destructive" }); }
     setImporting(false);
-  }, [companyId, queryClient]);
+  }, [companyId, queryClient, autoMatch]);
 
   const handleFiles = useCallback(async (files: FileList) => {
     const file = files[0];
@@ -235,333 +257,69 @@ const ConciliacaoBancariaModule = () => {
     const accs = bankAccounts || [];
     if (accs.length === 0) { setPendingFileAfterBank(files); setBankDialogOpen(true); return; }
     if (accs.length === 1) { await processFile(file, accs[0].id); return; }
-    // Multiple accounts: let user pick
-    setPendingFileForAccount(file);
-    setSelectedImportAccountId(accs[0].id);
-    setSelectAccountDialogOpen(true);
+    setPendingFileForAccount(file); setSelectedImportAccountId(accs[0].id); setSelectAccountDialogOpen(true);
   }, [bankAccounts, processFile]);
 
-  const handleConfirmAccountImport = async () => {
-    if (!pendingFileForAccount || !selectedImportAccountId) return;
-    setSelectAccountDialogOpen(false);
-    await processFile(pendingFileForAccount, selectedImportAccountId);
-    setPendingFileForAccount(null);
-  };
-
-  const handleCreateBankAndImport = async () => {
-    if (!newBankName.trim() || !companyId) return;
-    const { data, error } = await supabase.from("bank_accounts").insert({ company_id: companyId, bank_name: newBankName.trim(), current_balance: 0 }).select().single();
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
-    setBankDialogOpen(false); setNewBankName("");
-    toast({ title: "Conta criada", description: `Conta "${data.bank_name}" criada com sucesso.` });
-    if (pendingFileAfterBank?.[0]) { await processFile(pendingFileAfterBank[0], data.id); setPendingFileAfterBank(null); }
-  };
-
+  const handleConfirmAccountImport = async () => { if (!pendingFileForAccount || !selectedImportAccountId) return; setSelectAccountDialogOpen(false); await processFile(pendingFileForAccount, selectedImportAccountId); setPendingFileForAccount(null); };
+  const handleCreateBankAndImport = async () => { if (!newBankName.trim() || !companyId) return; const { data, error } = await supabase.from("bank_accounts").insert({ company_id: companyId, bank_name: newBankName.trim(), current_balance: 0 }).select().single(); if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; } queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); setBankDialogOpen(false); setNewBankName(""); if (pendingFileAfterBank?.[0]) { await processFile(pendingFileAfterBank[0], data.id); setPendingFileAfterBank(null); } };
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.length) handleFiles(e.target.files); };
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(true); };
   const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(true); };
   const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); };
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(false); if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files); };
 
-  // ===== Data =====
-  const entries = reconciliation || [];
-  const accounts = bankAccounts || [];
+  // ===== Computed data =====
+  const filtered = useMemo(() => {
+    return entries
+      .filter(l => {
+        if (filtroConta !== "todos" && l.bank_account_id !== filtroConta) return false;
+        if (search && !l.external_description.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [entries, filtroConta, search]);
 
-  const filtered = useMemo(() => entries.filter(l => {
-    if (filtroStatus !== "todos" && l.status !== filtroStatus) return false;
-    if (filtroConta !== "todos" && l.bank_account_id !== filtroConta) return false;
-    if (search && !l.external_description.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  }), [entries, filtroStatus, filtroConta, search]);
+  // Running balance calculation
+  const selectedAccount = filtroConta !== "todos" ? accounts.find(a => a.id === filtroConta) : null;
+  const initialBalance = selectedAccount ? Number(selectedAccount.current_balance) : accounts.reduce((s, a) => s + Number(a.current_balance), 0);
+
+  // We compute running balance based on the filtered+sorted entries relative to the initial balance
+  // Actually the running balance starts from saldo inicial and adds each entry amount
+  const entriesWithBalance = useMemo(() => {
+    // For proper running balance, we need ALL entries for the selected account sorted by date
+    const accountEntries = entries
+      .filter(l => filtroConta === "todos" || l.bank_account_id === filtroConta)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let balance = selectedAccount ? Number(selectedAccount.current_balance) : 0;
+    // The current_balance in bank_accounts is the CURRENT balance.
+    // To compute a running balance from the beginning, we'd need the initial balance.
+    // For now, we compute: start from 0 and accumulate. The last entry should equal current_balance conceptually.
+    // Better approach: show running total from initial (current_balance - sum_of_all_entries) + cumulative
+    const totalEntrySum = accountEntries.reduce((s, e) => s + Number(e.amount), 0);
+    const startBalance = selectedAccount ? Number(selectedAccount.current_balance) - totalEntrySum : 0;
+    let running = startBalance;
+
+    return accountEntries.map(e => {
+      running += Number(e.amount);
+      return { ...e, saldo: running };
+    });
+  }, [entries, filtroConta, selectedAccount, accounts]);
+
+  // Further filter by search
+  const displayEntries = useMemo(() => {
+    if (!search) return entriesWithBalance;
+    return entriesWithBalance.filter(e => e.external_description.toLowerCase().includes(search.toLowerCase()));
+  }, [entriesWithBalance, search]);
 
   const totalConciliado = entries.filter(l => l.status === "conciliado").length;
   const totalPendente = entries.filter(l => l.status === "pendente").length;
-  const totalNaoId = entries.filter(l => l.status === "nao_identificado").length;
-  const totalIgnorado = entries.filter(l => l.status === "ignorado").length;
   const saldoTotal = accounts.reduce((s, a) => s + Number(a.current_balance), 0);
 
-  // ===== Conciliação actions =====
-
-  // Pending contas a pagar (status pendente / a_vencer)
+  // Pending titles for association
   const pendingContasPagar = useMemo(() => (contasPagar || []).filter(c => c.status === "a_vencer" || c.status === "pendente"), [contasPagar]);
-
-  // Pending contas a receber (financial_transactions type=entrada, status pendente)
   const pendingContasReceber = useMemo(() => (transactions || []).filter(t => t.type === "entrada" && t.status === "pendente"), [transactions]);
 
-  // Open associate dialog
-  const openAssociateDialog = (entry: any) => {
-    setAssociatingEntry(entry);
-    setAssociateSearch("");
-    setAssociateTab(Number(entry.amount) < 0 ? "pagar" : "receber");
-    setAssociateDialogOpen(true);
-  };
-
-  // Associate entry with existing title and auto-baixa
-  const handleAssociate = async (titleId: string, source: "pagar" | "receber") => {
-    if (!associatingEntry) return;
-    try {
-      // Update reconciliation entry
-      const { error: reconError } = await supabase.from("bank_reconciliation_entries").update({
-        status: "conciliado",
-        transaction_id: source === "receber" ? titleId : null,
-      }).eq("id", associatingEntry.id);
-      if (reconError) throw reconError;
-
-      // Auto-baixa: update the linked title status
-      if (source === "pagar") {
-        await supabase.from("contas_pagar").update({ status: "pago" }).eq("id", titleId);
-        queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
-      } else {
-        await supabase.from("financial_transactions").update({ status: "recebido" }).eq("id", titleId);
-        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-      setAssociateDialogOpen(false);
-      setAssociatingEntry(null);
-      toast({ title: "Lançamento conciliado", description: "Título vinculado e baixa efetuada automaticamente." });
-    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
-  };
-
-  // Open create new title dialog
-  const openCreateTitleDialog = (entry: any) => {
-    const isDebit = Number(entry.amount) < 0;
-    setCreatingForEntry(entry);
-    setNewTitleForm({
-      type: isDebit ? "saida" : "entrada",
-      description: entry.external_description || "",
-      entity_name: "",
-      category_id: "",
-      date: entry.date || new Date().toISOString().slice(0, 10),
-      amount: String(Math.abs(Number(entry.amount))),
-    });
-    setCreateTitleDialogOpen(true);
-  };
-
-  // Create new title and auto-conciliate
-  const handleCreateTitle = async () => {
-    if (!creatingForEntry || !companyId || !newTitleForm.category_id || !newTitleForm.date) {
-      toast({ title: "Preencha os campos obrigatórios", description: "Categoria e Data são obrigatórios.", variant: "destructive" });
-      return;
-    }
-    try {
-      if (newTitleForm.type === "saida") {
-        // Create in contas_pagar
-        const { error } = await supabase.from("contas_pagar").insert({
-          company_id: companyId,
-          fornecedor: newTitleForm.entity_name || newTitleForm.description,
-          descricao: newTitleForm.description,
-          categoria: categories?.find(c => c.id === newTitleForm.category_id)?.name || null,
-          valor: parseFloat(newTitleForm.amount) || Math.abs(Number(creatingForEntry.amount)),
-          vencimento: newTitleForm.date,
-          status: "pago",
-        });
-        if (error) throw error;
-        queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
-      } else {
-        // Create in financial_transactions
-        const { data: newTx, error } = await supabase.from("financial_transactions").insert({
-          company_id: companyId,
-          description: newTitleForm.description,
-          entity_name: newTitleForm.entity_name || null,
-          category_id: newTitleForm.category_id,
-          amount: parseFloat(newTitleForm.amount) || Math.abs(Number(creatingForEntry.amount)),
-          date: newTitleForm.date,
-          type: "entrada",
-          status: "recebido",
-        }).select().single();
-        if (error) throw error;
-
-        // Link transaction_id
-        if (newTx) {
-          await supabase.from("bank_reconciliation_entries").update({ transaction_id: newTx.id }).eq("id", creatingForEntry.id);
-        }
-        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
-      }
-
-      // Mark entry as conciliado
-      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", creatingForEntry.id);
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-      setCreateTitleDialogOpen(false);
-      setCreatingForEntry(null);
-      toast({ title: "Título criado e conciliado", description: "Novo título registrado com baixa automática." });
-    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
-  };
-
-  // Ignore entry
-  const handleIgnorar = async (id: string) => {
-    const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "ignorado" }).eq("id", id);
-    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-    toast({ title: "Lançamento ignorado" });
-  };
-
-  // Desconciliar: revert reconciliation AND revert linked title status
-  const handleDesfazer = async (entry: any) => {
-    try {
-      // If was conciliado with a linked transaction (contas a receber), revert it
-      if (entry.transaction_id) {
-        await supabase.from("financial_transactions").update({ status: "pendente" }).eq("id", entry.transaction_id);
-        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
-      }
-
-      // Check if there's a linked contas_pagar — search by amount, date match
-      // For contas_pagar linked via association, we find the matching paid record
-      if (entry.status === "conciliado" && !entry.transaction_id) {
-        // It was likely associated with a conta a pagar — find matching pago title
-        const amt = Math.abs(Number(entry.amount));
-        const { data: matchingPagar } = await supabase
-          .from("contas_pagar")
-          .select("id")
-          .eq("company_id", companyId!)
-          .eq("status", "pago")
-          .eq("valor", amt)
-          .limit(1);
-        if (matchingPagar && matchingPagar.length > 0) {
-          await supabase.from("contas_pagar").update({ status: "a_vencer" }).eq("id", matchingPagar[0].id);
-          queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
-        }
-      }
-
-      // Reset the reconciliation entry
-      const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "pendente", transaction_id: null }).eq("id", entry.id);
-      if (error) throw error;
-
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-      toast({ title: "Desconciliado", description: "Baixa revertida e lançamento retornado a pendente." });
-    } catch (err: any) {
-      toast({ title: "Erro", description: err.message, variant: "destructive" });
-    }
-  };
-
-  // ===== Bank account CRUD =====
-  const handleAddAccount = async () => {
-    if (!accountForm.bank_name.trim() || !companyId) return;
-    setSubmittingAccount(true);
-    try {
-      const { error } = await supabase.from("bank_accounts").insert({ company_id: companyId, bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 });
-      if (error) throw error;
-      toast({ title: "Conta bancária adicionada!" });
-      setAddAccountDialogOpen(false);
-      setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" });
-      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
-    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
-    setSubmittingAccount(false);
-  };
-
-  const handleEditAccount = async () => {
-    if (!editingAccount || !accountForm.bank_name.trim()) return;
-    setSubmittingAccount(true);
-    try {
-      const { error } = await supabase.from("bank_accounts").update({ bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 }).eq("id", editingAccount.id);
-      if (error) throw error;
-      toast({ title: "Conta atualizada!" });
-      setEditAccountDialogOpen(false); setEditingAccount(null);
-      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
-    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
-    setSubmittingAccount(false);
-  };
-
-  const handleDeleteAccount = async (accountId: string) => {
-    try {
-      const { error } = await supabase.from("bank_accounts").delete().eq("id", accountId);
-      if (error) throw error;
-      toast({ title: "Conta excluída!" }); setDeletingAccountId(null);
-      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
-    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
-  };
-
-  const openEditAccount = (account: any) => {
-    setEditingAccount(account);
-    setAccountForm({ bank_name: account.bank_name, account_number: account.account_number || "", agency: account.agency || "", current_balance: String(account.current_balance || 0) });
-    setEditAccountDialogOpen(true);
-  };
-
-  const openAddAccount = () => { setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" }); setAddAccountDialogOpen(true); };
-
-  // ===== Transfer between accounts =====
-  const openTransferDialog = () => {
-    if (isObjetivo) {
-      toast({ title: "Transferência bloqueada", description: "Transferências envolvendo a empresa Objetivo não são permitidas.", variant: "destructive" });
-      return;
-    }
-    if (accounts.length < 2) {
-      toast({ title: "Contas insuficientes", description: "É necessário ter pelo menos 2 contas bancárias cadastradas.", variant: "destructive" });
-      return;
-    }
-    setTransferForm({
-      origin_account_id: accounts[0]?.id || "",
-      destination_account_id: accounts[1]?.id || "",
-      amount: "",
-      date: new Date().toISOString().slice(0, 10),
-      description: "",
-    });
-    setTransferDialogOpen(true);
-  };
-
-  const handleTransfer = async () => {
-    const { origin_account_id, destination_account_id, amount, date } = transferForm;
-    if (!origin_account_id || !destination_account_id || !amount || !date || !companyId) return;
-    if (origin_account_id === destination_account_id) {
-      toast({ title: "Erro", description: "Conta de origem e destino devem ser diferentes.", variant: "destructive" });
-      return;
-    }
-    const valor = parseFloat(amount);
-    if (isNaN(valor) || valor <= 0) {
-      toast({ title: "Erro", description: "Informe um valor válido.", variant: "destructive" });
-      return;
-    }
-
-    setSubmittingTransfer(true);
-    try {
-      const pairId = crypto.randomUUID();
-      const desc = transferForm.description || "Transferência entre contas";
-
-      // Create debit entry (origin) and credit entry (destination)
-      const { error: insertError } = await supabase.from("bank_reconciliation_entries").insert([
-        {
-          company_id: companyId,
-          bank_account_id: origin_account_id,
-          date,
-          external_description: `TED/Transf: ${desc}`,
-          amount: -valor,
-          status: "conciliado",
-          transfer_pair_id: pairId,
-        },
-        {
-          company_id: companyId,
-          bank_account_id: destination_account_id,
-          date,
-          external_description: `TED/Transf: ${desc}`,
-          amount: valor,
-          status: "conciliado",
-          transfer_pair_id: pairId,
-        },
-      ]);
-      if (insertError) throw insertError;
-
-      // Update balances
-      const originAcc = accounts.find(a => a.id === origin_account_id);
-      const destAcc = accounts.find(a => a.id === destination_account_id);
-      if (originAcc) {
-        await supabase.from("bank_accounts").update({ current_balance: Number(originAcc.current_balance) - valor }).eq("id", origin_account_id);
-      }
-      if (destAcc) {
-        await supabase.from("bank_accounts").update({ current_balance: Number(destAcc.current_balance) + valor }).eq("id", destination_account_id);
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
-      setTransferDialogOpen(false);
-      toast({ title: "Transferência realizada", description: `${formatCurrency(valor)} transferido com sucesso.` });
-    } catch (err: any) {
-      toast({ title: "Erro", description: err.message, variant: "destructive" });
-    }
-    setSubmittingTransfer(false);
-  };
-
-  // ===== Filtered lists for association =====
   const filteredAssociatePagar = useMemo(() => {
     const q = associateSearch.toLowerCase();
     return pendingContasPagar.filter(c => !q || c.fornecedor.toLowerCase().includes(q) || (c.descricao || '').toLowerCase().includes(q));
@@ -572,204 +330,460 @@ const ConciliacaoBancariaModule = () => {
     return pendingContasReceber.filter(t => !q || t.description.toLowerCase().includes(q) || (t.entity_name || '').toLowerCase().includes(q));
   }, [pendingContasReceber, associateSearch]);
 
-  // Filter categories by type for create dialog
   const filteredCategories = useMemo(() => {
     if (!categories) return [];
-    const typeFilter = newTitleForm.type === "entrada" ? "receita" : "despesa";
-    return categories.filter(c => c.type === typeFilter || c.type === "ambos" || c.type === "fluxo");
-  }, [categories, newTitleForm.type]);
+    const t = contaPrForm.type === "entrada" ? "receita" : "despesa";
+    return categories.filter(c => c.type === t || c.type === "ambos" || c.type === "fluxo");
+  }, [categories, contaPrForm.type]);
 
-  // Check transfer pair status for entries
-  const getTransferPairStatus = useCallback((entry: any) => {
-    if (!entry.transfer_pair_id) return null;
-    const pair = entries.find(e => e.id !== entry.id && (e as any).transfer_pair_id === entry.transfer_pair_id);
-    if (!pair) return "sem_par";
-    if (pair.status === "conciliado" && entry.status === "conciliado") return "completo";
-    return "aguardando";
-  }, [entries]);
+  const novoFilteredCategories = useMemo(() => {
+    if (!categories || !actionEntry) return [];
+    const isCredit = Number(actionEntry.amount) > 0;
+    const t = isCredit ? "receita" : "despesa";
+    return categories.filter(c => c.type === t || c.type === "ambos" || c.type === "fluxo");
+  }, [categories, actionEntry]);
+
+  // ===== Actions =====
+  const openAction = (entry: any, mode: typeof actionMode) => {
+    setActionEntry(entry);
+    setActionMode(mode);
+    if (mode === "novo") {
+      setNovoForm({ entity_name: "", category_id: "", observacao: "" });
+    } else if (mode === "transferencia") {
+      setTransferForm({ origin_account_id: entry.bank_account_id, destination_account_id: accounts.find(a => a.id !== entry.bank_account_id)?.id || "", description: "" });
+    } else if (mode === "conta_pr") {
+      const isDebit = Number(entry.amount) < 0;
+      setContaPrForm({ type: isDebit ? "saida" : "entrada", description: entry.external_description || "", entity_name: "", category_id: "", date: entry.date || new Date().toISOString().slice(0, 10), amount: String(Math.abs(Number(entry.amount))) });
+    } else if (mode === "associar") {
+      setAssociateSearch("");
+      setAssociateTab(Number(entry.amount) < 0 ? "pagar" : "receber");
+    }
+  };
+
+  const closeAction = () => { setActionEntry(null); setActionMode(null); };
+
+  // a) Add as new lancamento
+  const handleNovoLancamento = async () => {
+    if (!actionEntry || !companyId || !novoForm.category_id) { toast({ title: "Selecione a categoria", variant: "destructive" }); return; }
+    const isCredit = Number(actionEntry.amount) > 0;
+    try {
+      if (isCredit) {
+        const { data: newTx, error } = await supabase.from("financial_transactions").insert({
+          company_id: companyId, description: actionEntry.external_description, entity_name: novoForm.entity_name || null,
+          category_id: novoForm.category_id, amount: Math.abs(Number(actionEntry.amount)), date: actionEntry.date,
+          type: "entrada", status: "recebido",
+        }).select().single();
+        if (error) throw error;
+        if (newTx) await supabase.from("bank_reconciliation_entries").update({ transaction_id: newTx.id, status: "conciliado" }).eq("id", actionEntry.id);
+      } else {
+        const { error } = await supabase.from("contas_pagar").insert({
+          company_id: companyId, fornecedor: novoForm.entity_name || actionEntry.external_description,
+          descricao: actionEntry.external_description, categoria: categories?.find(c => c.id === novoForm.category_id)?.name || null,
+          valor: Math.abs(Number(actionEntry.amount)), vencimento: actionEntry.date, status: "pago",
+        });
+        if (error) throw error;
+        await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", actionEntry.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+      toast({ title: "Lançamento criado e conciliado" }); closeAction();
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+  };
+
+  // b) Transfer between accounts
+  const handleTransfer = async () => {
+    if (!actionEntry || !companyId) return;
+    const { origin_account_id, destination_account_id, description } = transferForm;
+    if (!destination_account_id || origin_account_id === destination_account_id) { toast({ title: "Selecione contas diferentes", variant: "destructive" }); return; }
+    setSubmittingTransfer(true);
+    try {
+      const valor = Math.abs(Number(actionEntry.amount));
+      const pairId = crypto.randomUUID();
+      const desc = description || "Transferência entre contas";
+      // Create the pair entry on destination
+      await supabase.from("bank_reconciliation_entries").insert({
+        company_id: companyId, bank_account_id: destination_account_id, date: actionEntry.date,
+        external_description: `TED/Transf: ${desc}`, amount: valor, status: "conciliado", transfer_pair_id: pairId,
+      });
+      // Update origin entry
+      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transfer_pair_id: pairId }).eq("id", actionEntry.id);
+      // Update balances
+      const originAcc = accounts.find(a => a.id === origin_account_id);
+      const destAcc = accounts.find(a => a.id === destination_account_id);
+      if (originAcc) await supabase.from("bank_accounts").update({ current_balance: Number(originAcc.current_balance) - valor }).eq("id", origin_account_id);
+      if (destAcc) await supabase.from("bank_accounts").update({ current_balance: Number(destAcc.current_balance) + valor }).eq("id", destination_account_id);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+      toast({ title: "Transferência registrada e conciliada" }); closeAction();
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+    setSubmittingTransfer(false);
+  };
+
+  // c) Create new Conta a Pagar / Receber
+  const handleCreateContaPR = async () => {
+    if (!actionEntry || !companyId || !contaPrForm.category_id || !contaPrForm.date) {
+      toast({ title: "Preencha os campos obrigatórios", variant: "destructive" }); return;
+    }
+    try {
+      if (contaPrForm.type === "saida") {
+        await supabase.from("contas_pagar").insert({
+          company_id: companyId, fornecedor: contaPrForm.entity_name || contaPrForm.description,
+          descricao: contaPrForm.description, categoria: categories?.find(c => c.id === contaPrForm.category_id)?.name || null,
+          valor: parseFloat(contaPrForm.amount) || Math.abs(Number(actionEntry.amount)), vencimento: contaPrForm.date, status: "pago",
+        });
+        queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+      } else {
+        const { data: newTx } = await supabase.from("financial_transactions").insert({
+          company_id: companyId, description: contaPrForm.description, entity_name: contaPrForm.entity_name || null,
+          category_id: contaPrForm.category_id, amount: parseFloat(contaPrForm.amount) || Math.abs(Number(actionEntry.amount)),
+          date: contaPrForm.date, type: "entrada", status: "recebido",
+        }).select().single();
+        if (newTx) await supabase.from("bank_reconciliation_entries").update({ transaction_id: newTx.id }).eq("id", actionEntry.id);
+        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      }
+      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", actionEntry.id);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      toast({ title: "Título criado e conciliado" }); closeAction();
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+  };
+
+  // d) Associate to existing
+  const handleAssociate = async (titleId: string, source: "pagar" | "receber") => {
+    if (!actionEntry) return;
+    try {
+      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transaction_id: source === "receber" ? titleId : null }).eq("id", actionEntry.id);
+      if (source === "pagar") {
+        await supabase.from("contas_pagar").update({ status: "pago" }).eq("id", titleId);
+        queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+      } else {
+        await supabase.from("financial_transactions").update({ status: "recebido" }).eq("id", titleId);
+        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      toast({ title: "Lançamento conciliado" }); closeAction();
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+  };
+
+  // e) Ignore
+  const handleIgnorar = async (id: string) => {
+    await supabase.from("bank_reconciliation_entries").update({ status: "ignorado" }).eq("id", id);
+    queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    toast({ title: "Lançamento ignorado" });
+  };
+
+  // Undo
+  const handleDesfazer = async (entry: any) => {
+    try {
+      if (entry.transaction_id) {
+        await supabase.from("financial_transactions").update({ status: "pendente" }).eq("id", entry.transaction_id);
+        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      }
+      if (entry.status === "conciliado" && !entry.transaction_id && !(entry as any).transfer_pair_id) {
+        const amt = Math.abs(Number(entry.amount));
+        const { data: mp } = await supabase.from("contas_pagar").select("id").eq("company_id", companyId!).eq("status", "pago").eq("valor", amt).limit(1);
+        if (mp?.length) { await supabase.from("contas_pagar").update({ status: "a_vencer" }).eq("id", mp[0].id); queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] }); }
+      }
+      await supabase.from("bank_reconciliation_entries").update({ status: "pendente", transaction_id: null }).eq("id", entry.id);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      toast({ title: "Desconciliado" });
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+  };
+
+  // ===== Bank account CRUD =====
+  const handleAddAccount = async () => { if (!accountForm.bank_name.trim() || !companyId) return; setSubmittingAccount(true); try { await supabase.from("bank_accounts").insert({ company_id: companyId, bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 }); toast({ title: "Conta bancária adicionada!" }); setAddAccountDialogOpen(false); setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" }); queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); } setSubmittingAccount(false); };
+  const handleEditAccount = async () => { if (!editingAccount || !accountForm.bank_name.trim()) return; setSubmittingAccount(true); try { await supabase.from("bank_accounts").update({ bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 }).eq("id", editingAccount.id); toast({ title: "Conta atualizada!" }); setEditAccountDialogOpen(false); setEditingAccount(null); queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); } setSubmittingAccount(false); };
+  const handleDeleteAccount = async (accountId: string) => { try { await supabase.from("bank_accounts").delete().eq("id", accountId); toast({ title: "Conta excluída!" }); setDeletingAccountId(null); queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); } };
+  const openEditAccount = (account: any) => { setEditingAccount(account); setAccountForm({ bank_name: account.bank_name, account_number: account.account_number || "", agency: account.agency || "", current_balance: String(account.current_balance || 0) }); setEditAccountDialogOpen(true); };
+  const openAddAccount = () => { setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" }); setAddAccountDialogOpen(true); };
 
   const isLoading = loadingRecon;
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
-        <PageHeader title="Extrato / Conciliação Bancária" subtitle="Importação, cruzamento e baixa automática" showBack companyLogo={company?.logo_url} />
+        <PageHeader title="Extrato / Conciliação Bancária" subtitle="Movimentação, conciliação e importação de extratos" showBack companyLogo={company?.logo_url} />
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 module-section">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
           <ModuleStatCard label="Conciliados" value={totalConciliado} icon={<CheckCircle2 className="w-4 h-4" />} />
           <ModuleStatCard label="Pendentes" value={totalPendente} icon={<Clock className="w-4 h-4" />} />
-          <ModuleStatCard label="Não Identificados" value={totalNaoId} icon={<XCircle className="w-4 h-4" />} />
-          <ModuleStatCard label="Ignorados" value={totalIgnorado} icon={<EyeOff className="w-4 h-4" />} />
           <ModuleStatCard label="Saldo Bancário" value={formatCurrency(saldoTotal)} icon={<Landmark className="w-4 h-4" />} />
+          <ModuleStatCard label="Contas" value={accounts.length} icon={<Landmark className="w-4 h-4" />} />
         </div>
-
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
-              <TabsTrigger value="conciliacao">Conciliação</TabsTrigger>
-              <TabsTrigger value="extrato">Extrato Bancário</TabsTrigger>
-              <TabsTrigger value="importar">Importar</TabsTrigger>
+              <TabsTrigger value="movimentacao">Movimentação</TabsTrigger>
+              <TabsTrigger value="importar">Importar Extrato</TabsTrigger>
               <TabsTrigger value="contas">Contas Bancárias</TabsTrigger>
             </TabsList>
 
-            {/* ===== CONCILIAÇÃO TAB ===== */}
-            <TabsContent value="conciliacao">
+            {/* ===== MOVIMENTAÇÃO TAB ===== */}
+            <TabsContent value="movimentacao">
               <div className="flex flex-wrap items-center gap-3 mb-4">
-                <div className="relative max-w-xs"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar descrição..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
-                <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="pendente">Pendente</SelectItem>
-                    <SelectItem value="conciliado">Conciliado</SelectItem>
-                    <SelectItem value="nao_identificado">Não Identificado</SelectItem>
-                    <SelectItem value="ignorado">Ignorado</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={filtroConta} onValueChange={setFiltroConta}>
-                  <SelectTrigger className="w-[220px]"><SelectValue placeholder="Todas as contas" /></SelectTrigger>
+                <Select value={filtroConta} onValueChange={v => { setFiltroConta(v); closeAction(); }}>
+                  <SelectTrigger className="w-[260px]"><SelectValue placeholder="Todas as contas" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todas as contas</SelectItem>
-                    {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name}</SelectItem>)}
+                    {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.account_number ? `• ${a.account_number}` : ""}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <div className="relative max-w-xs flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
               </div>
 
-              {filtered.length === 0 ? (
-                <Card><CardContent className="p-8 text-center text-muted-foreground text-sm">
-                  {entries.length === 0 ? "Nenhum lançamento importado. Importe um extrato bancário para iniciar a conciliação." : "Nenhum lançamento encontrado com os filtros selecionados."}
-                </CardContent></Card>
-              ) : (
-                <div className="space-y-3">
-                  {filtered.map(entry => {
-                    const isCredit = Number(entry.amount) > 0;
-                    const bankName = (entry as any).bank_accounts?.bank_name || "—";
-                    const txDesc = (entry as any).financial_transactions?.description;
-                    const isPending = entry.status === "pendente" || entry.status === "nao_identificado";
-                    const isConciliado = entry.status === "conciliado";
-                    const isIgnorado = entry.status === "ignorado";
-                    const isTransfer = !!(entry as any).transfer_pair_id;
-                    const transferPairStatus = getTransferPairStatus(entry);
+              <div className="flex gap-4">
+                {/* Main table */}
+                <div className="flex-1 min-w-0">
+                  <Card>
+                    <CardContent className="p-0">
+                      {displayEntries.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground text-sm">{entries.length === 0 ? "Nenhum lançamento importado. Importe um extrato para começar." : "Nenhum lançamento encontrado."}</div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[100px]">Situação</TableHead>
+                              <TableHead className="w-[90px]">Data</TableHead>
+                              <TableHead>Cliente / Prestador</TableHead>
+                              <TableHead>Conta Corrente</TableHead>
+                              <TableHead>Categoria</TableHead>
+                              <TableHead className="text-right">Valor</TableHead>
+                              <TableHead className="text-right">Saldo</TableHead>
+                              <TableHead className="w-[50px]"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {displayEntries.map(entry => {
+                              const isCredit = Number(entry.amount) > 0;
+                              const bankName = (entry as any).bank_accounts?.bank_name || "—";
+                              const txCategory = (entry as any).financial_transactions?.expense_categories?.name;
+                              const isPending = entry.status === "pendente" || entry.status === "nao_identificado";
+                              const isConciliado = entry.status === "conciliado";
+                              const isIgnorado = entry.status === "ignorado";
+                              const isSelected = actionEntry?.id === entry.id;
 
-                    return (
-                      <Card key={entry.id} className={`transition-all ${isConciliado ? 'opacity-75' : ''} ${isIgnorado ? 'opacity-50' : ''}`}>
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            {/* Left: Entry info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className="text-xs text-muted-foreground">{new Date(entry.date).toLocaleDateString("pt-BR")}</span>
-                                <Badge className={statusBadge[entry.status]?.cls || ""}>{statusBadge[entry.status]?.label || entry.status}</Badge>
-                                <span className="text-xs text-muted-foreground">• {bankName}</span>
-                                {isTransfer && (
-                                  <Badge variant="outline" className="text-xs gap-1">
-                                    <Repeat className="w-3 h-3" />Transferência
-                                  </Badge>
-                                )}
-                                {transferPairStatus === "aguardando" && (
-                                  <Badge className="bg-[hsl(var(--status-warning)/0.1)] text-[hsl(var(--status-warning))] text-xs gap-1">
-                                    <AlertTriangle className="w-3 h-3" />Aguardando par
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="font-medium text-foreground truncate">{entry.external_description}</p>
-                              {txDesc && (
-                                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                                  <Link2 className="w-3 h-3" />Vinculado: {txDesc}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Center: Amount */}
-                            <div className={`text-right font-bold text-lg whitespace-nowrap ${isCredit ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
-                              {isCredit ? "+" : ""}{formatCurrency(Number(entry.amount))}
-                            </div>
-
-                            {/* Right: Actions */}
-                            <div className="flex items-center gap-1 shrink-0">
-                              {isPending && (
-                                <>
-                                  <Button size="sm" variant="outline" onClick={() => openAssociateDialog(entry)} title="Associar a título existente">
-                                    <ArrowRightLeft className="w-4 h-4 mr-1" />Associar
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={() => openCreateTitleDialog(entry)} title="Criar novo título">
-                                    <Plus className="w-4 h-4 mr-1" />Novo Título
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={openTransferDialog} disabled={isObjetivo || accounts.length < 2} title="Transferência entre contas">
-                                    <Repeat className="w-4 h-4 mr-1" />Transferir
-                                  </Button>
-                                  <Button size="sm" variant="ghost" onClick={() => handleIgnorar(entry.id)} title="Ignorar lançamento">
-                                    <EyeOff className="w-4 h-4" />
-                                  </Button>
-                                </>
-                              )}
-                              {(isConciliado || isIgnorado) && (
-                                <Button size="sm" variant="ghost" onClick={() => handleDesfazer(entry)} title="Desconciliar">
-                                  <Undo2 className="w-4 h-4 text-muted-foreground" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                              return (
+                                <TableRow key={entry.id} className={`${isSelected ? "bg-accent/50" : ""} ${isIgnorado ? "opacity-50" : ""}`}>
+                                  <TableCell>
+                                    {isConciliado ? (
+                                      <Badge className="bg-[hsl(var(--status-positive)/0.1)] text-[hsl(var(--status-positive))] text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Conciliado</Badge>
+                                    ) : isIgnorado ? (
+                                      <Badge variant="secondary" className="text-xs"><EyeOff className="w-3 h-3 mr-1" />Ignorado</Badge>
+                                    ) : (
+                                      <Badge className="bg-[hsl(var(--status-warning)/0.1)] text-[hsl(var(--status-warning))] text-xs"><Clock className="w-3 h-3 mr-1" />Pendente</Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-xs">{new Date(entry.date).toLocaleDateString("pt-BR")}</TableCell>
+                                  <TableCell className="text-sm font-medium truncate max-w-[200px]">{entry.external_description}</TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{bankName}</TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{txCategory || "—"}</TableCell>
+                                  <TableCell className={`text-right font-medium ${isCredit ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                                    {isCredit ? "+" : ""}{formatCurrency(Number(entry.amount))}
+                                  </TableCell>
+                                  <TableCell className={`text-right font-medium text-xs ${(entry as any).saldo >= 0 ? "text-foreground" : "text-[hsl(var(--status-danger))]"}`}>
+                                    {formatCurrency((entry as any).saldo)}
+                                  </TableCell>
+                                  <TableCell>
+                                    {isPending && (
+                                      <div className="flex items-center gap-0.5">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Novo lançamento" onClick={() => openAction(entry, "novo")}><PlusCircle className="w-3.5 h-3.5" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Transferência" onClick={() => openAction(entry, "transferencia")} disabled={isObjetivo || accounts.length < 2}><Repeat className="w-3.5 h-3.5" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Nova Conta P/R" onClick={() => openAction(entry, "conta_pr")}><Plus className="w-3.5 h-3.5" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Associar existente" onClick={() => openAction(entry, "associar")}><Link2 className="w-3.5 h-3.5" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Ignorar" onClick={() => handleIgnorar(entry.id)}><EyeOff className="w-3.5 h-3.5" /></Button>
+                                      </div>
+                                    )}
+                                    {(isConciliado || isIgnorado) && (
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Desfazer" onClick={() => handleDesfazer(entry)}><Undo2 className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
-              )}
-            </TabsContent>
 
-            {/* ===== EXTRATO TAB ===== */}
-            <TabsContent value="extrato">
-              <Card><CardHeader><CardTitle className="text-base">Transações Financeiras</CardTitle></CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Entidade</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {(transactions || []).length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sem transações</TableCell></TableRow>}
-                      {(transactions || []).slice(0, 50).map(t => (
-                        <TableRow key={t.id}>
-                          <TableCell>{t.date}</TableCell>
-                          <TableCell className="font-medium">{t.description}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{t.entity_name || "—"}</TableCell>
-                          <TableCell className={`text-right font-medium ${t.type === "entrada" ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
-                            {t.type === "entrada" ? "+" : "-"}{formatCurrency(Number(t.amount))}
-                          </TableCell>
-                          <TableCell><Badge variant={t.status === "pago" || t.status === "recebido" ? "default" : "outline"}>{t.status}</Badge></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+                {/* Lateral action panel */}
+                {actionEntry && actionMode && (
+                  <Card className="w-[380px] shrink-0 self-start sticky top-4">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm">
+                          {actionMode === "novo" && "Adicionar como Novo Lançamento"}
+                          {actionMode === "transferencia" && "Transferência entre Contas"}
+                          {actionMode === "conta_pr" && "Nova Conta a Pagar / Receber"}
+                          {actionMode === "associar" && "Associar a Lançamento Existente"}
+                        </CardTitle>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={closeAction}><XCircle className="w-4 h-4" /></Button>
+                      </div>
+                      <div className="rounded-lg bg-muted/50 p-2 mt-2">
+                        <p className="text-xs font-medium truncate">{actionEntry.external_description}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs text-muted-foreground">{new Date(actionEntry.date).toLocaleDateString("pt-BR")}</span>
+                          <span className={`text-sm font-bold ${Number(actionEntry.amount) > 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>{formatCurrency(Number(actionEntry.amount))}</span>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {/* a) Novo lançamento */}
+                      {actionMode === "novo" && (
+                        <>
+                          <p className="text-xs text-muted-foreground">Tipo: {Number(actionEntry.amount) > 0 ? "Recebimento (Entrada)" : "Pagamento (Saída)"}</p>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Categoria *</Label>
+                            <Select value={novoForm.category_id} onValueChange={v => setNovoForm({ ...novoForm, category_id: v })}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                              <SelectContent>{novoFilteredCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Favorecido (Cliente/Prestador)</Label>
+                            <Input className="h-8 text-xs" placeholder="Nome" value={novoForm.entity_name} onChange={e => setNovoForm({ ...novoForm, entity_name: e.target.value })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Observação</Label>
+                            <Textarea className="text-xs min-h-[60px]" value={novoForm.observacao} onChange={e => setNovoForm({ ...novoForm, observacao: e.target.value })} />
+                          </div>
+                          <Button size="sm" className="w-full" onClick={handleNovoLancamento} disabled={!novoForm.category_id}>Salvar e Conciliar</Button>
+                        </>
+                      )}
+
+                      {/* b) Transferência */}
+                      {actionMode === "transferencia" && (
+                        <>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Conta de Origem</Label>
+                            <Input className="h-8 text-xs" value={accounts.find(a => a.id === transferForm.origin_account_id)?.bank_name || "—"} disabled />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Conta de Destino *</Label>
+                            <Select value={transferForm.destination_account_id} onValueChange={v => setTransferForm({ ...transferForm, destination_account_id: v })}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                              <SelectContent>{accounts.filter(a => a.id !== transferForm.origin_account_id).map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} — {formatCurrency(Number(a.current_balance))}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Descrição (opcional)</Label>
+                            <Input className="h-8 text-xs" value={transferForm.description} onChange={e => setTransferForm({ ...transferForm, description: e.target.value })} />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">Não impacta DRE nem gera registro em CP/CR.</p>
+                          <Button size="sm" className="w-full" onClick={handleTransfer} disabled={submittingTransfer || !transferForm.destination_account_id}>
+                            {submittingTransfer ? "Processando..." : "Confirmar Transferência"}
+                          </Button>
+                        </>
+                      )}
+
+                      {/* c) Nova Conta a Pagar / Receber */}
+                      {actionMode === "conta_pr" && (
+                        <>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Tipo *</Label>
+                            <Select value={contaPrForm.type} onValueChange={v => setContaPrForm({ ...contaPrForm, type: v as any, category_id: "" })}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="saida">Conta a Pagar</SelectItem>
+                                <SelectItem value="entrada">Conta a Receber</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Descrição</Label>
+                            <Input className="h-8 text-xs" value={contaPrForm.description} onChange={e => setContaPrForm({ ...contaPrForm, description: e.target.value })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Favorecido</Label>
+                            <Input className="h-8 text-xs" value={contaPrForm.entity_name} onChange={e => setContaPrForm({ ...contaPrForm, entity_name: e.target.value })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Categoria *</Label>
+                            <Select value={contaPrForm.category_id} onValueChange={v => setContaPrForm({ ...contaPrForm, category_id: v })}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                              <SelectContent>{filteredCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1"><Label className="text-xs">Data *</Label><Input type="date" className="h-8 text-xs" value={contaPrForm.date} onChange={e => setContaPrForm({ ...contaPrForm, date: e.target.value })} /></div>
+                            <div className="space-y-1"><Label className="text-xs">Valor</Label><Input type="number" step="0.01" className="h-8 text-xs" value={contaPrForm.amount} onChange={e => setContaPrForm({ ...contaPrForm, amount: e.target.value })} /></div>
+                          </div>
+                          <Button size="sm" className="w-full" onClick={handleCreateContaPR} disabled={!contaPrForm.category_id || !contaPrForm.date}>Criar e Conciliar</Button>
+                        </>
+                      )}
+
+                      {/* d) Associar existente */}
+                      {actionMode === "associar" && (
+                        <>
+                          <div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" /><Input className="h-8 text-xs pl-8" placeholder="Buscar título..." value={associateSearch} onChange={e => setAssociateSearch(e.target.value)} /></div>
+                          <Tabs value={associateTab} onValueChange={v => setAssociateTab(v as any)}>
+                            <TabsList className="w-full h-8">
+                              <TabsTrigger value="pagar" className="flex-1 text-xs">Pagar ({filteredAssociatePagar.length})</TabsTrigger>
+                              <TabsTrigger value="receber" className="flex-1 text-xs">Receber ({filteredAssociateReceber.length})</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="pagar" className="max-h-[250px] overflow-y-auto mt-2 space-y-1">
+                              {filteredAssociatePagar.length === 0 ? <p className="text-center text-xs text-muted-foreground py-3">Nenhum título pendente.</p> : filteredAssociatePagar.map(c => (
+                                <div key={c.id} className="flex items-center justify-between p-2 rounded border border-border hover:bg-muted/30 cursor-pointer text-xs" onClick={() => handleAssociate(c.id, "pagar")}>
+                                  <div className="min-w-0"><p className="font-medium truncate">{c.fornecedor}</p><p className="text-muted-foreground">{c.descricao} • {new Date(c.vencimento).toLocaleDateString("pt-BR")}</p></div>
+                                  <span className="font-medium text-[hsl(var(--status-danger))] shrink-0 ml-2">-{formatCurrency(Number(c.valor))}</span>
+                                </div>
+                              ))}
+                            </TabsContent>
+                            <TabsContent value="receber" className="max-h-[250px] overflow-y-auto mt-2 space-y-1">
+                              {filteredAssociateReceber.length === 0 ? <p className="text-center text-xs text-muted-foreground py-3">Nenhum título pendente.</p> : filteredAssociateReceber.map(t => (
+                                <div key={t.id} className="flex items-center justify-between p-2 rounded border border-border hover:bg-muted/30 cursor-pointer text-xs" onClick={() => handleAssociate(t.id, "receber")}>
+                                  <div className="min-w-0"><p className="font-medium truncate">{t.description}</p><p className="text-muted-foreground">{t.entity_name || '—'} • {new Date(t.date).toLocaleDateString("pt-BR")}</p></div>
+                                  <span className="font-medium text-[hsl(var(--status-positive))] shrink-0 ml-2">+{formatCurrency(Number(t.amount))}</span>
+                                </div>
+                              ))}
+                            </TabsContent>
+                          </Tabs>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </TabsContent>
 
             {/* ===== IMPORTAR TAB ===== */}
             <TabsContent value="importar">
-              <Card><CardContent className="p-8 text-center space-y-4">
-                {importing ? (
-                  <div className="flex flex-col items-center gap-3 py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-sm text-muted-foreground">Processando arquivo...</p></div>
-                ) : (
-                  <>
-                    <div onDragOver={handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={handleClickUpload}
-                      className={`cursor-pointer rounded-lg border-2 border-dashed p-8 transition-colors ${dragging ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Upload className="w-8 h-8 text-muted-foreground" /></div>
-                      <h3 className="text-lg font-semibold mt-4">Importar Extrato Bancário</h3>
-                      <p className="text-sm text-muted-foreground max-w-md mx-auto mt-2">Arraste um arquivo aqui ou clique para selecionar.</p>
-                      <div className="flex justify-center gap-3 mt-4"><Button type="button" onClick={handleClickUpload}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button></div>
-                      <div className="text-xs text-muted-foreground mt-2">Formatos aceitos: .ofx, .cnab, .csv, .ret, .txt, .xlsx</div>
-                    </div>
-                    {parsedFileName && (
-                      <div className="flex items-center gap-2 justify-center text-sm text-muted-foreground mt-2">
-                        <FileText className="w-4 h-4" /><span>Última importação: <strong>{parsedFileName}</strong> — {parsedEntries.length} lançamentos</span>
-                      </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {/* Import via file */}
+                <Card>
+                  <CardHeader><CardTitle className="text-base flex items-center gap-2"><Upload className="w-4 h-4" />Importar Arquivo</CardTitle></CardHeader>
+                  <CardContent>
+                    {importing ? (
+                      <div className="flex flex-col items-center gap-3 py-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-sm text-muted-foreground">Processando arquivo...</p></div>
+                    ) : (
+                      <>
+                        <div onDragOver={handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={handleClickUpload}
+                          className={`cursor-pointer rounded-lg border-2 border-dashed p-6 transition-colors text-center ${dragging ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                          <Upload className="w-10 h-10 text-muted-foreground mx-auto" />
+                          <p className="text-sm font-medium mt-3">Arraste ou clique para selecionar</p>
+                          <p className="text-xs text-muted-foreground mt-1">Formatos: .ofx, .cnab, .csv, .ret, .txt, .xlsx</p>
+                        </div>
+                        {parsedFileName && <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1"><FileText className="w-3 h-3" />Última: <strong>{parsedFileName}</strong> — {parsedEntries.length} lançamentos</p>}
+                      </>
                     )}
-                  </>
-                )}
-                <input ref={inputFileRef} type="file" accept=".ofx,.csv,.ret,.txt,.xlsx,.cnab" style={{ display: 'none' }} onChange={handleInputChange} />
-              </CardContent></Card>
+                  </CardContent>
+                </Card>
+
+                {/* Open Finance */}
+                <Card>
+                  <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wifi className="w-4 h-4" />Open Finance</CardTitle></CardHeader>
+                  <CardContent className="text-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Wifi className="w-8 h-8 text-muted-foreground" /></div>
+                    <p className="text-sm text-muted-foreground">Conecte sua conta bancária via Open Finance para importar extratos automaticamente, sem necessidade de upload de arquivos.</p>
+                    <p className="text-xs text-muted-foreground">A conciliação automática funciona da mesma forma que a importação manual.</p>
+                    <Button variant="outline" disabled><Wifi className="w-4 h-4 mr-2" />Conectar via Open Finance<Badge variant="secondary" className="ml-2 text-[10px]">Em breve</Badge></Button>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
             {/* ===== CONTAS BANCÁRIAS TAB ===== */}
@@ -784,7 +798,7 @@ const ConciliacaoBancariaModule = () => {
                     <div className="p-8 text-center text-muted-foreground text-sm">Nenhuma conta bancária cadastrada.</div>
                   ) : (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Banco</TableHead><TableHead>Agência</TableHead><TableHead>Conta</TableHead><TableHead className="text-right">Saldo</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Banco</TableHead><TableHead>Agência</TableHead><TableHead>Conta</TableHead><TableHead className="text-right">Saldo Inicial</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {accounts.map(acc => (
                           <TableRow key={acc.id}>
@@ -810,123 +824,10 @@ const ConciliacaoBancariaModule = () => {
         )}
       </div>
 
+      {/* Hidden file input via portal */}
+      {createPortal(<input ref={inputFileRef} type="file" accept=".ofx,.csv,.ret,.txt,.xlsx,.cnab" style={{ display: 'none' }} onChange={handleInputChange} />, document.body)}
+
       {/* ===== DIALOGS ===== */}
-
-      {/* Associate dialog */}
-      <Dialog open={associateDialogOpen} onOpenChange={setAssociateDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Associar Lançamento a Título Existente</DialogTitle>
-          </DialogHeader>
-          {associatingEntry && (
-            <div className="rounded-lg bg-muted/50 p-3 mb-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{associatingEntry.external_description}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(associatingEntry.date).toLocaleDateString("pt-BR")}</p>
-                </div>
-                <span className={`font-bold ${Number(associatingEntry.amount) > 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
-                  {formatCurrency(Number(associatingEntry.amount))}
-                </span>
-              </div>
-            </div>
-          )}
-          <div className="space-y-3 flex-1 overflow-hidden flex flex-col">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Buscar título..." value={associateSearch} onChange={e => setAssociateSearch(e.target.value)} className="pl-9" />
-            </div>
-            <Tabs value={associateTab} onValueChange={v => setAssociateTab(v as any)}>
-              <TabsList className="w-full">
-                <TabsTrigger value="pagar" className="flex-1">Contas a Pagar ({filteredAssociatePagar.length})</TabsTrigger>
-                <TabsTrigger value="receber" className="flex-1">Contas a Receber ({filteredAssociateReceber.length})</TabsTrigger>
-              </TabsList>
-              <TabsContent value="pagar" className="max-h-[300px] overflow-y-auto mt-2">
-                {filteredAssociatePagar.length === 0 ? (
-                  <p className="text-center text-sm text-muted-foreground py-4">Nenhum título pendente encontrado.</p>
-                ) : filteredAssociatePagar.map(c => (
-                  <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors mb-2 cursor-pointer" onClick={() => handleAssociate(c.id, "pagar")}>
-                    <div>
-                      <p className="text-sm font-medium">{c.fornecedor}</p>
-                      <p className="text-xs text-muted-foreground">{c.descricao} • Venc: {new Date(c.vencimento).toLocaleDateString("pt-BR")}</p>
-                    </div>
-                    <span className="font-medium text-[hsl(var(--status-danger))]">-{formatCurrency(Number(c.valor))}</span>
-                  </div>
-                ))}
-              </TabsContent>
-              <TabsContent value="receber" className="max-h-[300px] overflow-y-auto mt-2">
-                {filteredAssociateReceber.length === 0 ? (
-                  <p className="text-center text-sm text-muted-foreground py-4">Nenhum título pendente encontrado.</p>
-                ) : filteredAssociateReceber.map(t => (
-                  <div key={t.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors mb-2 cursor-pointer" onClick={() => handleAssociate(t.id, "receber")}>
-                    <div>
-                      <p className="text-sm font-medium">{t.description}</p>
-                      <p className="text-xs text-muted-foreground">{t.entity_name || '—'} • {new Date(t.date).toLocaleDateString("pt-BR")}</p>
-                    </div>
-                    <span className="font-medium text-[hsl(var(--status-positive))]">+{formatCurrency(Number(t.amount))}</span>
-                  </div>
-                ))}
-              </TabsContent>
-            </Tabs>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create new title dialog */}
-      <Dialog open={createTitleDialogOpen} onOpenChange={setCreateTitleDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Criar Novo Título</DialogTitle></DialogHeader>
-          {creatingForEntry && (
-            <div className="rounded-lg bg-muted/50 p-3 mb-2">
-              <p className="text-sm font-medium">{creatingForEntry.external_description}</p>
-              <p className="text-xs text-muted-foreground">{new Date(creatingForEntry.date).toLocaleDateString("pt-BR")} • {formatCurrency(Number(creatingForEntry.amount))}</p>
-            </div>
-          )}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tipo *</Label>
-              <Select value={newTitleForm.type} onValueChange={v => setNewTitleForm({ ...newTitleForm, type: v as any, category_id: "" })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="saida">Conta a Pagar (Saída)</SelectItem>
-                  <SelectItem value="entrada">Conta a Receber (Entrada)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Input value={newTitleForm.description} onChange={e => setNewTitleForm({ ...newTitleForm, description: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>{newTitleForm.type === "saida" ? "Fornecedor / Entidade" : "Cliente / Entidade"}</Label>
-              <Input value={newTitleForm.entity_name} onChange={e => setNewTitleForm({ ...newTitleForm, entity_name: e.target.value })} placeholder="Nome da entidade" />
-            </div>
-            <div className="space-y-2">
-              <Label>Categoria *</Label>
-              <Select value={newTitleForm.category_id} onValueChange={v => setNewTitleForm({ ...newTitleForm, category_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
-                <SelectContent>
-                  {filteredCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Data *</Label>
-                <Input type="date" value={newTitleForm.date} onChange={e => setNewTitleForm({ ...newTitleForm, date: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Valor (R$)</Label>
-                <Input type="number" step="0.01" value={newTitleForm.amount} onChange={e => setNewTitleForm({ ...newTitleForm, amount: e.target.value })} />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateTitleDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateTitle} disabled={!newTitleForm.category_id || !newTitleForm.date}>Criar e Conciliar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Bank create dialog (import flow) */}
       <Dialog open={bankDialogOpen} onOpenChange={setBankDialogOpen}>
@@ -951,7 +852,7 @@ const ConciliacaoBancariaModule = () => {
               <div className="space-y-2"><Label>Agência</Label><Input placeholder="0001" value={accountForm.agency} onChange={e => setAccountForm({ ...accountForm, agency: e.target.value })} /></div>
               <div className="space-y-2"><Label>Conta</Label><Input placeholder="12345-6" value={accountForm.account_number} onChange={e => setAccountForm({ ...accountForm, account_number: e.target.value })} /></div>
             </div>
-            <div className="space-y-2"><Label>Saldo Atual (R$)</Label><Input type="number" step="0.01" placeholder="0,00" value={accountForm.current_balance} onChange={e => setAccountForm({ ...accountForm, current_balance: e.target.value })} /></div>
+            <div className="space-y-2"><Label>Saldo Inicial (R$)</Label><Input type="number" step="0.01" placeholder="0,00" value={accountForm.current_balance} onChange={e => setAccountForm({ ...accountForm, current_balance: e.target.value })} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddAccountDialogOpen(false)}>Cancelar</Button>
@@ -970,7 +871,7 @@ const ConciliacaoBancariaModule = () => {
               <div className="space-y-2"><Label>Agência</Label><Input value={accountForm.agency} onChange={e => setAccountForm({ ...accountForm, agency: e.target.value })} /></div>
               <div className="space-y-2"><Label>Conta</Label><Input value={accountForm.account_number} onChange={e => setAccountForm({ ...accountForm, account_number: e.target.value })} /></div>
             </div>
-            <div className="space-y-2"><Label>Saldo Atual (R$)</Label><Input type="number" step="0.01" value={accountForm.current_balance} onChange={e => setAccountForm({ ...accountForm, current_balance: e.target.value })} /></div>
+            <div className="space-y-2"><Label>Saldo Inicial (R$)</Label><Input type="number" step="0.01" value={accountForm.current_balance} onChange={e => setAccountForm({ ...accountForm, current_balance: e.target.value })} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditAccountDialogOpen(false)}>Cancelar</Button>
@@ -983,7 +884,7 @@ const ConciliacaoBancariaModule = () => {
       <Dialog open={!!deletingAccountId} onOpenChange={() => setDeletingAccountId(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Excluir Conta Bancária</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir esta conta? Os lançamentos vinculados a ela também poderão ser afetados.</p>
+          <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir esta conta?</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeletingAccountId(null)}>Cancelar</Button>
             <Button variant="destructive" onClick={() => deletingAccountId && handleDeleteAccount(deletingAccountId)}>Excluir</Button>
@@ -991,7 +892,7 @@ const ConciliacaoBancariaModule = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Select account for import dialog */}
+      {/* Select account for import */}
       <Dialog open={selectAccountDialogOpen} onOpenChange={setSelectAccountDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Selecionar Conta Bancária</DialogTitle></DialogHeader>
@@ -999,67 +900,13 @@ const ConciliacaoBancariaModule = () => {
           <div className="space-y-2">
             <Label>Conta</Label>
             <Select value={selectedImportAccountId} onValueChange={setSelectedImportAccountId}>
-              <SelectTrigger><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
-              <SelectContent>
-                {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""}</SelectItem>)}
-              </SelectContent>
+              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setSelectAccountDialogOpen(false); setPendingFileForAccount(null); }}>Cancelar</Button>
             <Button onClick={handleConfirmAccountImport} disabled={!selectedImportAccountId}>Importar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Transfer between accounts dialog */}
-      <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Repeat className="w-5 h-5" />Transferência entre Contas</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Conta de Origem *</Label>
-              <Select value={transferForm.origin_account_id} onValueChange={v => setTransferForm({ ...transferForm, origin_account_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione a conta de origem" /></SelectTrigger>
-                <SelectContent>
-                  {accounts.filter(a => a.id !== transferForm.destination_account_id).map(a => (
-                    <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""} — {formatCurrency(Number(a.current_balance))}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Conta de Destino *</Label>
-              <Select value={transferForm.destination_account_id} onValueChange={v => setTransferForm({ ...transferForm, destination_account_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione a conta de destino" /></SelectTrigger>
-                <SelectContent>
-                  {accounts.filter(a => a.id !== transferForm.origin_account_id).map(a => (
-                    <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""} — {formatCurrency(Number(a.current_balance))}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Valor (R$) *</Label>
-                <Input type="number" step="0.01" placeholder="0,00" value={transferForm.amount} onChange={e => setTransferForm({ ...transferForm, amount: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Data *</Label>
-                <Input type="date" value={transferForm.date} onChange={e => setTransferForm({ ...transferForm, date: e.target.value })} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Descrição (opcional)</Label>
-              <Input placeholder="Ex: Transferência para pagamento de folha" value={transferForm.description} onChange={e => setTransferForm({ ...transferForm, description: e.target.value })} />
-            </div>
-            <p className="text-xs text-muted-foreground">A transferência gera um débito na conta de origem e um crédito na conta de destino. Não impacta DRE, Contas a Pagar ou Contas a Receber.</p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleTransfer} disabled={submittingTransfer || !transferForm.origin_account_id || !transferForm.destination_account_id || !transferForm.amount || !transferForm.date}>
-              {submittingTransfer ? "Processando..." : "Confirmar Transferência"}
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
