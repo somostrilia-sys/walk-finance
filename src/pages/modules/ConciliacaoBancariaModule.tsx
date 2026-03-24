@@ -187,6 +187,14 @@ const ConciliacaoBancariaModule = () => {
   const [pendingFileAfterBank, setPendingFileAfterBank] = useState<FileList | null>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
 
+  // Bank account management states
+  const [editAccountDialogOpen, setEditAccountDialogOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<any>(null);
+  const [accountForm, setAccountForm] = useState({ bank_name: "", account_number: "", agency: "", current_balance: "" });
+  const [addAccountDialogOpen, setAddAccountDialogOpen] = useState(false);
+  const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
+  const [submittingAccount, setSubmittingAccount] = useState(false);
+
   const handleClickUpload = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
