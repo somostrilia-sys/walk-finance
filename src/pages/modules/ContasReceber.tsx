@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { useCompanies, useFinancialTransactions, usePessoas, useColaboradores } from "@/hooks/useFinancialData";
+import { useCompanies, useFinancialTransactions, usePessoas, useColaboradores, useExpenseCategories } from "@/hooks/useFinancialData";
 import { calcularCompetenciaComissao, gerarParcelas, labelParcela } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +40,7 @@ const isVencido = (date: string, status: string) => {
   return status === "pendente" && new Date(date) < new Date(new Date().toISOString().slice(0, 10));
 };
 
-const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", consultor_id: "" };
+const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", consultor_id: "", category_id: "" };
 
 const ContasReceber = () => {
   const { companyId } = useParams();
@@ -50,6 +50,7 @@ const ContasReceber = () => {
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
   const { data: pessoas } = usePessoas(companyId);
   const { data: colaboradores } = useColaboradores(companyId);
+  const { data: categorias } = useExpenseCategories(companyId);
   const consultores = useMemo(() => (colaboradores || []).filter((c: any) => c.is_consultor && c.status === "ativo"), [colaboradores]);
   const company = companies?.find(c => c.id === companyId);
 
@@ -200,6 +201,7 @@ const ContasReceber = () => {
         created_by: user?.id,
         entity_name: form.entity_name,
         payment_method: form.payment_method,
+        category_id: form.category_id || null,
         parcela_atual: p.parcela_atual,
         total_parcelas: p.total_parcelas,
         grupo_parcela: p.grupo_parcela,
@@ -249,6 +251,7 @@ const ContasReceber = () => {
         created_by: user?.id,
         entity_name: form.entity_name,
         payment_method: form.payment_method,
+        category_id: form.category_id || null,
         parcela_atual: 1,
         total_parcelas: 1,
       } as any);
@@ -481,6 +484,17 @@ const ContasReceber = () => {
                   )}
                 </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
+                <div>
+                  <label className="text-sm font-medium">Categoria</label>
+                  <Select value={form.category_id} onValueChange={v => setForm(f => ({ ...f, category_id: v }))}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
+                    <SelectContent>
+                      {categorias?.filter((c: any) => c.type === "receita" || c.type === "ambos").map((cat: any) => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.icon} {cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Valor da Parcela *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
                   <div><label className="text-sm font-medium">Vencimento 1ª Parcela *</label><Input className="mt-1" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
