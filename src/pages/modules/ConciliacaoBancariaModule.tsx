@@ -562,7 +562,48 @@ const ConciliacaoBancariaModule = () => {
               </CardContent></Card>
             </TabsContent>
 
-            <TabsContent value="conexao">
+            <TabsContent value="contas">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-base">Contas Bancárias</CardTitle>
+                  <Button size="sm" onClick={openAddAccount}><Plus className="w-4 h-4 mr-1" />Nova Conta</Button>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {accounts.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground text-sm">Nenhuma conta bancária cadastrada.</div>
+                  ) : (
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead>Banco</TableHead>
+                        <TableHead>Agência</TableHead>
+                        <TableHead>Conta</TableHead>
+                        <TableHead className="text-right">Saldo</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {accounts.map(acc => (
+                          <TableRow key={acc.id}>
+                            <TableCell className="font-medium">{acc.bank_name}</TableCell>
+                            <TableCell>{acc.agency || "—"}</TableCell>
+                            <TableCell>{acc.account_number || "—"}</TableCell>
+                            <TableCell className={`text-right font-medium ${Number(acc.current_balance) >= 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                              {formatCurrency(Number(acc.current_balance))}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => openEditAccount(acc)}><Pencil className="w-3.5 h-3.5" /></Button>
+                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeletingAccountId(acc.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
               <Card><CardContent className="p-6 space-y-4">
                 <h3 className="text-base font-semibold flex items-center gap-2"><Landmark className="w-4 h-4 text-muted-foreground" />Conectar Conta Bancária via API</h3>
                 <p className="text-sm text-muted-foreground">Integre suas contas bancárias para importação automática de extratos e conciliação em tempo real.</p>
