@@ -153,6 +153,9 @@ const ConciliacaoBancariaModule = () => {
   const [newBankName, setNewBankName] = useState("");
   const [pendingFileAfterBank, setPendingFileAfterBank] = useState<FileList | null>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
+  const [selectAccountDialogOpen, setSelectAccountDialogOpen] = useState(false);
+  const [selectedImportAccountId, setSelectedImportAccountId] = useState("");
+  const [pendingFileForAccount, setPendingFileForAccount] = useState<File | null>(null);
 
   // Bank account management
   const [editAccountDialogOpen, setEditAccountDialogOpen] = useState(false);
@@ -217,8 +220,19 @@ const ConciliacaoBancariaModule = () => {
     if (!['ofx', 'csv', 'ret', 'txt', 'xlsx', 'cnab'].includes(ext || '')) { return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx, .cnab", variant: "destructive" }); }
     const accs = bankAccounts || [];
     if (accs.length === 0) { setPendingFileAfterBank(files); setBankDialogOpen(true); return; }
-    await processFile(file, accs[0].id);
+    if (accs.length === 1) { await processFile(file, accs[0].id); return; }
+    // Multiple accounts: let user pick
+    setPendingFileForAccount(file);
+    setSelectedImportAccountId(accs[0].id);
+    setSelectAccountDialogOpen(true);
   }, [bankAccounts, processFile]);
+
+  const handleConfirmAccountImport = async () => {
+    if (!pendingFileForAccount || !selectedImportAccountId) return;
+    setSelectAccountDialogOpen(false);
+    await processFile(pendingFileForAccount, selectedImportAccountId);
+    setPendingFileForAccount(null);
+  };
 
   const handleCreateBankAndImport = async () => {
     if (!newBankName.trim() || !companyId) return;
@@ -369,12 +383,42 @@ const ConciliacaoBancariaModule = () => {
     toast({ title: "Lançamento ignorado" });
   };
 
-  // Undo (back to pendente)
-  const handleDesfazer = async (id: string) => {
-    const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "pendente", transaction_id: null }).eq("id", id);
-    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-    toast({ title: "Status revertido para pendente" });
+  // Desconciliar: revert reconciliation AND revert linked title status
+  const handleDesfazer = async (entry: any) => {
+    try {
+      // If was conciliado with a linked transaction (contas a receber), revert it
+      if (entry.transaction_id) {
+        await supabase.from("financial_transactions").update({ status: "pendente" }).eq("id", entry.transaction_id);
+        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      }
+
+      // Check if there's a linked contas_pagar — search by amount, date match
+      // For contas_pagar linked via association, we find the matching paid record
+      if (entry.status === "conciliado" && !entry.transaction_id) {
+        // It was likely associated with a conta a pagar — find matching pago title
+        const amt = Math.abs(Number(entry.amount));
+        const { data: matchingPagar } = await supabase
+          .from("contas_pagar")
+          .select("id")
+          .eq("company_id", companyId!)
+          .eq("status", "pago")
+          .eq("valor", amt)
+          .limit(1);
+        if (matchingPagar && matchingPagar.length > 0) {
+          await supabase.from("contas_pagar").update({ status: "a_vencer" }).eq("id", matchingPagar[0].id);
+          queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+        }
+      }
+
+      // Reset the reconciliation entry
+      const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "pendente", transaction_id: null }).eq("id", entry.id);
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      toast({ title: "Desconciliado", description: "Baixa revertida e lançamento retornado a pendente." });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
   };
 
   // ===== Bank account CRUD =====
@@ -543,7 +587,7 @@ const ConciliacaoBancariaModule = () => {
                                 </>
                               )}
                               {(isConciliado || isIgnorado) && (
-                                <Button size="sm" variant="ghost" onClick={() => handleDesfazer(entry.id)} title="Desfazer">
+                                <Button size="sm" variant="ghost" onClick={() => handleDesfazer(entry)} title="Desconciliar">
                                   <Undo2 className="w-4 h-4 text-muted-foreground" />
                                 </Button>
                               )}
@@ -823,6 +867,27 @@ const ConciliacaoBancariaModule = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeletingAccountId(null)}>Cancelar</Button>
             <Button variant="destructive" onClick={() => deletingAccountId && handleDeleteAccount(deletingAccountId)}>Excluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Select account for import dialog */}
+      <Dialog open={selectAccountDialogOpen} onOpenChange={setSelectAccountDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Selecionar Conta Bancária</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Selecione a conta corrente para importar o extrato:</p>
+          <div className="space-y-2">
+            <Label>Conta</Label>
+            <Select value={selectedImportAccountId} onValueChange={setSelectedImportAccountId}>
+              <SelectTrigger><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
+              <SelectContent>
+                {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSelectAccountDialogOpen(false); setPendingFileForAccount(null); }}>Cancelar</Button>
+            <Button onClick={handleConfirmAccountImport} disabled={!selectedImportAccountId}>Importar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
