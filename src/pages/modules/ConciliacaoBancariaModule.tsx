@@ -1013,6 +1013,58 @@ const ConciliacaoBancariaModule = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Transfer between accounts dialog */}
+      <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Repeat className="w-5 h-5" />Transferência entre Contas</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Conta de Origem *</Label>
+              <Select value={transferForm.origin_account_id} onValueChange={v => setTransferForm({ ...transferForm, origin_account_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione a conta de origem" /></SelectTrigger>
+                <SelectContent>
+                  {accounts.filter(a => a.id !== transferForm.destination_account_id).map(a => (
+                    <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""} — {formatCurrency(Number(a.current_balance))}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Conta de Destino *</Label>
+              <Select value={transferForm.destination_account_id} onValueChange={v => setTransferForm({ ...transferForm, destination_account_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione a conta de destino" /></SelectTrigger>
+                <SelectContent>
+                  {accounts.filter(a => a.id !== transferForm.origin_account_id).map(a => (
+                    <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""} — {formatCurrency(Number(a.current_balance))}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Valor (R$) *</Label>
+                <Input type="number" step="0.01" placeholder="0,00" value={transferForm.amount} onChange={e => setTransferForm({ ...transferForm, amount: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Data *</Label>
+                <Input type="date" value={transferForm.date} onChange={e => setTransferForm({ ...transferForm, date: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição (opcional)</Label>
+              <Input placeholder="Ex: Transferência para pagamento de folha" value={transferForm.description} onChange={e => setTransferForm({ ...transferForm, description: e.target.value })} />
+            </div>
+            <p className="text-xs text-muted-foreground">A transferência gera um débito na conta de origem e um crédito na conta de destino. Não impacta DRE, Contas a Pagar ou Contas a Receber.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleTransfer} disabled={submittingTransfer || !transferForm.origin_account_id || !transferForm.destination_account_id || !transferForm.amount || !transferForm.date}>
+              {submittingTransfer ? "Processando..." : "Confirmar Transferência"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
