@@ -206,13 +206,30 @@ const ConciliacaoBancariaModule = () => {
 
             <TabsContent value="importar">
               <Card><CardContent className="p-8 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Upload className="w-8 h-8 text-muted-foreground" /></div>
-                <h3 className="text-lg font-semibold">Importar Extrato Bancário</h3>
-                <p className="text-sm text-muted-foreground max-w-md mx-auto">Importe arquivos OFX, CNAB ou CSV do seu banco para conciliação automática com Contas a Pagar e Contas a Receber.</p>
-                <div className="flex justify-center gap-3">
-                  <Button onClick={() => toast({ title: "Selecione o arquivo OFX/CNAB para importação" })}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button>
+                <div
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={handleClickUpload}
+                  className={`cursor-pointer rounded-lg border-2 border-dashed p-8 transition-colors ${dragging ? 'border-primary bg-primary/5' : 'border-border'}`}
+                >
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Upload className="w-8 h-8 text-muted-foreground" /></div>
+                  <h3 className="text-lg font-semibold mt-4">Importar Extrato Bancário</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto mt-2">Arraste um arquivo aqui ou clique para selecionar. Importe arquivos OFX, CNAB ou CSV do seu banco para conciliação automática.</p>
+                  <div className="flex justify-center gap-3 mt-4">
+                    <Button type="button" onClick={handleClickUpload}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">Formatos aceitos: .ofx, .cnab, .csv, .ret, .txt, .xlsx</div>
                 </div>
-                <div className="text-xs text-muted-foreground">Formatos aceitos: .ofx, .cnab, .csv</div>
+                <input
+                  ref={inputFileRef}
+                  type="file"
+                  multiple
+                  accept=".ofx,.csv,.ret,.txt,.xlsx,.cnab"
+                  style={{ display: 'none' }}
+                  onChange={handleInputChange}
+                />
               </CardContent></Card>
             </TabsContent>
 
