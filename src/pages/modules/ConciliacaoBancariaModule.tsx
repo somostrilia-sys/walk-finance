@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from "react";
+import * as XLSX from "xlsx";
 import { useParams } from "react-router-dom";
 import { useCompanies, useBankAccounts, useBankReconciliation, useFinancialTransactions } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,6 +76,87 @@ function parseOFX(text: string): ParsedEntry[] {
   return entries;
 }
 
+function parseCNAB(text: string): ParsedEntry[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const entries: ParsedEntry[] = [];
+  for (const line of lines) {
+    if (line.length < 100) continue;
+    // CNAB 240: detail segments (type 3, segment J/A/etc)
+    // CNAB 400: detail records (type 1 or 7)
+    const regType240 = line.charAt(7); // record type for CNAB 240
+    const regType400 = line.charAt(0); // record type for CNAB 400
+
+    let rawDate = '';
+    let desc = '';
+    let rawVal = '';
+
+    if (line.length >= 240 && regType240 === '3') {
+      // CNAB 240 segment
+      rawDate = line.substring(139, 147); // DDMMYYYY
+      rawVal = line.substring(119, 134);
+      desc = line.substring(147, 187).trim() || 'Lançamento CNAB';
+    } else if (line.length >= 150 && (regType400 === '1' || regType400 === '7')) {
+      // CNAB 400
+      rawDate = line.substring(110, 116); // DDMMAA
+      rawVal = line.substring(152, 165);
+      desc = line.substring(46, 76).trim() || 'Lançamento CNAB';
+    } else {
+      continue;
+    }
+
+    // Parse date
+    let isoDate = '';
+    if (rawDate.length === 8) {
+      isoDate = `${rawDate.slice(4, 8)}-${rawDate.slice(2, 4)}-${rawDate.slice(0, 2)}`;
+    } else if (rawDate.length === 6) {
+      const yy = parseInt(rawDate.slice(4, 6));
+      const year = yy > 50 ? 1900 + yy : 2000 + yy;
+      isoDate = `${year}-${rawDate.slice(2, 4)}-${rawDate.slice(0, 2)}`;
+    }
+
+    const amount = parseFloat(rawVal) / 100;
+    if (isNaN(amount) || !isoDate) continue;
+    entries.push({ date: isoDate, description: desc, amount });
+  }
+  return entries;
+}
+
+function parseXLSX(buffer: ArrayBuffer): ParsedEntry[] {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+  if (rows.length < 2) return [];
+
+  const header = rows[0].map((c: any) => String(c ?? '').toLowerCase());
+  const dateIdx = header.findIndex(c => /data|date/.test(c));
+  const descIdx = header.findIndex(c => /descri|hist|memo|description/.test(c));
+  const valIdx = header.findIndex(c => /valor|amount|value|quantia/.test(c));
+
+  const entries: ParsedEntry[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length < 2) continue;
+    const rawDate = String(row[dateIdx >= 0 ? dateIdx : 0] ?? '').trim();
+    const desc = String(row[descIdx >= 0 ? descIdx : 1] ?? '').trim();
+    const rawVal = String(row[valIdx >= 0 ? valIdx : 2] ?? '').replace(/\./g, '').replace(',', '.');
+    const amount = parseFloat(rawVal);
+    if (!desc || isNaN(amount)) continue;
+
+    let isoDate = rawDate;
+    // Handle Excel serial number dates
+    const serial = Number(rawDate);
+    if (!isNaN(serial) && serial > 30000 && serial < 70000) {
+      const d = new Date((serial - 25569) * 86400 * 1000);
+      isoDate = d.toISOString().slice(0, 10);
+    } else {
+      const brMatch = rawDate.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+      if (brMatch) isoDate = `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+    }
+    entries.push({ date: isoDate, description: desc, amount });
+  }
+  return entries;
+}
+
 type ConciliacaoStatus = "conciliado" | "pendente" | "nao_identificado";
 
 const statusBadge: Record<string, { label: string; cls: string }> = {
@@ -117,13 +199,25 @@ const ConciliacaoBancariaModule = () => {
   const processFile = useCallback(async (file: File, accountId: string) => {
     setImporting(true);
     try {
-      const text = await file.text();
       const ext = file.name.split('.').pop()?.toLowerCase();
       let entries: ParsedEntry[] = [];
-      if (ext === 'ofx') {
-        entries = parseOFX(text);
+
+      if (ext === 'xlsx') {
+        const buffer = await file.arrayBuffer();
+        entries = parseXLSX(buffer);
       } else {
-        entries = parseCSV(text);
+        const text = await file.text();
+        if (ext === 'ofx') {
+          entries = parseOFX(text);
+        } else if (ext === 'ret' || ext === 'cnab') {
+          entries = parseCNAB(text);
+        } else if (ext === 'txt') {
+          // Try CNAB first, fallback to CSV
+          const cnabEntries = parseCNAB(text);
+          entries = cnabEntries.length > 0 ? cnabEntries : parseCSV(text);
+        } else {
+          entries = parseCSV(text);
+        }
       }
 
       if (entries.length === 0) {
