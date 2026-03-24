@@ -1,7 +1,8 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useCompanies, useBankAccounts, useBankReconciliation, useFinancialTransactions } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
@@ -13,9 +14,66 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2 } from "lucide-react";
+import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText } from "lucide-react";
+
+// ---------- CSV / OFX parser helpers ----------
+
+interface ParsedEntry {
+  date: string;
+  description: string;
+  amount: number;
+}
+
+function parseCSV(text: string): ParsedEntry[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const header = lines[0].toLowerCase();
+  // Try to detect columns
+  const cols = header.split(/[;,\t]/);
+  const dateIdx = cols.findIndex(c => /data|date/.test(c));
+  const descIdx = cols.findIndex(c => /descri|hist|memo|description/.test(c));
+  const valIdx = cols.findIndex(c => /valor|amount|value|quantia/.test(c));
+  const sep = header.includes(';') ? ';' : header.includes('\t') ? '\t' : ',';
+
+  const entries: ParsedEntry[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const parts = lines[i].split(sep);
+    if (parts.length < 2) continue;
+    const rawDate = parts[dateIdx >= 0 ? dateIdx : 0]?.trim().replace(/"/g, '');
+    const desc = parts[descIdx >= 0 ? descIdx : 1]?.trim().replace(/"/g, '');
+    const rawVal = parts[valIdx >= 0 ? valIdx : 2]?.trim().replace(/"/g, '').replace(/\./g, '').replace(',', '.');
+    const amount = parseFloat(rawVal);
+    if (!desc || isNaN(amount)) continue;
+    // Parse date: try DD/MM/YYYY or YYYY-MM-DD
+    let isoDate = rawDate;
+    const brMatch = rawDate.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+    if (brMatch) isoDate = `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+    entries.push({ date: isoDate, description: desc, amount });
+  }
+  return entries;
+}
+
+function parseOFX(text: string): ParsedEntry[] {
+  const entries: ParsedEntry[] = [];
+  const txBlocks = text.split(/<STMTTRN>/i).slice(1);
+  for (const block of txBlocks) {
+    const getTag = (tag: string) => {
+      const m = block.match(new RegExp(`<${tag}>([^<\\n]+)`, 'i'));
+      return m ? m[1].trim() : '';
+    };
+    const rawDate = getTag('DTPOSTED');
+    const amount = parseFloat(getTag('TRNAMT').replace(',', '.'));
+    const desc = getTag('MEMO') || getTag('NAME') || 'Sem descrição';
+    if (!rawDate || isNaN(amount)) continue;
+    const isoDate = rawDate.length >= 8 ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}` : rawDate;
+    entries.push({ date: isoDate, description: desc, amount });
+  }
+  return entries;
+}
 
 type ConciliacaoStatus = "conciliado" | "pendente" | "nao_identificado";
 
@@ -27,6 +85,7 @@ const statusBadge: Record<string, { label: string; cls: string }> = {
 
 const ConciliacaoBancariaModule = () => {
   const { companyId } = useParams();
+  const { user } = useAuth();
   const { data: companies } = useCompanies();
   const company = companies?.find(c => c.id === companyId);
   const { data: reconciliation, isLoading: loadingRecon } = useBankReconciliation(companyId);
@@ -37,6 +96,13 @@ const ConciliacaoBancariaModule = () => {
   const [filtroConta, setFiltroConta] = useState("todos");
   const [search, setSearch] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState("conciliacao");
+  const [importing, setImporting] = useState(false);
+  const [parsedEntries, setParsedEntries] = useState<ParsedEntry[]>([]);
+  const [parsedFileName, setParsedFileName] = useState("");
+  const [bankDialogOpen, setBankDialogOpen] = useState(false);
+  const [newBankName, setNewBankName] = useState("");
+  const [pendingFileAfterBank, setPendingFileAfterBank] = useState<FileList | null>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
 
   const handleClickUpload = (e: React.MouseEvent) => {
@@ -48,13 +114,94 @@ const ConciliacaoBancariaModule = () => {
     }
   };
 
-  const handleFiles = (files: FileList) => {
+  const processFile = useCallback(async (file: File, accountId: string) => {
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      let entries: ParsedEntry[] = [];
+      if (ext === 'ofx') {
+        entries = parseOFX(text);
+      } else {
+        entries = parseCSV(text);
+      }
+
+      if (entries.length === 0) {
+        toast({ title: "Nenhum lançamento encontrado", description: "Verifique o formato do arquivo. Para CSV, as colunas devem conter Data, Descrição e Valor.", variant: "destructive" });
+        setImporting(false);
+        return;
+      }
+
+      // Insert entries into bank_reconciliation_entries
+      const rows = entries.map(e => ({
+        company_id: companyId!,
+        bank_account_id: accountId,
+        date: e.date,
+        external_description: e.description,
+        amount: e.amount,
+        status: "pendente" as const,
+      }));
+
+      const { error } = await supabase.from("bank_reconciliation_entries").insert(rows);
+      if (error) {
+        toast({ title: "Erro ao importar", description: error.message, variant: "destructive" });
+        setImporting(false);
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      setParsedEntries(entries);
+      setParsedFileName(file.name);
+      toast({ title: "Importação concluída", description: `${entries.length} lançamentos importados de ${file.name}.` });
+      // Switch to conciliação tab
+      setActiveTab("conciliacao");
+    } catch (err: any) {
+      toast({ title: "Erro ao processar arquivo", description: err?.message || "Verifique o formato.", variant: "destructive" });
+    }
+    setImporting(false);
+  }, [companyId, queryClient]);
+
+  const handleFiles = useCallback(async (files: FileList) => {
     const file = files[0];
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['ofx', 'csv', 'ret', 'txt', 'xlsx', 'cnab'].includes(ext || '')) {
-      return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx", variant: "destructive" });
+      return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx, .cnab", variant: "destructive" });
     }
-    toast({ title: "Arquivo recebido", description: `${file.name} (${(file.size / 1024).toFixed(1)} KB) — processamento em breve.` });
+
+    const accounts = bankAccounts || [];
+    if (accounts.length === 0) {
+      // Need to create a bank account first
+      setPendingFileAfterBank(files);
+      setBankDialogOpen(true);
+      return;
+    }
+
+    // Use first account (or could prompt user to select)
+    await processFile(file, accounts[0].id);
+  }, [bankAccounts, processFile]);
+
+  const handleCreateBankAndImport = async () => {
+    if (!newBankName.trim() || !companyId) return;
+    const { data, error } = await supabase.from("bank_accounts").insert({
+      company_id: companyId,
+      bank_name: newBankName.trim(),
+      current_balance: 0,
+    }).select().single();
+
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+    setBankDialogOpen(false);
+    setNewBankName("");
+    toast({ title: "Conta criada", description: `Conta "${data.bank_name}" criada com sucesso.` });
+
+    if (pendingFileAfterBank && pendingFileAfterBank[0]) {
+      await processFile(pendingFileAfterBank[0], data.id);
+      setPendingFileAfterBank(null);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,7 +265,7 @@ const ConciliacaoBancariaModule = () => {
         {isLoading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : (
-          <Tabs defaultValue="conciliacao">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="conciliacao">Conciliação</TabsTrigger>
               <TabsTrigger value="extrato">Extrato Bancário</TabsTrigger>
@@ -206,26 +353,40 @@ const ConciliacaoBancariaModule = () => {
 
             <TabsContent value="importar">
               <Card><CardContent className="p-8 text-center space-y-4">
-                <div
-                  onDragOver={handleDragOver}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={handleClickUpload}
-                  className={`cursor-pointer rounded-lg border-2 border-dashed p-8 transition-colors ${dragging ? 'border-primary bg-primary/5' : 'border-border'}`}
-                >
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Upload className="w-8 h-8 text-muted-foreground" /></div>
-                  <h3 className="text-lg font-semibold mt-4">Importar Extrato Bancário</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto mt-2">Arraste um arquivo aqui ou clique para selecionar. Importe arquivos OFX, CNAB ou CSV do seu banco para conciliação automática.</p>
-                  <div className="flex justify-center gap-3 mt-4">
-                    <Button type="button" onClick={handleClickUpload}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button>
+                {importing ? (
+                  <div className="flex flex-col items-center gap-3 py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Processando arquivo...</p>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-2">Formatos aceitos: .ofx, .cnab, .csv, .ret, .txt, .xlsx</div>
-                </div>
+                ) : (
+                  <>
+                    <div
+                      onDragOver={handleDragOver}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onClick={handleClickUpload}
+                      className={`cursor-pointer rounded-lg border-2 border-dashed p-8 transition-colors ${dragging ? 'border-primary bg-primary/5' : 'border-border'}`}
+                    >
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Upload className="w-8 h-8 text-muted-foreground" /></div>
+                      <h3 className="text-lg font-semibold mt-4">Importar Extrato Bancário</h3>
+                      <p className="text-sm text-muted-foreground max-w-md mx-auto mt-2">Arraste um arquivo aqui ou clique para selecionar. Importe arquivos OFX, CNAB ou CSV do seu banco para conciliação automática.</p>
+                      <div className="flex justify-center gap-3 mt-4">
+                        <Button type="button" onClick={handleClickUpload}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-2">Formatos aceitos: .ofx, .cnab, .csv, .ret, .txt, .xlsx</div>
+                    </div>
+                    {parsedFileName && (
+                      <div className="flex items-center gap-2 justify-center text-sm text-muted-foreground mt-2">
+                        <FileText className="w-4 h-4" />
+                        <span>Última importação: <strong>{parsedFileName}</strong> — {parsedEntries.length} lançamentos</span>
+                      </div>
+                    )}
+                  </>
+                )}
                 <input
                   ref={inputFileRef}
                   type="file"
-                  multiple
                   accept=".ofx,.csv,.ret,.txt,.xlsx,.cnab"
                   style={{ display: 'none' }}
                   onChange={handleInputChange}
@@ -254,6 +415,24 @@ const ConciliacaoBancariaModule = () => {
           </Tabs>
         )}
       </div>
+
+      {/* Dialog to create bank account when none exists */}
+      <Dialog open={bankDialogOpen} onOpenChange={setBankDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar Conta Bancária</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Para importar o extrato, é necessário ter pelo menos uma conta bancária cadastrada.</p>
+          <div className="space-y-2">
+            <Label>Nome do Banco</Label>
+            <Input placeholder="Ex: Banco do Brasil, Itaú, Bradesco..." value={newBankName} onChange={e => setNewBankName(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setBankDialogOpen(false); setPendingFileAfterBank(null); }}>Cancelar</Button>
+            <Button onClick={handleCreateBankAndImport} disabled={!newBankName.trim()}>Criar e Importar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
