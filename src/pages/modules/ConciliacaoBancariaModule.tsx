@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
@@ -143,9 +144,8 @@ const ConciliacaoBancariaModule = () => {
   // Import state
   const [dragging, setDragging] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [parsedEntries, setParsedEntries] = useState<ParsedEntry[]>([]);
   const [parsedFileName, setParsedFileName] = useState("");
-  const [importAccountId, setImportAccountId] = useState("");
+  const [parsedCount, setParsedCount] = useState(0);
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [newBankName, setNewBankName] = useState("");
@@ -153,6 +153,10 @@ const ConciliacaoBancariaModule = () => {
   const [selectAccountDialogOpen, setSelectAccountDialogOpen] = useState(false);
   const [selectedImportAccountId, setSelectedImportAccountId] = useState("");
   const [pendingFileForAccount, setPendingFileForAccount] = useState<File | null>(null);
+
+  // Reconciliation drawer state
+  const [reconcDrawerOpen, setReconcDrawerOpen] = useState(false);
+  const [reconcDrawerAccountId, setReconcDrawerAccountId] = useState("");
 
   // Bank account management
   const [editAccountDialogOpen, setEditAccountDialogOpen] = useState(false);
@@ -162,7 +166,7 @@ const ConciliacaoBancariaModule = () => {
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
   const [submittingAccount, setSubmittingAccount] = useState(false);
 
-  // Lateral action panel
+  // Lateral action panel (inside drawer)
   const [actionEntry, setActionEntry] = useState<any>(null);
   const [actionMode, setActionMode] = useState<"novo" | "transferencia" | "conta_pr" | "associar" | null>(null);
 
@@ -188,7 +192,6 @@ const ConciliacaoBancariaModule = () => {
   const handleClickUpload = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); if (inputFileRef.current) { inputFileRef.current.value = ''; inputFileRef.current.click(); } };
 
   const autoMatch = useCallback(async (importedEntries: { id: string; description: string; amount: number; date: string }[]) => {
-    // Auto-match by beneficiary name + compatible amount
     const cpList = contasPagar || [];
     const crList = (transactions || []).filter(t => t.type === "entrada" && t.status === "pendente");
     let matched = 0;
@@ -199,7 +202,6 @@ const ConciliacaoBancariaModule = () => {
       const isDebit = entry.amount < 0;
 
       if (isDebit) {
-        // Try matching contas a pagar
         const match = cpList.find(c => (c.status === "a_vencer" || c.status === "pendente") && Math.abs(Number(c.valor) - absAmt) < 0.02 && c.fornecedor.toLowerCase().split(/\s+/).some(w => w.length > 3 && descLower.includes(w)));
         if (match) {
           await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", entry.id);
@@ -207,7 +209,6 @@ const ConciliacaoBancariaModule = () => {
           matched++;
         }
       } else {
-        // Try matching contas a receber
         const match = crList.find(t => Math.abs(Number(t.amount) - absAmt) < 0.02 && (t.entity_name || t.description).toLowerCase().split(/\s+/).some(w => w.length > 3 && descLower.includes(w)));
         if (match) {
           await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transaction_id: match.id }).eq("id", entry.id);
@@ -233,7 +234,33 @@ const ConciliacaoBancariaModule = () => {
         else parsed = parseCSV(text);
       }
       if (parsed.length === 0) { toast({ title: "Nenhum lançamento encontrado", description: "Verifique o formato do arquivo.", variant: "destructive" }); setImporting(false); return; }
-      const rows = parsed.map(e => ({ company_id: companyId!, bank_account_id: accountId, date: e.date, external_description: e.description, amount: e.amount, status: "pendente" as const }));
+
+      // ===== DUPLICATE PREVENTION =====
+      // Fetch existing entries for this account to check duplicates
+      const { data: existingEntries } = await supabase
+        .from("bank_reconciliation_entries")
+        .select("date, external_description, amount")
+        .eq("company_id", companyId!)
+        .eq("bank_account_id", accountId);
+
+      const existingSet = new Set(
+        (existingEntries || []).map(e => `${e.date}|${e.external_description.toLowerCase().trim()}|${Number(e.amount).toFixed(2)}`)
+      );
+
+      const newEntries = parsed.filter(e => {
+        const key = `${e.date}|${e.description.toLowerCase().trim()}|${e.amount.toFixed(2)}`;
+        return !existingSet.has(key);
+      });
+
+      const duplicateCount = parsed.length - newEntries.length;
+
+      if (newEntries.length === 0) {
+        toast({ title: "Todos os lançamentos já existem", description: `${duplicateCount} lançamentos duplicados foram ignorados.`, variant: "destructive" });
+        setImporting(false);
+        return;
+      }
+
+      const rows = newEntries.map(e => ({ company_id: companyId!, bank_account_id: accountId, date: e.date, external_description: e.description, amount: e.amount, status: "pendente" as const }));
       const { data: inserted, error } = await supabase.from("bank_reconciliation_entries").insert(rows).select("id, external_description, amount, date");
       if (error) { toast({ title: "Erro ao importar", description: error.message, variant: "destructive" }); setImporting(false); return; }
 
@@ -243,22 +270,31 @@ const ConciliacaoBancariaModule = () => {
       queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
       queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
       queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
-      setParsedEntries(parsed); setParsedFileName(file.name);
-      toast({ title: "Importação concluída", description: `${parsed.length} lançamentos importados. ${matchedCount} conciliados automaticamente.` });
-      setActiveTab("movimentacao");
+      setParsedFileName(file.name);
+      setParsedCount(newEntries.length);
+
+      const dupMsg = duplicateCount > 0 ? ` ${duplicateCount} duplicados ignorados.` : "";
+      toast({ title: "Importação concluída", description: `${newEntries.length} lançamentos importados. ${matchedCount} conciliados automaticamente.${dupMsg}` });
+
+      // Open the reconciliation drawer for this account
+      setReconcDrawerAccountId(accountId);
+      setReconcDrawerOpen(true);
     } catch (err: any) { toast({ title: "Erro ao processar arquivo", description: err?.message || "Verifique o formato.", variant: "destructive" }); }
     setImporting(false);
   }, [companyId, queryClient, autoMatch]);
 
+  // ALWAYS ask which account before processing
   const handleFiles = useCallback(async (files: FileList) => {
     const file = files[0];
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['ofx', 'csv', 'ret', 'txt', 'xlsx', 'cnab'].includes(ext || '')) { return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx, .cnab", variant: "destructive" }); }
     const accs = bankAccounts || [];
     if (accs.length === 0) { setPendingFileAfterBank(files); setBankDialogOpen(true); return; }
-    if (accs.length === 1) { await processFile(file, accs[0].id); return; }
-    setPendingFileForAccount(file); setSelectedImportAccountId(accs[0].id); setSelectAccountDialogOpen(true);
-  }, [bankAccounts, processFile]);
+    // Always ask which account
+    setPendingFileForAccount(file);
+    setSelectedImportAccountId(accs[0].id);
+    setSelectAccountDialogOpen(true);
+  }, [bankAccounts]);
 
   const handleConfirmAccountImport = async () => { if (!pendingFileForAccount || !selectedImportAccountId) return; setSelectAccountDialogOpen(false); await processFile(pendingFileForAccount, selectedImportAccountId); setPendingFileForAccount(null); };
   const handleCreateBankAndImport = async () => { if (!newBankName.trim() || !companyId) return; const { data, error } = await supabase.from("bank_accounts").insert({ company_id: companyId, bank_name: newBankName.trim(), current_balance: 0 }).select().single(); if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; } queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); setBankDialogOpen(false); setNewBankName(""); if (pendingFileAfterBank?.[0]) { await processFile(pendingFileAfterBank[0], data.id); setPendingFileAfterBank(null); } };
@@ -268,12 +304,13 @@ const ConciliacaoBancariaModule = () => {
   const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); };
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(false); if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files); };
 
-  // ===== Computed data =====
-  const filtered = useMemo(() => {
+  // ===== Computed data for MOVIMENTAÇÃO (only conciliado entries, pendentes highlighted) =====
+  const movimentacaoEntries = useMemo(() => {
     return entries
       .filter(l => {
         if (filtroConta !== "todos" && l.bank_account_id !== filtroConta) return false;
         if (search && !l.external_description.toLowerCase().includes(search.toLowerCase())) return false;
+        // Show conciliado + pendente (highlighted) + ignorado. Exclude nothing—just separate visually.
         return true;
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -281,21 +318,12 @@ const ConciliacaoBancariaModule = () => {
 
   // Running balance calculation
   const selectedAccount = filtroConta !== "todos" ? accounts.find(a => a.id === filtroConta) : null;
-  const initialBalance = selectedAccount ? Number(selectedAccount.current_balance) : accounts.reduce((s, a) => s + Number(a.current_balance), 0);
 
-  // We compute running balance based on the filtered+sorted entries relative to the initial balance
-  // Actually the running balance starts from saldo inicial and adds each entry amount
   const entriesWithBalance = useMemo(() => {
-    // For proper running balance, we need ALL entries for the selected account sorted by date
     const accountEntries = entries
       .filter(l => filtroConta === "todos" || l.bank_account_id === filtroConta)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    let balance = selectedAccount ? Number(selectedAccount.current_balance) : 0;
-    // The current_balance in bank_accounts is the CURRENT balance.
-    // To compute a running balance from the beginning, we'd need the initial balance.
-    // For now, we compute: start from 0 and accumulate. The last entry should equal current_balance conceptually.
-    // Better approach: show running total from initial (current_balance - sum_of_all_entries) + cumulative
     const totalEntrySum = accountEntries.reduce((s, e) => s + Number(e.amount), 0);
     const startBalance = selectedAccount ? Number(selectedAccount.current_balance) - totalEntrySum : 0;
     let running = startBalance;
@@ -311,6 +339,13 @@ const ConciliacaoBancariaModule = () => {
     if (!search) return entriesWithBalance;
     return entriesWithBalance.filter(e => e.external_description.toLowerCase().includes(search.toLowerCase()));
   }, [entriesWithBalance, search]);
+
+  // Drawer pending entries (for the reconciliation workspace)
+  const drawerPendingEntries = useMemo(() => {
+    return entries
+      .filter(e => e.bank_account_id === reconcDrawerAccountId && (e.status === "pendente" || e.status === "nao_identificado"))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [entries, reconcDrawerAccountId]);
 
   const totalConciliado = entries.filter(l => l.status === "conciliado").length;
   const totalPendente = entries.filter(l => l.status === "pendente").length;
@@ -362,6 +397,12 @@ const ConciliacaoBancariaModule = () => {
 
   const closeAction = () => { setActionEntry(null); setActionMode(null); };
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+  };
+
   // a) Add as new lancamento
   const handleNovoLancamento = async () => {
     if (!actionEntry || !companyId || !novoForm.category_id) { toast({ title: "Selecione a categoria", variant: "destructive" }); return; }
@@ -384,9 +425,7 @@ const ConciliacaoBancariaModule = () => {
         if (error) throw error;
         await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", actionEntry.id);
       }
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+      invalidateAll();
       toast({ title: "Lançamento criado e conciliado" }); closeAction();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
   };
@@ -401,14 +440,11 @@ const ConciliacaoBancariaModule = () => {
       const valor = Math.abs(Number(actionEntry.amount));
       const pairId = crypto.randomUUID();
       const desc = description || "Transferência entre contas";
-      // Create the pair entry on destination
       await supabase.from("bank_reconciliation_entries").insert({
         company_id: companyId, bank_account_id: destination_account_id, date: actionEntry.date,
         external_description: `TED/Transf: ${desc}`, amount: valor, status: "conciliado", transfer_pair_id: pairId,
       });
-      // Update origin entry
       await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transfer_pair_id: pairId }).eq("id", actionEntry.id);
-      // Update balances
       const originAcc = accounts.find(a => a.id === origin_account_id);
       const destAcc = accounts.find(a => a.id === destination_account_id);
       if (originAcc) await supabase.from("bank_accounts").update({ current_balance: Number(originAcc.current_balance) - valor }).eq("id", origin_account_id);
@@ -432,7 +468,6 @@ const ConciliacaoBancariaModule = () => {
           descricao: contaPrForm.description, categoria: categories?.find(c => c.id === contaPrForm.category_id)?.name || null,
           valor: parseFloat(contaPrForm.amount) || Math.abs(Number(actionEntry.amount)), vencimento: contaPrForm.date, status: "pago",
         });
-        queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
       } else {
         const { data: newTx } = await supabase.from("financial_transactions").insert({
           company_id: companyId, description: contaPrForm.description, entity_name: contaPrForm.entity_name || null,
@@ -440,10 +475,9 @@ const ConciliacaoBancariaModule = () => {
           date: contaPrForm.date, type: "entrada", status: "recebido",
         }).select().single();
         if (newTx) await supabase.from("bank_reconciliation_entries").update({ transaction_id: newTx.id }).eq("id", actionEntry.id);
-        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
       }
       await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", actionEntry.id);
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      invalidateAll();
       toast({ title: "Título criado e conciliado" }); closeAction();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
   };
@@ -455,12 +489,10 @@ const ConciliacaoBancariaModule = () => {
       await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transaction_id: source === "receber" ? titleId : null }).eq("id", actionEntry.id);
       if (source === "pagar") {
         await supabase.from("contas_pagar").update({ status: "pago" }).eq("id", titleId);
-        queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
       } else {
         await supabase.from("financial_transactions").update({ status: "recebido" }).eq("id", titleId);
-        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
       }
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      invalidateAll();
       toast({ title: "Lançamento conciliado" }); closeAction();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
   };
@@ -477,15 +509,14 @@ const ConciliacaoBancariaModule = () => {
     try {
       if (entry.transaction_id) {
         await supabase.from("financial_transactions").update({ status: "pendente" }).eq("id", entry.transaction_id);
-        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
       }
-      if (entry.status === "conciliado" && !entry.transaction_id && !(entry as any).transfer_pair_id) {
+      if (entry.status === "conciliado" && !entry.transaction_id && !entry.transfer_pair_id) {
         const amt = Math.abs(Number(entry.amount));
         const { data: mp } = await supabase.from("contas_pagar").select("id").eq("company_id", companyId!).eq("status", "pago").eq("valor", amt).limit(1);
-        if (mp?.length) { await supabase.from("contas_pagar").update({ status: "a_vencer" }).eq("id", mp[0].id); queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] }); }
+        if (mp?.length) { await supabase.from("contas_pagar").update({ status: "a_vencer" }).eq("id", mp[0].id); }
       }
       await supabase.from("bank_reconciliation_entries").update({ status: "pendente", transaction_id: null }).eq("id", entry.id);
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      invalidateAll();
       toast({ title: "Desconciliado" });
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
   };
@@ -496,6 +527,147 @@ const ConciliacaoBancariaModule = () => {
   const handleDeleteAccount = async (accountId: string) => { try { await supabase.from("bank_accounts").delete().eq("id", accountId); toast({ title: "Conta excluída!" }); setDeletingAccountId(null); queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); } };
   const openEditAccount = (account: any) => { setEditingAccount(account); setAccountForm({ bank_name: account.bank_name, account_number: account.account_number || "", agency: account.agency || "", current_balance: String(account.current_balance || 0) }); setEditAccountDialogOpen(true); };
   const openAddAccount = () => { setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" }); setAddAccountDialogOpen(true); };
+
+  // ===== Render action panel (reusable for drawer and movimentacao) =====
+  const renderActionPanel = () => {
+    if (!actionEntry || !actionMode) return null;
+    return (
+      <Card className="w-full shrink-0">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">
+              {actionMode === "novo" && "Adicionar como Novo Lançamento"}
+              {actionMode === "transferencia" && "Transferência entre Contas"}
+              {actionMode === "conta_pr" && "Nova Conta a Pagar / Receber"}
+              {actionMode === "associar" && "Associar a Lançamento Existente"}
+            </CardTitle>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={closeAction}><XCircle className="w-4 h-4" /></Button>
+          </div>
+          <div className="rounded-lg bg-muted/50 p-2 mt-2">
+            <p className="text-xs font-medium truncate">{actionEntry.external_description}</p>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-muted-foreground">{new Date(actionEntry.date).toLocaleDateString("pt-BR")}</span>
+              <span className={`text-sm font-bold ${Number(actionEntry.amount) > 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>{formatCurrency(Number(actionEntry.amount))}</span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* a) Novo lançamento */}
+          {actionMode === "novo" && (
+            <>
+              <p className="text-xs text-muted-foreground">Tipo: {Number(actionEntry.amount) > 0 ? "Recebimento (Entrada)" : "Pagamento (Saída)"}</p>
+              <div className="space-y-2">
+                <Label className="text-xs">Categoria *</Label>
+                <Select value={novoForm.category_id} onValueChange={v => setNovoForm({ ...novoForm, category_id: v })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>{novoFilteredCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Favorecido (Cliente/Prestador)</Label>
+                <Input className="h-8 text-xs" placeholder="Nome" value={novoForm.entity_name} onChange={e => setNovoForm({ ...novoForm, entity_name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Observação</Label>
+                <Textarea className="text-xs min-h-[60px]" value={novoForm.observacao} onChange={e => setNovoForm({ ...novoForm, observacao: e.target.value })} />
+              </div>
+              <Button size="sm" className="w-full" onClick={handleNovoLancamento} disabled={!novoForm.category_id}>Salvar e Conciliar</Button>
+            </>
+          )}
+
+          {/* b) Transferência */}
+          {actionMode === "transferencia" && (
+            <>
+              <div className="space-y-2">
+                <Label className="text-xs">Conta de Origem</Label>
+                <Input className="h-8 text-xs" value={accounts.find(a => a.id === transferForm.origin_account_id)?.bank_name || "—"} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Conta de Destino *</Label>
+                <Select value={transferForm.destination_account_id} onValueChange={v => setTransferForm({ ...transferForm, destination_account_id: v })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>{accounts.filter(a => a.id !== transferForm.origin_account_id).map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} — {formatCurrency(Number(a.current_balance))}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Descrição (opcional)</Label>
+                <Input className="h-8 text-xs" value={transferForm.description} onChange={e => setTransferForm({ ...transferForm, description: e.target.value })} />
+              </div>
+              <p className="text-[10px] text-muted-foreground">Não impacta DRE nem gera registro em CP/CR.</p>
+              <Button size="sm" className="w-full" onClick={handleTransfer} disabled={submittingTransfer || !transferForm.destination_account_id}>
+                {submittingTransfer ? "Processando..." : "Confirmar Transferência"}
+              </Button>
+            </>
+          )}
+
+          {/* c) Nova Conta a Pagar / Receber */}
+          {actionMode === "conta_pr" && (
+            <>
+              <div className="space-y-2">
+                <Label className="text-xs">Tipo *</Label>
+                <Select value={contaPrForm.type} onValueChange={v => setContaPrForm({ ...contaPrForm, type: v as any, category_id: "" })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="saida">Conta a Pagar</SelectItem>
+                    <SelectItem value="entrada">Conta a Receber</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Descrição</Label>
+                <Input className="h-8 text-xs" value={contaPrForm.description} onChange={e => setContaPrForm({ ...contaPrForm, description: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Favorecido</Label>
+                <Input className="h-8 text-xs" value={contaPrForm.entity_name} onChange={e => setContaPrForm({ ...contaPrForm, entity_name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Categoria *</Label>
+                <Select value={contaPrForm.category_id} onValueChange={v => setContaPrForm({ ...contaPrForm, category_id: v })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>{filteredCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1"><Label className="text-xs">Data *</Label><Input type="date" className="h-8 text-xs" value={contaPrForm.date} onChange={e => setContaPrForm({ ...contaPrForm, date: e.target.value })} /></div>
+                <div className="space-y-1"><Label className="text-xs">Valor</Label><Input type="number" step="0.01" className="h-8 text-xs" value={contaPrForm.amount} onChange={e => setContaPrForm({ ...contaPrForm, amount: e.target.value })} /></div>
+              </div>
+              <Button size="sm" className="w-full" onClick={handleCreateContaPR} disabled={!contaPrForm.category_id || !contaPrForm.date}>Criar e Conciliar</Button>
+            </>
+          )}
+
+          {/* d) Associar existente */}
+          {actionMode === "associar" && (
+            <>
+              <div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" /><Input className="h-8 text-xs pl-8" placeholder="Buscar título..." value={associateSearch} onChange={e => setAssociateSearch(e.target.value)} /></div>
+              <Tabs value={associateTab} onValueChange={v => setAssociateTab(v as any)}>
+                <TabsList className="w-full h-8">
+                  <TabsTrigger value="pagar" className="flex-1 text-xs">Pagar ({filteredAssociatePagar.length})</TabsTrigger>
+                  <TabsTrigger value="receber" className="flex-1 text-xs">Receber ({filteredAssociateReceber.length})</TabsTrigger>
+                </TabsList>
+                <TabsContent value="pagar" className="max-h-[250px] overflow-y-auto mt-2 space-y-1">
+                  {filteredAssociatePagar.length === 0 ? <p className="text-center text-xs text-muted-foreground py-3">Nenhum título pendente.</p> : filteredAssociatePagar.map(c => (
+                    <div key={c.id} className="flex items-center justify-between p-2 rounded border border-border hover:bg-muted/30 cursor-pointer text-xs" onClick={() => handleAssociate(c.id, "pagar")}>
+                      <div className="min-w-0"><p className="font-medium truncate">{c.fornecedor}</p><p className="text-muted-foreground">{c.descricao} • {new Date(c.vencimento).toLocaleDateString("pt-BR")}</p></div>
+                      <span className="font-medium text-[hsl(var(--status-danger))] shrink-0 ml-2">-{formatCurrency(Number(c.valor))}</span>
+                    </div>
+                  ))}
+                </TabsContent>
+                <TabsContent value="receber" className="max-h-[250px] overflow-y-auto mt-2 space-y-1">
+                  {filteredAssociateReceber.length === 0 ? <p className="text-center text-xs text-muted-foreground py-3">Nenhum título pendente.</p> : filteredAssociateReceber.map(t => (
+                    <div key={t.id} className="flex items-center justify-between p-2 rounded border border-border hover:bg-muted/30 cursor-pointer text-xs" onClick={() => handleAssociate(t.id, "receber")}>
+                      <div className="min-w-0"><p className="font-medium truncate">{t.description}</p><p className="text-muted-foreground">{t.entity_name || '—'} • {new Date(t.date).toLocaleDateString("pt-BR")}</p></div>
+                      <span className="font-medium text-[hsl(var(--status-positive))] shrink-0 ml-2">+{formatCurrency(Number(t.amount))}</span>
+                    </div>
+                  ))}
+                </TabsContent>
+              </Tabs>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   const isLoading = loadingRecon;
 
@@ -532,222 +704,77 @@ const ConciliacaoBancariaModule = () => {
                   </SelectContent>
                 </Select>
                 <div className="relative max-w-xs flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
-              </div>
-
-              <div className="flex gap-4">
-                {/* Main table */}
-                <div className="flex-1 min-w-0">
-                  <Card>
-                    <CardContent className="p-0">
-                      {displayEntries.length === 0 ? (
-                        <div className="p-8 text-center text-muted-foreground text-sm">{entries.length === 0 ? "Nenhum lançamento importado. Importe um extrato para começar." : "Nenhum lançamento encontrado."}</div>
-                      ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-[100px]">Situação</TableHead>
-                              <TableHead className="w-[90px]">Data</TableHead>
-                              <TableHead>Cliente / Prestador</TableHead>
-                              <TableHead>Conta Corrente</TableHead>
-                              <TableHead>Categoria</TableHead>
-                              <TableHead className="text-right">Valor</TableHead>
-                              <TableHead className="text-right">Saldo</TableHead>
-                              <TableHead className="w-[50px]"></TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {displayEntries.map(entry => {
-                              const isCredit = Number(entry.amount) > 0;
-                              const bankName = (entry as any).bank_accounts?.bank_name || "—";
-                              const txCategory = (entry as any).financial_transactions?.expense_categories?.name;
-                              const isPending = entry.status === "pendente" || entry.status === "nao_identificado";
-                              const isConciliado = entry.status === "conciliado";
-                              const isIgnorado = entry.status === "ignorado";
-                              const isSelected = actionEntry?.id === entry.id;
-
-                              return (
-                                <TableRow key={entry.id} className={`${isSelected ? "bg-accent/50" : ""} ${isIgnorado ? "opacity-50" : ""}`}>
-                                  <TableCell>
-                                    {isConciliado ? (
-                                      <Badge className="bg-[hsl(var(--status-positive)/0.1)] text-[hsl(var(--status-positive))] text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Conciliado</Badge>
-                                    ) : isIgnorado ? (
-                                      <Badge variant="secondary" className="text-xs"><EyeOff className="w-3 h-3 mr-1" />Ignorado</Badge>
-                                    ) : (
-                                      <Badge className="bg-[hsl(var(--status-warning)/0.1)] text-[hsl(var(--status-warning))] text-xs"><Clock className="w-3 h-3 mr-1" />Pendente</Badge>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-xs">{new Date(entry.date).toLocaleDateString("pt-BR")}</TableCell>
-                                  <TableCell className="text-sm font-medium truncate max-w-[200px]">{entry.external_description}</TableCell>
-                                  <TableCell className="text-xs text-muted-foreground">{bankName}</TableCell>
-                                  <TableCell className="text-xs text-muted-foreground">{txCategory || "—"}</TableCell>
-                                  <TableCell className={`text-right font-medium ${isCredit ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
-                                    {isCredit ? "+" : ""}{formatCurrency(Number(entry.amount))}
-                                  </TableCell>
-                                  <TableCell className={`text-right font-medium text-xs ${(entry as any).saldo >= 0 ? "text-foreground" : "text-[hsl(var(--status-danger))]"}`}>
-                                    {formatCurrency((entry as any).saldo)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {isPending && (
-                                      <div className="flex items-center gap-0.5">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Novo lançamento" onClick={() => openAction(entry, "novo")}><PlusCircle className="w-3.5 h-3.5" /></Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Transferência" onClick={() => openAction(entry, "transferencia")} disabled={isObjetivo || accounts.length < 2}><Repeat className="w-3.5 h-3.5" /></Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Nova Conta P/R" onClick={() => openAction(entry, "conta_pr")}><Plus className="w-3.5 h-3.5" /></Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Associar existente" onClick={() => openAction(entry, "associar")}><Link2 className="w-3.5 h-3.5" /></Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Ignorar" onClick={() => handleIgnorar(entry.id)}><EyeOff className="w-3.5 h-3.5" /></Button>
-                                      </div>
-                                    )}
-                                    {(isConciliado || isIgnorado) && (
-                                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Desfazer" onClick={() => handleDesfazer(entry)}><Undo2 className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Lateral action panel */}
-                {actionEntry && actionMode && (
-                  <Card className="w-[380px] shrink-0 self-start sticky top-4">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm">
-                          {actionMode === "novo" && "Adicionar como Novo Lançamento"}
-                          {actionMode === "transferencia" && "Transferência entre Contas"}
-                          {actionMode === "conta_pr" && "Nova Conta a Pagar / Receber"}
-                          {actionMode === "associar" && "Associar a Lançamento Existente"}
-                        </CardTitle>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={closeAction}><XCircle className="w-4 h-4" /></Button>
-                      </div>
-                      <div className="rounded-lg bg-muted/50 p-2 mt-2">
-                        <p className="text-xs font-medium truncate">{actionEntry.external_description}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-xs text-muted-foreground">{new Date(actionEntry.date).toLocaleDateString("pt-BR")}</span>
-                          <span className={`text-sm font-bold ${Number(actionEntry.amount) > 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>{formatCurrency(Number(actionEntry.amount))}</span>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {/* a) Novo lançamento */}
-                      {actionMode === "novo" && (
-                        <>
-                          <p className="text-xs text-muted-foreground">Tipo: {Number(actionEntry.amount) > 0 ? "Recebimento (Entrada)" : "Pagamento (Saída)"}</p>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Categoria *</Label>
-                            <Select value={novoForm.category_id} onValueChange={v => setNovoForm({ ...novoForm, category_id: v })}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                              <SelectContent>{novoFilteredCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Favorecido (Cliente/Prestador)</Label>
-                            <Input className="h-8 text-xs" placeholder="Nome" value={novoForm.entity_name} onChange={e => setNovoForm({ ...novoForm, entity_name: e.target.value })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Observação</Label>
-                            <Textarea className="text-xs min-h-[60px]" value={novoForm.observacao} onChange={e => setNovoForm({ ...novoForm, observacao: e.target.value })} />
-                          </div>
-                          <Button size="sm" className="w-full" onClick={handleNovoLancamento} disabled={!novoForm.category_id}>Salvar e Conciliar</Button>
-                        </>
-                      )}
-
-                      {/* b) Transferência */}
-                      {actionMode === "transferencia" && (
-                        <>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Conta de Origem</Label>
-                            <Input className="h-8 text-xs" value={accounts.find(a => a.id === transferForm.origin_account_id)?.bank_name || "—"} disabled />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Conta de Destino *</Label>
-                            <Select value={transferForm.destination_account_id} onValueChange={v => setTransferForm({ ...transferForm, destination_account_id: v })}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                              <SelectContent>{accounts.filter(a => a.id !== transferForm.origin_account_id).map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} — {formatCurrency(Number(a.current_balance))}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Descrição (opcional)</Label>
-                            <Input className="h-8 text-xs" value={transferForm.description} onChange={e => setTransferForm({ ...transferForm, description: e.target.value })} />
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">Não impacta DRE nem gera registro em CP/CR.</p>
-                          <Button size="sm" className="w-full" onClick={handleTransfer} disabled={submittingTransfer || !transferForm.destination_account_id}>
-                            {submittingTransfer ? "Processando..." : "Confirmar Transferência"}
-                          </Button>
-                        </>
-                      )}
-
-                      {/* c) Nova Conta a Pagar / Receber */}
-                      {actionMode === "conta_pr" && (
-                        <>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Tipo *</Label>
-                            <Select value={contaPrForm.type} onValueChange={v => setContaPrForm({ ...contaPrForm, type: v as any, category_id: "" })}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="saida">Conta a Pagar</SelectItem>
-                                <SelectItem value="entrada">Conta a Receber</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Descrição</Label>
-                            <Input className="h-8 text-xs" value={contaPrForm.description} onChange={e => setContaPrForm({ ...contaPrForm, description: e.target.value })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Favorecido</Label>
-                            <Input className="h-8 text-xs" value={contaPrForm.entity_name} onChange={e => setContaPrForm({ ...contaPrForm, entity_name: e.target.value })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Categoria *</Label>
-                            <Select value={contaPrForm.category_id} onValueChange={v => setContaPrForm({ ...contaPrForm, category_id: v })}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                              <SelectContent>{filteredCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1"><Label className="text-xs">Data *</Label><Input type="date" className="h-8 text-xs" value={contaPrForm.date} onChange={e => setContaPrForm({ ...contaPrForm, date: e.target.value })} /></div>
-                            <div className="space-y-1"><Label className="text-xs">Valor</Label><Input type="number" step="0.01" className="h-8 text-xs" value={contaPrForm.amount} onChange={e => setContaPrForm({ ...contaPrForm, amount: e.target.value })} /></div>
-                          </div>
-                          <Button size="sm" className="w-full" onClick={handleCreateContaPR} disabled={!contaPrForm.category_id || !contaPrForm.date}>Criar e Conciliar</Button>
-                        </>
-                      )}
-
-                      {/* d) Associar existente */}
-                      {actionMode === "associar" && (
-                        <>
-                          <div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" /><Input className="h-8 text-xs pl-8" placeholder="Buscar título..." value={associateSearch} onChange={e => setAssociateSearch(e.target.value)} /></div>
-                          <Tabs value={associateTab} onValueChange={v => setAssociateTab(v as any)}>
-                            <TabsList className="w-full h-8">
-                              <TabsTrigger value="pagar" className="flex-1 text-xs">Pagar ({filteredAssociatePagar.length})</TabsTrigger>
-                              <TabsTrigger value="receber" className="flex-1 text-xs">Receber ({filteredAssociateReceber.length})</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="pagar" className="max-h-[250px] overflow-y-auto mt-2 space-y-1">
-                              {filteredAssociatePagar.length === 0 ? <p className="text-center text-xs text-muted-foreground py-3">Nenhum título pendente.</p> : filteredAssociatePagar.map(c => (
-                                <div key={c.id} className="flex items-center justify-between p-2 rounded border border-border hover:bg-muted/30 cursor-pointer text-xs" onClick={() => handleAssociate(c.id, "pagar")}>
-                                  <div className="min-w-0"><p className="font-medium truncate">{c.fornecedor}</p><p className="text-muted-foreground">{c.descricao} • {new Date(c.vencimento).toLocaleDateString("pt-BR")}</p></div>
-                                  <span className="font-medium text-[hsl(var(--status-danger))] shrink-0 ml-2">-{formatCurrency(Number(c.valor))}</span>
-                                </div>
-                              ))}
-                            </TabsContent>
-                            <TabsContent value="receber" className="max-h-[250px] overflow-y-auto mt-2 space-y-1">
-                              {filteredAssociateReceber.length === 0 ? <p className="text-center text-xs text-muted-foreground py-3">Nenhum título pendente.</p> : filteredAssociateReceber.map(t => (
-                                <div key={t.id} className="flex items-center justify-between p-2 rounded border border-border hover:bg-muted/30 cursor-pointer text-xs" onClick={() => handleAssociate(t.id, "receber")}>
-                                  <div className="min-w-0"><p className="font-medium truncate">{t.description}</p><p className="text-muted-foreground">{t.entity_name || '—'} • {new Date(t.date).toLocaleDateString("pt-BR")}</p></div>
-                                  <span className="font-medium text-[hsl(var(--status-positive))] shrink-0 ml-2">+{formatCurrency(Number(t.amount))}</span>
-                                </div>
-                              ))}
-                            </TabsContent>
-                          </Tabs>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
+                {totalPendente > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => { 
+                    const firstPendingAccount = entries.find(e => e.status === "pendente")?.bank_account_id;
+                    if (firstPendingAccount) { setReconcDrawerAccountId(firstPendingAccount); setReconcDrawerOpen(true); }
+                  }}>
+                    <ListChecks className="w-4 h-4 mr-1" />Conciliar Pendentes ({totalPendente})
+                  </Button>
                 )}
               </div>
+
+              <Card>
+                <CardContent className="p-0">
+                  {displayEntries.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground text-sm">{entries.length === 0 ? "Nenhum lançamento importado. Importe um extrato para começar." : "Nenhum lançamento encontrado."}</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[100px]">Situação</TableHead>
+                          <TableHead className="w-[90px]">Data</TableHead>
+                          <TableHead>Cliente / Prestador</TableHead>
+                          <TableHead>Conta Corrente</TableHead>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
+                          <TableHead className="text-right">Saldo</TableHead>
+                          <TableHead className="w-[50px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {displayEntries.map(entry => {
+                          const isCredit = Number(entry.amount) > 0;
+                          const bankName = (entry as any).bank_accounts?.bank_name || "—";
+                          const txCategory = (entry as any).financial_transactions?.expense_categories?.name;
+                          const isPending = entry.status === "pendente" || entry.status === "nao_identificado";
+                          const isConciliado = entry.status === "conciliado";
+                          const isIgnorado = entry.status === "ignorado";
+
+                          return (
+                            <TableRow key={entry.id} className={`${isPending ? "bg-[hsl(var(--status-warning)/0.05)] border-l-2 border-l-[hsl(var(--status-warning))]" : ""} ${isIgnorado ? "opacity-50" : ""}`}>
+                              <TableCell>
+                                {isConciliado ? (
+                                  <Badge className="bg-[hsl(var(--status-positive)/0.1)] text-[hsl(var(--status-positive))] text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Conciliado</Badge>
+                                ) : isIgnorado ? (
+                                  <Badge variant="secondary" className="text-xs"><EyeOff className="w-3 h-3 mr-1" />Ignorado</Badge>
+                                ) : (
+                                  <Badge className="bg-[hsl(var(--status-warning)/0.1)] text-[hsl(var(--status-warning))] text-xs"><AlertTriangle className="w-3 h-3 mr-1" />Não conciliado</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-xs">{new Date(entry.date).toLocaleDateString("pt-BR")}</TableCell>
+                              <TableCell className="text-sm font-medium truncate max-w-[200px]">{entry.external_description}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{bankName}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{txCategory || "—"}</TableCell>
+                              <TableCell className={`text-right font-medium ${isCredit ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                                {isCredit ? "+" : ""}{formatCurrency(Number(entry.amount))}
+                              </TableCell>
+                              <TableCell className={`text-right font-medium text-xs ${(entry as any).saldo >= 0 ? "text-foreground" : "text-[hsl(var(--status-danger))]"}`}>
+                                {formatCurrency((entry as any).saldo)}
+                              </TableCell>
+                              <TableCell>
+                                {(isConciliado || isIgnorado) && (
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Desfazer" onClick={() => handleDesfazer(entry)}><Undo2 className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* ===== IMPORTAR TAB ===== */}
@@ -767,7 +794,7 @@ const ConciliacaoBancariaModule = () => {
                           <p className="text-sm font-medium mt-3">Arraste ou clique para selecionar</p>
                           <p className="text-xs text-muted-foreground mt-1">Formatos: .ofx, .cnab, .csv, .ret, .txt, .xlsx</p>
                         </div>
-                        {parsedFileName && <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1"><FileText className="w-3 h-3" />Última: <strong>{parsedFileName}</strong> — {parsedEntries.length} lançamentos</p>}
+                        {parsedFileName && <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1"><FileText className="w-3 h-3" />Última: <strong>{parsedFileName}</strong> — {parsedCount} lançamentos</p>}
                       </>
                     )}
                   </CardContent>
@@ -826,6 +853,66 @@ const ConciliacaoBancariaModule = () => {
 
       {/* Hidden file input via portal */}
       {createPortal(<input ref={inputFileRef} type="file" accept=".ofx,.csv,.ret,.txt,.xlsx,.cnab" style={{ display: 'none' }} onChange={handleInputChange} />, document.body)}
+
+      {/* ===== RECONCILIATION DRAWER (workspace after import) ===== */}
+      <Sheet open={reconcDrawerOpen} onOpenChange={(open) => { setReconcDrawerOpen(open); if (!open) closeAction(); }}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <ListChecks className="w-5 h-5" />
+              Conciliação de Lançamentos
+            </SheetTitle>
+            <p className="text-sm text-muted-foreground">
+              Conta: <strong>{accounts.find(a => a.id === reconcDrawerAccountId)?.bank_name || "—"}</strong>
+              {" • "}{drawerPendingEntries.length} pendente(s)
+            </p>
+          </SheetHeader>
+
+          <div className="mt-4 space-y-3">
+            {drawerPendingEntries.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-[hsl(var(--status-positive))]" />
+                <p className="font-medium">Todos os lançamentos foram conciliados!</p>
+                <p className="text-xs mt-1">Veja o resultado na aba Movimentação.</p>
+              </div>
+            ) : (
+              drawerPendingEntries.map(entry => {
+                const isCredit = Number(entry.amount) > 0;
+                const isSelected = actionEntry?.id === entry.id;
+                return (
+                  <div key={entry.id}>
+                    <div className={`rounded-lg border p-3 ${isSelected ? "border-primary bg-accent/30" : "border-border"}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Badge className="bg-[hsl(var(--status-warning)/0.1)] text-[hsl(var(--status-warning))] text-[10px] shrink-0"><Clock className="w-3 h-3 mr-0.5" />Pendente</Badge>
+                          <span className="text-xs text-muted-foreground">{new Date(entry.date).toLocaleDateString("pt-BR")}</span>
+                        </div>
+                        <span className={`text-sm font-bold shrink-0 ${isCredit ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                          {isCredit ? "+" : ""}{formatCurrency(Number(entry.amount))}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium truncate mb-2">{entry.external_description}</p>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Button variant={isSelected && actionMode === "novo" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "novo")}><PlusCircle className="w-3 h-3 mr-1" />Novo</Button>
+                        <Button variant={isSelected && actionMode === "transferencia" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "transferencia")} disabled={isObjetivo || accounts.length < 2}><Repeat className="w-3 h-3 mr-1" />Transferir</Button>
+                        <Button variant={isSelected && actionMode === "conta_pr" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "conta_pr")}><Plus className="w-3 h-3 mr-1" />CP/CR</Button>
+                        <Button variant={isSelected && actionMode === "associar" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "associar")}><Link2 className="w-3 h-3 mr-1" />Associar</Button>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => handleIgnorar(entry.id)}><EyeOff className="w-3 h-3 mr-1" />Ignorar</Button>
+                      </div>
+                    </div>
+                    {/* Show action panel inline below the selected entry */}
+                    {isSelected && actionMode && (
+                      <div className="mt-2 ml-4">
+                        {renderActionPanel()}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* ===== DIALOGS ===== */}
 
@@ -892,11 +979,11 @@ const ConciliacaoBancariaModule = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Select account for import */}
+      {/* Select account for import — ALWAYS shown */}
       <Dialog open={selectAccountDialogOpen} onOpenChange={setSelectAccountDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Selecionar Conta Bancária</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Selecione a conta corrente para importar o extrato:</p>
+          <DialogHeader><DialogTitle>Qual conta corrente deseja conciliar?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Selecione a conta corrente referente ao extrato que será importado:</p>
           <div className="space-y-2">
             <Label>Conta</Label>
             <Select value={selectedImportAccountId} onValueChange={setSelectedImportAccountId}>
