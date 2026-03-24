@@ -41,7 +41,7 @@ const isVencido = (date: string, status: string) => {
   return status === "pendente" && new Date(date) < new Date(new Date().toISOString().slice(0, 10));
 };
 
-const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX" };
+const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", category_id: "" };
 
 const useContasPagarLancamentos = (companyId?: string) => {
   const { user } = useAuth();
