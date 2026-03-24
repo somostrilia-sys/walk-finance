@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { useCompanies, useFinancialTransactions, usePessoas, useColaboradores } from "@/hooks/useFinancialData";
+import { useCompanies, useFinancialTransactions, usePessoas, useColaboradores, useExpenseCategories } from "@/hooks/useFinancialData";
 import { calcularCompetenciaComissao, gerarParcelas, labelParcela } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
