@@ -603,11 +603,6 @@ const ConciliacaoBancariaModule = () => {
           <ModuleStatCard label="Saldo Bancário" value={formatCurrency(saldoTotal)} icon={<Landmark className="w-4 h-4" />} />
         </div>
 
-        <div className="flex justify-end mb-4">
-          <Button variant="outline" size="sm" onClick={openTransferDialog} disabled={isObjetivo || accounts.length < 2}>
-            <Repeat className="w-4 h-4 mr-1" />Transferência entre Contas
-          </Button>
-        </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
@@ -702,6 +697,9 @@ const ConciliacaoBancariaModule = () => {
                                   </Button>
                                   <Button size="sm" variant="outline" onClick={() => openCreateTitleDialog(entry)} title="Criar novo título">
                                     <Plus className="w-4 h-4 mr-1" />Novo Título
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={openTransferDialog} disabled={isObjetivo || accounts.length < 2} title="Transferência entre contas">
+                                    <Repeat className="w-4 h-4 mr-1" />Transferir
                                   </Button>
                                   <Button size="sm" variant="ghost" onClick={() => handleIgnorar(entry.id)} title="Ignorar lançamento">
                                     <EyeOff className="w-4 h-4" />
