@@ -603,11 +603,6 @@ const ConciliacaoBancariaModule = () => {
           <ModuleStatCard label="Saldo Bancário" value={formatCurrency(saldoTotal)} icon={<Landmark className="w-4 h-4" />} />
         </div>
 
-        <div className="flex justify-end mb-4">
-          <Button variant="outline" size="sm" onClick={openTransferDialog} disabled={isObjetivo || accounts.length < 2}>
-            <Repeat className="w-4 h-4 mr-1" />Transferência entre Contas
-          </Button>
-        </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
