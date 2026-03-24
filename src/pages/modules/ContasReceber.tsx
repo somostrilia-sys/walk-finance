@@ -482,6 +482,17 @@ const ContasReceber = () => {
                   )}
                 </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
+                <div>
+                  <label className="text-sm font-medium">Categoria</label>
+                  <Select value={form.category_id} onValueChange={v => setForm(f => ({ ...f, category_id: v }))}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
+                    <SelectContent>
+                      {categorias?.filter((c: any) => c.type === "receita" || c.type === "ambos").map((cat: any) => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.icon} {cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Valor da Parcela *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
                   <div><label className="text-sm font-medium">Vencimento 1ª Parcela *</label><Input className="mt-1" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
