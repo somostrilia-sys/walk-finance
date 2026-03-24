@@ -201,3 +201,20 @@ export const useColaboradores = (companyId: string | undefined) => {
     },
   });
 };
+
+export const useContasPagar = (companyId: string | undefined) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["contas_pagar", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contas_pagar")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("vencimento", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};

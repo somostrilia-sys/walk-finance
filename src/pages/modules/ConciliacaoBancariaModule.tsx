@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 import { useParams } from "react-router-dom";
-import { useCompanies, useBankAccounts, useBankReconciliation, useFinancialTransactions } from "@/hooks/useFinancialData";
+import { useCompanies, useBankAccounts, useBankReconciliation, useFinancialTransactions, useExpenseCategories, useContasPagar } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,27 +19,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText, Plus, Pencil, Trash2 } from "lucide-react";
+import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText, Plus, Pencil, Trash2, ArrowRightLeft, Eye, EyeOff } from "lucide-react";
 
-// ---------- CSV / OFX parser helpers ----------
+// ---------- CSV / OFX / CNAB / XLSX parser helpers ----------
 
-interface ParsedEntry {
-  date: string;
-  description: string;
-  amount: number;
-}
+interface ParsedEntry { date: string; description: string; amount: number; }
 
 function parseCSV(text: string): ParsedEntry[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
   const header = lines[0].toLowerCase();
-  // Try to detect columns
   const cols = header.split(/[;,\t]/);
   const dateIdx = cols.findIndex(c => /data|date/.test(c));
   const descIdx = cols.findIndex(c => /descri|hist|memo|description/.test(c));
   const valIdx = cols.findIndex(c => /valor|amount|value|quantia/.test(c));
   const sep = header.includes(';') ? ';' : header.includes('\t') ? '\t' : ',';
-
   const entries: ParsedEntry[] = [];
   for (let i = 1; i < lines.length; i++) {
     const parts = lines[i].split(sep);
@@ -49,7 +43,6 @@ function parseCSV(text: string): ParsedEntry[] {
     const rawVal = parts[valIdx >= 0 ? valIdx : 2]?.trim().replace(/"/g, '').replace(/\./g, '').replace(',', '.');
     const amount = parseFloat(rawVal);
     if (!desc || isNaN(amount)) continue;
-    // Parse date: try DD/MM/YYYY or YYYY-MM-DD
     let isoDate = rawDate;
     const brMatch = rawDate.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
     if (brMatch) isoDate = `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
@@ -62,10 +55,7 @@ function parseOFX(text: string): ParsedEntry[] {
   const entries: ParsedEntry[] = [];
   const txBlocks = text.split(/<STMTTRN>/i).slice(1);
   for (const block of txBlocks) {
-    const getTag = (tag: string) => {
-      const m = block.match(new RegExp(`<${tag}>([^<\\n]+)`, 'i'));
-      return m ? m[1].trim() : '';
-    };
+    const getTag = (tag: string) => { const m = block.match(new RegExp(`<${tag}>([^<\\n]+)`, 'i')); return m ? m[1].trim() : ''; };
     const rawDate = getTag('DTPOSTED');
     const amount = parseFloat(getTag('TRNAMT').replace(',', '.'));
     const desc = getTag('MEMO') || getTag('NAME') || 'Sem descrição';
@@ -81,39 +71,19 @@ function parseCNAB(text: string): ParsedEntry[] {
   const entries: ParsedEntry[] = [];
   for (const line of lines) {
     if (line.length < 100) continue;
-    // CNAB 240: detail segments (type 3, segment J/A/etc)
-    // CNAB 400: detail records (type 1 or 7)
-    const regType240 = line.charAt(7); // record type for CNAB 240
-    const regType400 = line.charAt(0); // record type for CNAB 400
-
-    let rawDate = '';
-    let desc = '';
-    let rawVal = '';
-
+    const regType240 = line.charAt(7);
+    const regType400 = line.charAt(0);
+    let rawDate = '', desc = '', rawVal = '';
     if (line.length >= 240 && regType240 === '3') {
-      // CNAB 240 segment
-      rawDate = line.substring(139, 147); // DDMMYYYY
-      rawVal = line.substring(119, 134);
+      rawDate = line.substring(139, 147); rawVal = line.substring(119, 134);
       desc = line.substring(147, 187).trim() || 'Lançamento CNAB';
     } else if (line.length >= 150 && (regType400 === '1' || regType400 === '7')) {
-      // CNAB 400
-      rawDate = line.substring(110, 116); // DDMMAA
-      rawVal = line.substring(152, 165);
+      rawDate = line.substring(110, 116); rawVal = line.substring(152, 165);
       desc = line.substring(46, 76).trim() || 'Lançamento CNAB';
-    } else {
-      continue;
-    }
-
-    // Parse date
+    } else continue;
     let isoDate = '';
-    if (rawDate.length === 8) {
-      isoDate = `${rawDate.slice(4, 8)}-${rawDate.slice(2, 4)}-${rawDate.slice(0, 2)}`;
-    } else if (rawDate.length === 6) {
-      const yy = parseInt(rawDate.slice(4, 6));
-      const year = yy > 50 ? 1900 + yy : 2000 + yy;
-      isoDate = `${year}-${rawDate.slice(2, 4)}-${rawDate.slice(0, 2)}`;
-    }
-
+    if (rawDate.length === 8) isoDate = `${rawDate.slice(4, 8)}-${rawDate.slice(2, 4)}-${rawDate.slice(0, 2)}`;
+    else if (rawDate.length === 6) { const yy = parseInt(rawDate.slice(4, 6)); const year = yy > 50 ? 1900 + yy : 2000 + yy; isoDate = `${year}-${rawDate.slice(2, 4)}-${rawDate.slice(0, 2)}`; }
     const amount = parseFloat(rawVal) / 100;
     if (isNaN(amount) || !isoDate) continue;
     entries.push({ date: isoDate, description: desc, amount });
@@ -126,12 +96,10 @@ function parseXLSX(buffer: ArrayBuffer): ParsedEntry[] {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
   if (rows.length < 2) return [];
-
   const header = rows[0].map((c: any) => String(c ?? '').toLowerCase());
   const dateIdx = header.findIndex(c => /data|date/.test(c));
   const descIdx = header.findIndex(c => /descri|hist|memo|description/.test(c));
   const valIdx = header.findIndex(c => /valor|amount|value|quantia/.test(c));
-
   const entries: ParsedEntry[] = [];
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
@@ -141,28 +109,21 @@ function parseXLSX(buffer: ArrayBuffer): ParsedEntry[] {
     const rawVal = String(row[valIdx >= 0 ? valIdx : 2] ?? '').replace(/\./g, '').replace(',', '.');
     const amount = parseFloat(rawVal);
     if (!desc || isNaN(amount)) continue;
-
     let isoDate = rawDate;
-    // Handle Excel serial number dates
     const serial = Number(rawDate);
     if (!isNaN(serial) && serial > 30000 && serial < 70000) {
-      const d = new Date((serial - 25569) * 86400 * 1000);
-      isoDate = d.toISOString().slice(0, 10);
-    } else {
-      const brMatch = rawDate.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
-      if (brMatch) isoDate = `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
-    }
+      const d = new Date((serial - 25569) * 86400 * 1000); isoDate = d.toISOString().slice(0, 10);
+    } else { const brMatch = rawDate.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/); if (brMatch) isoDate = `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`; }
     entries.push({ date: isoDate, description: desc, amount });
   }
   return entries;
 }
 
-type ConciliacaoStatus = "conciliado" | "pendente" | "nao_identificado";
-
 const statusBadge: Record<string, { label: string; cls: string }> = {
   conciliado: { label: "Conciliado", cls: "bg-[hsl(var(--status-positive)/0.1)] text-[hsl(var(--status-positive))]" },
   pendente: { label: "Pendente", cls: "bg-[hsl(var(--status-warning)/0.1)] text-[hsl(var(--status-warning))]" },
   nao_identificado: { label: "Não Identificado", cls: "bg-[hsl(var(--status-danger)/0.1)] text-[hsl(var(--status-danger))]" },
+  ignorado: { label: "Ignorado", cls: "bg-muted text-muted-foreground" },
 };
 
 const ConciliacaoBancariaModule = () => {
@@ -173,10 +134,16 @@ const ConciliacaoBancariaModule = () => {
   const { data: reconciliation, isLoading: loadingRecon } = useBankReconciliation(companyId);
   const { data: bankAccounts } = useBankAccounts(companyId);
   const { data: transactions } = useFinancialTransactions(companyId);
+  const { data: categories } = useExpenseCategories(companyId);
+  const { data: contasPagar } = useContasPagar(companyId);
   const queryClient = useQueryClient();
+
+  // Filters
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroConta, setFiltroConta] = useState("todos");
   const [search, setSearch] = useState("");
+
+  // Import state
   const [dragging, setDragging] = useState(false);
   const [activeTab, setActiveTab] = useState("conciliacao");
   const [importing, setImporting] = useState(false);
@@ -187,7 +154,7 @@ const ConciliacaoBancariaModule = () => {
   const [pendingFileAfterBank, setPendingFileAfterBank] = useState<FileList | null>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
 
-  // Bank account management states
+  // Bank account management
   const [editAccountDialogOpen, setEditAccountDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<any>(null);
   const [accountForm, setAccountForm] = useState({ bank_name: "", account_number: "", agency: "", current_balance: "" });
@@ -195,13 +162,28 @@ const ConciliacaoBancariaModule = () => {
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
   const [submittingAccount, setSubmittingAccount] = useState(false);
 
+  // Association dialog
+  const [associateDialogOpen, setAssociateDialogOpen] = useState(false);
+  const [associatingEntry, setAssociatingEntry] = useState<any>(null);
+  const [associateSearch, setAssociateSearch] = useState("");
+  const [associateTab, setAssociateTab] = useState<"pagar" | "receber">("pagar");
+
+  // Create new title dialog
+  const [createTitleDialogOpen, setCreateTitleDialogOpen] = useState(false);
+  const [creatingForEntry, setCreatingForEntry] = useState<any>(null);
+  const [newTitleForm, setNewTitleForm] = useState({
+    type: "saida" as "saida" | "entrada",
+    description: "",
+    entity_name: "",
+    category_id: "",
+    date: "",
+    amount: "",
+  });
+
+  // ===== File handling =====
   const handleClickUpload = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (inputFileRef.current) {
-      inputFileRef.current.value = '';
-      inputFileRef.current.click();
-    }
+    e.preventDefault(); e.stopPropagation();
+    if (inputFileRef.current) { inputFileRef.current.value = ''; inputFileRef.current.click(); }
   };
 
   const processFile = useCallback(async (file: File, accountId: string) => {
@@ -209,118 +191,52 @@ const ConciliacaoBancariaModule = () => {
     try {
       const ext = file.name.split('.').pop()?.toLowerCase();
       let entries: ParsedEntry[] = [];
-
-      if (ext === 'xlsx') {
-        const buffer = await file.arrayBuffer();
-        entries = parseXLSX(buffer);
-      } else {
+      if (ext === 'xlsx') { entries = parseXLSX(await file.arrayBuffer()); }
+      else {
         const text = await file.text();
-        if (ext === 'ofx') {
-          entries = parseOFX(text);
-        } else if (ext === 'ret' || ext === 'cnab') {
-          entries = parseCNAB(text);
-        } else if (ext === 'txt') {
-          // Try CNAB first, fallback to CSV
-          const cnabEntries = parseCNAB(text);
-          entries = cnabEntries.length > 0 ? cnabEntries : parseCSV(text);
-        } else {
-          entries = parseCSV(text);
-        }
+        if (ext === 'ofx') entries = parseOFX(text);
+        else if (ext === 'ret' || ext === 'cnab') entries = parseCNAB(text);
+        else if (ext === 'txt') { const c = parseCNAB(text); entries = c.length > 0 ? c : parseCSV(text); }
+        else entries = parseCSV(text);
       }
-
-      if (entries.length === 0) {
-        toast({ title: "Nenhum lançamento encontrado", description: "Verifique o formato do arquivo. Para CSV, as colunas devem conter Data, Descrição e Valor.", variant: "destructive" });
-        setImporting(false);
-        return;
-      }
-
-      // Insert entries into bank_reconciliation_entries
-      const rows = entries.map(e => ({
-        company_id: companyId!,
-        bank_account_id: accountId,
-        date: e.date,
-        external_description: e.description,
-        amount: e.amount,
-        status: "pendente" as const,
-      }));
-
+      if (entries.length === 0) { toast({ title: "Nenhum lançamento encontrado", description: "Verifique o formato do arquivo.", variant: "destructive" }); setImporting(false); return; }
+      const rows = entries.map(e => ({ company_id: companyId!, bank_account_id: accountId, date: e.date, external_description: e.description, amount: e.amount, status: "pendente" as const }));
       const { error } = await supabase.from("bank_reconciliation_entries").insert(rows);
-      if (error) {
-        toast({ title: "Erro ao importar", description: error.message, variant: "destructive" });
-        setImporting(false);
-        return;
-      }
-
+      if (error) { toast({ title: "Erro ao importar", description: error.message, variant: "destructive" }); setImporting(false); return; }
       queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-      setParsedEntries(entries);
-      setParsedFileName(file.name);
+      setParsedEntries(entries); setParsedFileName(file.name);
       toast({ title: "Importação concluída", description: `${entries.length} lançamentos importados de ${file.name}.` });
-      // Switch to conciliação tab
       setActiveTab("conciliacao");
-    } catch (err: any) {
-      toast({ title: "Erro ao processar arquivo", description: err?.message || "Verifique o formato.", variant: "destructive" });
-    }
+    } catch (err: any) { toast({ title: "Erro ao processar arquivo", description: err?.message || "Verifique o formato.", variant: "destructive" }); }
     setImporting(false);
   }, [companyId, queryClient]);
 
   const handleFiles = useCallback(async (files: FileList) => {
     const file = files[0];
     const ext = file.name.split('.').pop()?.toLowerCase();
-    if (!['ofx', 'csv', 'ret', 'txt', 'xlsx', 'cnab'].includes(ext || '')) {
-      return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx, .cnab", variant: "destructive" });
-    }
-
-    const accounts = bankAccounts || [];
-    if (accounts.length === 0) {
-      // Need to create a bank account first
-      setPendingFileAfterBank(files);
-      setBankDialogOpen(true);
-      return;
-    }
-
-    // Use first account (or could prompt user to select)
-    await processFile(file, accounts[0].id);
+    if (!['ofx', 'csv', 'ret', 'txt', 'xlsx', 'cnab'].includes(ext || '')) { return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx, .cnab", variant: "destructive" }); }
+    const accs = bankAccounts || [];
+    if (accs.length === 0) { setPendingFileAfterBank(files); setBankDialogOpen(true); return; }
+    await processFile(file, accs[0].id);
   }, [bankAccounts, processFile]);
 
   const handleCreateBankAndImport = async () => {
     if (!newBankName.trim() || !companyId) return;
-    const { data, error } = await supabase.from("bank_accounts").insert({
-      company_id: companyId,
-      bank_name: newBankName.trim(),
-      current_balance: 0,
-    }).select().single();
-
-    if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-      return;
-    }
-
+    const { data, error } = await supabase.from("bank_accounts").insert({ company_id: companyId, bank_name: newBankName.trim(), current_balance: 0 }).select().single();
+    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
-    setBankDialogOpen(false);
-    setNewBankName("");
+    setBankDialogOpen(false); setNewBankName("");
     toast({ title: "Conta criada", description: `Conta "${data.bank_name}" criada com sucesso.` });
-
-    if (pendingFileAfterBank && pendingFileAfterBank[0]) {
-      await processFile(pendingFileAfterBank[0], data.id);
-      setPendingFileAfterBank(null);
-    }
+    if (pendingFileAfterBank?.[0]) { await processFile(pendingFileAfterBank[0], data.id); setPendingFileAfterBank(null); }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) handleFiles(e.target.files);
-  };
-
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.length) handleFiles(e.target.files); };
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(true); };
   const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(true); };
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
-  };
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation(); setDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
-  };
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); };
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(false); if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files); };
 
+  // ===== Data =====
   const entries = reconciliation || [];
   const accounts = bankAccounts || [];
 
@@ -334,33 +250,139 @@ const ConciliacaoBancariaModule = () => {
   const totalConciliado = entries.filter(l => l.status === "conciliado").length;
   const totalPendente = entries.filter(l => l.status === "pendente").length;
   const totalNaoId = entries.filter(l => l.status === "nao_identificado").length;
+  const totalIgnorado = entries.filter(l => l.status === "ignorado").length;
   const saldoTotal = accounts.reduce((s, a) => s + Number(a.current_balance), 0);
 
-  const handleConciliar = async (id: string) => {
-    const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", id);
-    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-    toast({ title: "Lançamento conciliado" });
+  // ===== Conciliação actions =====
+
+  // Pending contas a pagar (status pendente / a_vencer)
+  const pendingContasPagar = useMemo(() => (contasPagar || []).filter(c => c.status === "a_vencer" || c.status === "pendente"), [contasPagar]);
+
+  // Pending contas a receber (financial_transactions type=entrada, status pendente)
+  const pendingContasReceber = useMemo(() => (transactions || []).filter(t => t.type === "entrada" && t.status === "pendente"), [transactions]);
+
+  // Open associate dialog
+  const openAssociateDialog = (entry: any) => {
+    setAssociatingEntry(entry);
+    setAssociateSearch("");
+    setAssociateTab(Number(entry.amount) < 0 ? "pagar" : "receber");
+    setAssociateDialogOpen(true);
   };
 
+  // Associate entry with existing title and auto-baixa
+  const handleAssociate = async (titleId: string, source: "pagar" | "receber") => {
+    if (!associatingEntry) return;
+    try {
+      // Update reconciliation entry
+      const { error: reconError } = await supabase.from("bank_reconciliation_entries").update({
+        status: "conciliado",
+        transaction_id: source === "receber" ? titleId : null,
+      }).eq("id", associatingEntry.id);
+      if (reconError) throw reconError;
+
+      // Auto-baixa: update the linked title status
+      if (source === "pagar") {
+        await supabase.from("contas_pagar").update({ status: "pago" }).eq("id", titleId);
+        queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+      } else {
+        await supabase.from("financial_transactions").update({ status: "recebido" }).eq("id", titleId);
+        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      setAssociateDialogOpen(false);
+      setAssociatingEntry(null);
+      toast({ title: "Lançamento conciliado", description: "Título vinculado e baixa efetuada automaticamente." });
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+  };
+
+  // Open create new title dialog
+  const openCreateTitleDialog = (entry: any) => {
+    const isDebit = Number(entry.amount) < 0;
+    setCreatingForEntry(entry);
+    setNewTitleForm({
+      type: isDebit ? "saida" : "entrada",
+      description: entry.external_description || "",
+      entity_name: "",
+      category_id: "",
+      date: entry.date || new Date().toISOString().slice(0, 10),
+      amount: String(Math.abs(Number(entry.amount))),
+    });
+    setCreateTitleDialogOpen(true);
+  };
+
+  // Create new title and auto-conciliate
+  const handleCreateTitle = async () => {
+    if (!creatingForEntry || !companyId || !newTitleForm.category_id || !newTitleForm.date) {
+      toast({ title: "Preencha os campos obrigatórios", description: "Categoria e Data são obrigatórios.", variant: "destructive" });
+      return;
+    }
+    try {
+      if (newTitleForm.type === "saida") {
+        // Create in contas_pagar
+        const { error } = await supabase.from("contas_pagar").insert({
+          company_id: companyId,
+          fornecedor: newTitleForm.entity_name || newTitleForm.description,
+          descricao: newTitleForm.description,
+          categoria: categories?.find(c => c.id === newTitleForm.category_id)?.name || null,
+          valor: parseFloat(newTitleForm.amount) || Math.abs(Number(creatingForEntry.amount)),
+          vencimento: newTitleForm.date,
+          status: "pago",
+        });
+        if (error) throw error;
+        queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+      } else {
+        // Create in financial_transactions
+        const { data: newTx, error } = await supabase.from("financial_transactions").insert({
+          company_id: companyId,
+          description: newTitleForm.description,
+          entity_name: newTitleForm.entity_name || null,
+          category_id: newTitleForm.category_id,
+          amount: parseFloat(newTitleForm.amount) || Math.abs(Number(creatingForEntry.amount)),
+          date: newTitleForm.date,
+          type: "entrada",
+          status: "recebido",
+        }).select().single();
+        if (error) throw error;
+
+        // Link transaction_id
+        if (newTx) {
+          await supabase.from("bank_reconciliation_entries").update({ transaction_id: newTx.id }).eq("id", creatingForEntry.id);
+        }
+        queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      }
+
+      // Mark entry as conciliado
+      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", creatingForEntry.id);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      setCreateTitleDialogOpen(false);
+      setCreatingForEntry(null);
+      toast({ title: "Título criado e conciliado", description: "Novo título registrado com baixa automática." });
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+  };
+
+  // Ignore entry
+  const handleIgnorar = async (id: string) => {
+    const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "ignorado" }).eq("id", id);
+    if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+    queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    toast({ title: "Lançamento ignorado" });
+  };
+
+  // Undo (back to pendente)
   const handleDesfazer = async (id: string) => {
     const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "pendente", transaction_id: null }).eq("id", id);
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
     queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-    toast({ title: "Conciliação desfeita" });
+    toast({ title: "Status revertido para pendente" });
   };
 
+  // ===== Bank account CRUD =====
   const handleAddAccount = async () => {
     if (!accountForm.bank_name.trim() || !companyId) return;
     setSubmittingAccount(true);
     try {
-      const { error } = await supabase.from("bank_accounts").insert({
-        company_id: companyId,
-        bank_name: accountForm.bank_name,
-        account_number: accountForm.account_number || null,
-        agency: accountForm.agency || null,
-        current_balance: parseFloat(accountForm.current_balance) || 0,
-      });
+      const { error } = await supabase.from("bank_accounts").insert({ company_id: companyId, bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 });
       if (error) throw error;
       toast({ title: "Conta bancária adicionada!" });
       setAddAccountDialogOpen(false);
@@ -374,16 +396,10 @@ const ConciliacaoBancariaModule = () => {
     if (!editingAccount || !accountForm.bank_name.trim()) return;
     setSubmittingAccount(true);
     try {
-      const { error } = await supabase.from("bank_accounts").update({
-        bank_name: accountForm.bank_name,
-        account_number: accountForm.account_number || null,
-        agency: accountForm.agency || null,
-        current_balance: parseFloat(accountForm.current_balance) || 0,
-      }).eq("id", editingAccount.id);
+      const { error } = await supabase.from("bank_accounts").update({ bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 }).eq("id", editingAccount.id);
       if (error) throw error;
       toast({ title: "Conta atualizada!" });
-      setEditAccountDialogOpen(false);
-      setEditingAccount(null);
+      setEditAccountDialogOpen(false); setEditingAccount(null);
       queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
     setSubmittingAccount(false);
@@ -393,27 +409,36 @@ const ConciliacaoBancariaModule = () => {
     try {
       const { error } = await supabase.from("bank_accounts").delete().eq("id", accountId);
       if (error) throw error;
-      toast({ title: "Conta excluída!" });
-      setDeletingAccountId(null);
+      toast({ title: "Conta excluída!" }); setDeletingAccountId(null);
       queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
   };
 
   const openEditAccount = (account: any) => {
     setEditingAccount(account);
-    setAccountForm({
-      bank_name: account.bank_name,
-      account_number: account.account_number || "",
-      agency: account.agency || "",
-      current_balance: String(account.current_balance || 0),
-    });
+    setAccountForm({ bank_name: account.bank_name, account_number: account.account_number || "", agency: account.agency || "", current_balance: String(account.current_balance || 0) });
     setEditAccountDialogOpen(true);
   };
 
-  const openAddAccount = () => {
-    setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" });
-    setAddAccountDialogOpen(true);
-  };
+  const openAddAccount = () => { setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" }); setAddAccountDialogOpen(true); };
+
+  // ===== Filtered lists for association =====
+  const filteredAssociatePagar = useMemo(() => {
+    const q = associateSearch.toLowerCase();
+    return pendingContasPagar.filter(c => !q || c.fornecedor.toLowerCase().includes(q) || (c.descricao || '').toLowerCase().includes(q));
+  }, [pendingContasPagar, associateSearch]);
+
+  const filteredAssociateReceber = useMemo(() => {
+    const q = associateSearch.toLowerCase();
+    return pendingContasReceber.filter(t => !q || t.description.toLowerCase().includes(q) || (t.entity_name || '').toLowerCase().includes(q));
+  }, [pendingContasReceber, associateSearch]);
+
+  // Filter categories by type for create dialog
+  const filteredCategories = useMemo(() => {
+    if (!categories) return [];
+    const typeFilter = newTitleForm.type === "entrada" ? "receita" : "despesa";
+    return categories.filter(c => c.type === typeFilter || c.type === "ambos" || c.type === "fluxo");
+  }, [categories, newTitleForm.type]);
 
   const isLoading = loadingRecon;
 
@@ -422,10 +447,11 @@ const ConciliacaoBancariaModule = () => {
       <div className="module-page">
         <PageHeader title="Extrato / Conciliação Bancária" subtitle="Importação, cruzamento e baixa automática" showBack companyLogo={company?.logo_url} />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 module-section">
           <ModuleStatCard label="Conciliados" value={totalConciliado} icon={<CheckCircle2 className="w-4 h-4" />} />
           <ModuleStatCard label="Pendentes" value={totalPendente} icon={<Clock className="w-4 h-4" />} />
           <ModuleStatCard label="Não Identificados" value={totalNaoId} icon={<XCircle className="w-4 h-4" />} />
+          <ModuleStatCard label="Ignorados" value={totalIgnorado} icon={<EyeOff className="w-4 h-4" />} />
           <ModuleStatCard label="Saldo Bancário" value={formatCurrency(saldoTotal)} icon={<Landmark className="w-4 h-4" />} />
         </div>
 
@@ -438,15 +464,21 @@ const ConciliacaoBancariaModule = () => {
               <TabsTrigger value="extrato">Extrato Bancário</TabsTrigger>
               <TabsTrigger value="importar">Importar</TabsTrigger>
               <TabsTrigger value="contas">Contas Bancárias</TabsTrigger>
-              <TabsTrigger value="conexao">Conexão Bancária</TabsTrigger>
             </TabsList>
 
+            {/* ===== CONCILIAÇÃO TAB ===== */}
             <TabsContent value="conciliacao">
               <div className="flex flex-wrap items-center gap-3 mb-4">
-                <div className="relative max-w-xs"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
+                <div className="relative max-w-xs"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar descrição..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
                 <Select value={filtroStatus} onValueChange={setFiltroStatus}>
                   <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="conciliado">Conciliado</SelectItem><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="nao_identificado">Não Identificado</SelectItem></SelectContent>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="conciliado">Conciliado</SelectItem>
+                    <SelectItem value="nao_identificado">Não Identificado</SelectItem>
+                    <SelectItem value="ignorado">Ignorado</SelectItem>
+                  </SelectContent>
                 </Select>
                 <Select value={filtroConta} onValueChange={setFiltroConta}>
                   <SelectTrigger className="w-[220px]"><SelectValue placeholder="Todas as contas" /></SelectTrigger>
@@ -455,46 +487,77 @@ const ConciliacaoBancariaModule = () => {
                     {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <div className="flex-1" />
-                <Button variant="outline" size="sm"><Download className="w-4 h-4 mr-1" />Exportar</Button>
               </div>
-              <Card><CardContent className="p-0">
-                <Table>
-                  <TableHeader><TableRow>
-                    <TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Banco</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Vínculo</TableHead><TableHead>Status</TableHead><TableHead className="w-24">Ações</TableHead>
-                  </TableRow></TableHeader>
-                  <TableBody>
-                    {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhum lançamento encontrado</TableCell></TableRow>}
-                    {filtered.map(l => {
-                      const bankName = (l as any).bank_accounts?.bank_name || "—";
-                      const txDesc = (l as any).financial_transactions?.description;
-                      const isCredit = Number(l.amount) > 0;
-                      return (
-                        <TableRow key={l.id}>
-                          <TableCell>{l.date}</TableCell>
-                          <TableCell className="font-medium">{l.external_description}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{bankName}</TableCell>
-                          <TableCell className={`text-right font-medium ${isCredit ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
-                            {isCredit ? "+" : ""}{formatCurrency(Number(l.amount))}
-                          </TableCell>
-                          <TableCell>{txDesc ? <span className="flex items-center gap-1 text-xs"><Link2 className="w-3 h-3" />{txDesc}</span> : "—"}</TableCell>
-                          <TableCell><Badge className={statusBadge[l.status]?.cls || ""}>{statusBadge[l.status]?.label || l.status}</Badge></TableCell>
-                          <TableCell><div className="flex gap-1">
-                            {(l.status === "pendente" || l.status === "nao_identificado") && (
-                              <Button size="sm" variant="ghost" onClick={() => handleConciliar(l.id)} title="Conciliar"><CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))]" /></Button>
-                            )}
-                            {l.status === "conciliado" && (
-                              <Button size="sm" variant="ghost" onClick={() => handleDesfazer(l.id)} title="Desfazer"><Undo2 className="w-4 h-4 text-muted-foreground" /></Button>
-                            )}
-                          </div></TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent></Card>
+
+              {filtered.length === 0 ? (
+                <Card><CardContent className="p-8 text-center text-muted-foreground text-sm">
+                  {entries.length === 0 ? "Nenhum lançamento importado. Importe um extrato bancário para iniciar a conciliação." : "Nenhum lançamento encontrado com os filtros selecionados."}
+                </CardContent></Card>
+              ) : (
+                <div className="space-y-3">
+                  {filtered.map(entry => {
+                    const isCredit = Number(entry.amount) > 0;
+                    const bankName = (entry as any).bank_accounts?.bank_name || "—";
+                    const txDesc = (entry as any).financial_transactions?.description;
+                    const isPending = entry.status === "pendente" || entry.status === "nao_identificado";
+                    const isConciliado = entry.status === "conciliado";
+                    const isIgnorado = entry.status === "ignorado";
+
+                    return (
+                      <Card key={entry.id} className={`transition-all ${isConciliado ? 'opacity-75' : ''} ${isIgnorado ? 'opacity-50' : ''}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            {/* Left: Entry info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs text-muted-foreground">{new Date(entry.date).toLocaleDateString("pt-BR")}</span>
+                                <Badge className={statusBadge[entry.status]?.cls || ""}>{statusBadge[entry.status]?.label || entry.status}</Badge>
+                                <span className="text-xs text-muted-foreground">• {bankName}</span>
+                              </div>
+                              <p className="font-medium text-foreground truncate">{entry.external_description}</p>
+                              {txDesc && (
+                                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                  <Link2 className="w-3 h-3" />Vinculado: {txDesc}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Center: Amount */}
+                            <div className={`text-right font-bold text-lg whitespace-nowrap ${isCredit ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                              {isCredit ? "+" : ""}{formatCurrency(Number(entry.amount))}
+                            </div>
+
+                            {/* Right: Actions */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isPending && (
+                                <>
+                                  <Button size="sm" variant="outline" onClick={() => openAssociateDialog(entry)} title="Associar a título existente">
+                                    <ArrowRightLeft className="w-4 h-4 mr-1" />Associar
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => openCreateTitleDialog(entry)} title="Criar novo título">
+                                    <Plus className="w-4 h-4 mr-1" />Novo Título
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => handleIgnorar(entry.id)} title="Ignorar lançamento">
+                                    <EyeOff className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              )}
+                              {(isConciliado || isIgnorado) && (
+                                <Button size="sm" variant="ghost" onClick={() => handleDesfazer(entry.id)} title="Desfazer">
+                                  <Undo2 className="w-4 h-4 text-muted-foreground" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </TabsContent>
 
+            {/* ===== EXTRATO TAB ===== */}
             <TabsContent value="extrato">
               <Card><CardHeader><CardTitle className="text-base">Transações Financeiras</CardTitle></CardHeader>
                 <CardContent className="p-0">
@@ -519,49 +582,33 @@ const ConciliacaoBancariaModule = () => {
               </Card>
             </TabsContent>
 
+            {/* ===== IMPORTAR TAB ===== */}
             <TabsContent value="importar">
               <Card><CardContent className="p-8 text-center space-y-4">
                 {importing ? (
-                  <div className="flex flex-col items-center gap-3 py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Processando arquivo...</p>
-                  </div>
+                  <div className="flex flex-col items-center gap-3 py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-sm text-muted-foreground">Processando arquivo...</p></div>
                 ) : (
                   <>
-                    <div
-                      onDragOver={handleDragOver}
-                      onDragEnter={handleDragEnter}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onClick={handleClickUpload}
-                      className={`cursor-pointer rounded-lg border-2 border-dashed p-8 transition-colors ${dragging ? 'border-primary bg-primary/5' : 'border-border'}`}
-                    >
+                    <div onDragOver={handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={handleClickUpload}
+                      className={`cursor-pointer rounded-lg border-2 border-dashed p-8 transition-colors ${dragging ? 'border-primary bg-primary/5' : 'border-border'}`}>
                       <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Upload className="w-8 h-8 text-muted-foreground" /></div>
                       <h3 className="text-lg font-semibold mt-4">Importar Extrato Bancário</h3>
-                      <p className="text-sm text-muted-foreground max-w-md mx-auto mt-2">Arraste um arquivo aqui ou clique para selecionar. Importe arquivos OFX, CNAB ou CSV do seu banco para conciliação automática.</p>
-                      <div className="flex justify-center gap-3 mt-4">
-                        <Button type="button" onClick={handleClickUpload}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button>
-                      </div>
+                      <p className="text-sm text-muted-foreground max-w-md mx-auto mt-2">Arraste um arquivo aqui ou clique para selecionar.</p>
+                      <div className="flex justify-center gap-3 mt-4"><Button type="button" onClick={handleClickUpload}><Upload className="w-4 h-4 mr-1" />Selecionar Arquivo</Button></div>
                       <div className="text-xs text-muted-foreground mt-2">Formatos aceitos: .ofx, .cnab, .csv, .ret, .txt, .xlsx</div>
                     </div>
                     {parsedFileName && (
                       <div className="flex items-center gap-2 justify-center text-sm text-muted-foreground mt-2">
-                        <FileText className="w-4 h-4" />
-                        <span>Última importação: <strong>{parsedFileName}</strong> — {parsedEntries.length} lançamentos</span>
+                        <FileText className="w-4 h-4" /><span>Última importação: <strong>{parsedFileName}</strong> — {parsedEntries.length} lançamentos</span>
                       </div>
                     )}
                   </>
                 )}
-                <input
-                  ref={inputFileRef}
-                  type="file"
-                  accept=".ofx,.csv,.ret,.txt,.xlsx,.cnab"
-                  style={{ display: 'none' }}
-                  onChange={handleInputChange}
-                />
+                <input ref={inputFileRef} type="file" accept=".ofx,.csv,.ret,.txt,.xlsx,.cnab" style={{ display: 'none' }} onChange={handleInputChange} />
               </CardContent></Card>
             </TabsContent>
 
+            {/* ===== CONTAS BANCÁRIAS TAB ===== */}
             <TabsContent value="contas">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -573,22 +620,14 @@ const ConciliacaoBancariaModule = () => {
                     <div className="p-8 text-center text-muted-foreground text-sm">Nenhuma conta bancária cadastrada.</div>
                   ) : (
                     <Table>
-                      <TableHeader><TableRow>
-                        <TableHead>Banco</TableHead>
-                        <TableHead>Agência</TableHead>
-                        <TableHead>Conta</TableHead>
-                        <TableHead className="text-right">Saldo</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Banco</TableHead><TableHead>Agência</TableHead><TableHead>Conta</TableHead><TableHead className="text-right">Saldo</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {accounts.map(acc => (
                           <TableRow key={acc.id}>
                             <TableCell className="font-medium">{acc.bank_name}</TableCell>
                             <TableCell>{acc.agency || "—"}</TableCell>
                             <TableCell>{acc.account_number || "—"}</TableCell>
-                            <TableCell className={`text-right font-medium ${Number(acc.current_balance) >= 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
-                              {formatCurrency(Number(acc.current_balance))}
-                            </TableCell>
+                            <TableCell className={`text-right font-medium ${Number(acc.current_balance) >= 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>{formatCurrency(Number(acc.current_balance))}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <Button variant="ghost" size="sm" onClick={() => openEditAccount(acc)}><Pencil className="w-3.5 h-3.5" /></Button>
@@ -603,38 +642,134 @@ const ConciliacaoBancariaModule = () => {
                 </CardContent>
               </Card>
             </TabsContent>
-
-            <TabsContent value="conexao">
-              <Card><CardContent className="p-6 space-y-4">
-                <h3 className="text-base font-semibold flex items-center gap-2"><Landmark className="w-4 h-4 text-muted-foreground" />Conectar Conta Bancária via API</h3>
-                <p className="text-sm text-muted-foreground">Integre suas contas bancárias para importação automática de extratos e conciliação em tempo real.</p>
-                <div className="space-y-3">
-                  {[
-                    { name: "Open Banking (Brasil)", desc: "Conexão direta via Open Finance regulamentada pelo BACEN" },
-                    { name: "Pluggy", desc: "Agregador de dados bancários com suporte a 100+ bancos" },
-                    { name: "Belvo", desc: "Plataforma de dados financeiros abertos para América Latina" },
-                  ].map(b => (
-                    <button key={b.name} onClick={() => toast({ title: "Em breve", description: `Integração via ${b.name} será disponibilizada em breve.` })} className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-accent/40 hover:bg-muted/30 transition-all text-left">
-                      <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center"><Landmark className="w-4 h-4 text-muted-foreground" /></div>
-                      <div><p className="text-sm font-medium text-foreground">{b.name}</p><p className="text-xs text-muted-foreground">{b.desc}</p></div>
-                    </button>
-                  ))}
-                </div>
-              </CardContent></Card>
-            </TabsContent>
           </Tabs>
         )}
       </div>
 
-      {/* Dialog to create bank account when importing without accounts */}
+      {/* ===== DIALOGS ===== */}
+
+      {/* Associate dialog */}
+      <Dialog open={associateDialogOpen} onOpenChange={setAssociateDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Associar Lançamento a Título Existente</DialogTitle>
+          </DialogHeader>
+          {associatingEntry && (
+            <div className="rounded-lg bg-muted/50 p-3 mb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">{associatingEntry.external_description}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(associatingEntry.date).toLocaleDateString("pt-BR")}</p>
+                </div>
+                <span className={`font-bold ${Number(associatingEntry.amount) > 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                  {formatCurrency(Number(associatingEntry.amount))}
+                </span>
+              </div>
+            </div>
+          )}
+          <div className="space-y-3 flex-1 overflow-hidden flex flex-col">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Buscar título..." value={associateSearch} onChange={e => setAssociateSearch(e.target.value)} className="pl-9" />
+            </div>
+            <Tabs value={associateTab} onValueChange={v => setAssociateTab(v as any)}>
+              <TabsList className="w-full">
+                <TabsTrigger value="pagar" className="flex-1">Contas a Pagar ({filteredAssociatePagar.length})</TabsTrigger>
+                <TabsTrigger value="receber" className="flex-1">Contas a Receber ({filteredAssociateReceber.length})</TabsTrigger>
+              </TabsList>
+              <TabsContent value="pagar" className="max-h-[300px] overflow-y-auto mt-2">
+                {filteredAssociatePagar.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-4">Nenhum título pendente encontrado.</p>
+                ) : filteredAssociatePagar.map(c => (
+                  <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors mb-2 cursor-pointer" onClick={() => handleAssociate(c.id, "pagar")}>
+                    <div>
+                      <p className="text-sm font-medium">{c.fornecedor}</p>
+                      <p className="text-xs text-muted-foreground">{c.descricao} • Venc: {new Date(c.vencimento).toLocaleDateString("pt-BR")}</p>
+                    </div>
+                    <span className="font-medium text-[hsl(var(--status-danger))]">-{formatCurrency(Number(c.valor))}</span>
+                  </div>
+                ))}
+              </TabsContent>
+              <TabsContent value="receber" className="max-h-[300px] overflow-y-auto mt-2">
+                {filteredAssociateReceber.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-4">Nenhum título pendente encontrado.</p>
+                ) : filteredAssociateReceber.map(t => (
+                  <div key={t.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors mb-2 cursor-pointer" onClick={() => handleAssociate(t.id, "receber")}>
+                    <div>
+                      <p className="text-sm font-medium">{t.description}</p>
+                      <p className="text-xs text-muted-foreground">{t.entity_name || '—'} • {new Date(t.date).toLocaleDateString("pt-BR")}</p>
+                    </div>
+                    <span className="font-medium text-[hsl(var(--status-positive))]">+{formatCurrency(Number(t.amount))}</span>
+                  </div>
+                ))}
+              </TabsContent>
+            </Tabs>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create new title dialog */}
+      <Dialog open={createTitleDialogOpen} onOpenChange={setCreateTitleDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Criar Novo Título</DialogTitle></DialogHeader>
+          {creatingForEntry && (
+            <div className="rounded-lg bg-muted/50 p-3 mb-2">
+              <p className="text-sm font-medium">{creatingForEntry.external_description}</p>
+              <p className="text-xs text-muted-foreground">{new Date(creatingForEntry.date).toLocaleDateString("pt-BR")} • {formatCurrency(Number(creatingForEntry.amount))}</p>
+            </div>
+          )}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tipo *</Label>
+              <Select value={newTitleForm.type} onValueChange={v => setNewTitleForm({ ...newTitleForm, type: v as any, category_id: "" })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="saida">Conta a Pagar (Saída)</SelectItem>
+                  <SelectItem value="entrada">Conta a Receber (Entrada)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input value={newTitleForm.description} onChange={e => setNewTitleForm({ ...newTitleForm, description: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>{newTitleForm.type === "saida" ? "Fornecedor / Entidade" : "Cliente / Entidade"}</Label>
+              <Input value={newTitleForm.entity_name} onChange={e => setNewTitleForm({ ...newTitleForm, entity_name: e.target.value })} placeholder="Nome da entidade" />
+            </div>
+            <div className="space-y-2">
+              <Label>Categoria *</Label>
+              <Select value={newTitleForm.category_id} onValueChange={v => setNewTitleForm({ ...newTitleForm, category_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
+                <SelectContent>
+                  {filteredCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Data *</Label>
+                <Input type="date" value={newTitleForm.date} onChange={e => setNewTitleForm({ ...newTitleForm, date: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Valor (R$)</Label>
+                <Input type="number" step="0.01" value={newTitleForm.amount} onChange={e => setNewTitleForm({ ...newTitleForm, amount: e.target.value })} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateTitleDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateTitle} disabled={!newTitleForm.category_id || !newTitleForm.date}>Criar e Conciliar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bank create dialog (import flow) */}
       <Dialog open={bankDialogOpen} onOpenChange={setBankDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Criar Conta Bancária</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Para importar o extrato, é necessário ter pelo menos uma conta bancária cadastrada.</p>
-          <div className="space-y-2">
-            <Label>Nome do Banco</Label>
-            <Input placeholder="Ex: Banco do Brasil, Itaú, Bradesco..." value={newBankName} onChange={e => setNewBankName(e.target.value)} />
-          </div>
+          <div className="space-y-2"><Label>Nome do Banco</Label><Input placeholder="Ex: Banco do Brasil, Itaú..." value={newBankName} onChange={e => setNewBankName(e.target.value)} /></div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBankDialogOpen(false); setPendingFileAfterBank(null); }}>Cancelar</Button>
             <Button onClick={handleCreateBankAndImport} disabled={!newBankName.trim()}>Criar e Importar</Button>
@@ -642,12 +777,12 @@ const ConciliacaoBancariaModule = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog to add new bank account */}
+      {/* Add account dialog */}
       <Dialog open={addAccountDialogOpen} onOpenChange={setAddAccountDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Nova Conta Bancária</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Banco</Label><Input placeholder="Ex: Itaú, Bradesco..." value={accountForm.bank_name} onChange={e => setAccountForm({ ...accountForm, bank_name: e.target.value })} required /></div>
+            <div className="space-y-2"><Label>Banco</Label><Input placeholder="Ex: Itaú, Bradesco..." value={accountForm.bank_name} onChange={e => setAccountForm({ ...accountForm, bank_name: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2"><Label>Agência</Label><Input placeholder="0001" value={accountForm.agency} onChange={e => setAccountForm({ ...accountForm, agency: e.target.value })} /></div>
               <div className="space-y-2"><Label>Conta</Label><Input placeholder="12345-6" value={accountForm.account_number} onChange={e => setAccountForm({ ...accountForm, account_number: e.target.value })} /></div>
@@ -661,12 +796,12 @@ const ConciliacaoBancariaModule = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog to edit bank account */}
+      {/* Edit account dialog */}
       <Dialog open={editAccountDialogOpen} onOpenChange={setEditAccountDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Editar Conta Bancária</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Banco</Label><Input value={accountForm.bank_name} onChange={e => setAccountForm({ ...accountForm, bank_name: e.target.value })} required /></div>
+            <div className="space-y-2"><Label>Banco</Label><Input value={accountForm.bank_name} onChange={e => setAccountForm({ ...accountForm, bank_name: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2"><Label>Agência</Label><Input value={accountForm.agency} onChange={e => setAccountForm({ ...accountForm, agency: e.target.value })} /></div>
               <div className="space-y-2"><Label>Conta</Label><Input value={accountForm.account_number} onChange={e => setAccountForm({ ...accountForm, account_number: e.target.value })} /></div>
@@ -680,7 +815,7 @@ const ConciliacaoBancariaModule = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog to confirm delete */}
+      {/* Delete account dialog */}
       <Dialog open={!!deletingAccountId} onOpenChange={() => setDeletingAccountId(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Excluir Conta Bancária</DialogTitle></DialogHeader>
