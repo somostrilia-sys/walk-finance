@@ -437,6 +437,7 @@ const ConciliacaoBancariaModule = () => {
               <TabsTrigger value="conciliacao">Conciliação</TabsTrigger>
               <TabsTrigger value="extrato">Extrato Bancário</TabsTrigger>
               <TabsTrigger value="importar">Importar</TabsTrigger>
+              <TabsTrigger value="contas">Contas Bancárias</TabsTrigger>
               <TabsTrigger value="conexao">Conexão Bancária</TabsTrigger>
             </TabsList>
 
