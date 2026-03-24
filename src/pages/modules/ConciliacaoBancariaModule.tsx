@@ -265,7 +265,7 @@ const ConciliacaoBancariaModule = () => {
         {isLoading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : (
-          <Tabs defaultValue="conciliacao">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="conciliacao">Conciliação</TabsTrigger>
               <TabsTrigger value="extrato">Extrato Bancário</TabsTrigger>
