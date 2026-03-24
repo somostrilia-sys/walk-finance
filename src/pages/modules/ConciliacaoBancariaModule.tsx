@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from "react";
+import * as XLSX from "xlsx";
 import { useParams } from "react-router-dom";
 import { useCompanies, useBankAccounts, useBankReconciliation, useFinancialTransactions } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
