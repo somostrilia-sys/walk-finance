@@ -85,6 +85,7 @@ const statusBadge: Record<string, { label: string; cls: string }> = {
 
 const ConciliacaoBancariaModule = () => {
   const { companyId } = useParams();
+  const { user } = useAuth();
   const { data: companies } = useCompanies();
   const company = companies?.find(c => c.id === companyId);
   const { data: reconciliation, isLoading: loadingRecon } = useBankReconciliation(companyId);
@@ -95,6 +96,13 @@ const ConciliacaoBancariaModule = () => {
   const [filtroConta, setFiltroConta] = useState("todos");
   const [search, setSearch] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState("conciliacao");
+  const [importing, setImporting] = useState(false);
+  const [parsedEntries, setParsedEntries] = useState<ParsedEntry[]>([]);
+  const [parsedFileName, setParsedFileName] = useState("");
+  const [bankDialogOpen, setBankDialogOpen] = useState(false);
+  const [newBankName, setNewBankName] = useState("");
+  const [pendingFileAfterBank, setPendingFileAfterBank] = useState<FileList | null>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
 
   const handleClickUpload = (e: React.MouseEvent) => {
@@ -106,13 +114,94 @@ const ConciliacaoBancariaModule = () => {
     }
   };
 
-  const handleFiles = (files: FileList) => {
+  const processFile = useCallback(async (file: File, accountId: string) => {
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      let entries: ParsedEntry[] = [];
+      if (ext === 'ofx') {
+        entries = parseOFX(text);
+      } else {
+        entries = parseCSV(text);
+      }
+
+      if (entries.length === 0) {
+        toast({ title: "Nenhum lançamento encontrado", description: "Verifique o formato do arquivo. Para CSV, as colunas devem conter Data, Descrição e Valor.", variant: "destructive" });
+        setImporting(false);
+        return;
+      }
+
+      // Insert entries into bank_reconciliation_entries
+      const rows = entries.map(e => ({
+        company_id: companyId!,
+        bank_account_id: accountId,
+        date: e.date,
+        external_description: e.description,
+        amount: e.amount,
+        status: "pendente" as const,
+      }));
+
+      const { error } = await supabase.from("bank_reconciliation_entries").insert(rows);
+      if (error) {
+        toast({ title: "Erro ao importar", description: error.message, variant: "destructive" });
+        setImporting(false);
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      setParsedEntries(entries);
+      setParsedFileName(file.name);
+      toast({ title: "Importação concluída", description: `${entries.length} lançamentos importados de ${file.name}.` });
+      // Switch to conciliação tab
+      setActiveTab("conciliacao");
+    } catch (err: any) {
+      toast({ title: "Erro ao processar arquivo", description: err?.message || "Verifique o formato.", variant: "destructive" });
+    }
+    setImporting(false);
+  }, [companyId, queryClient]);
+
+  const handleFiles = useCallback(async (files: FileList) => {
     const file = files[0];
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['ofx', 'csv', 'ret', 'txt', 'xlsx', 'cnab'].includes(ext || '')) {
-      return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx", variant: "destructive" });
+      return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx, .cnab", variant: "destructive" });
     }
-    toast({ title: "Arquivo recebido", description: `${file.name} (${(file.size / 1024).toFixed(1)} KB) — processamento em breve.` });
+
+    const accounts = bankAccounts || [];
+    if (accounts.length === 0) {
+      // Need to create a bank account first
+      setPendingFileAfterBank(files);
+      setBankDialogOpen(true);
+      return;
+    }
+
+    // Use first account (or could prompt user to select)
+    await processFile(file, accounts[0].id);
+  }, [bankAccounts, processFile]);
+
+  const handleCreateBankAndImport = async () => {
+    if (!newBankName.trim() || !companyId) return;
+    const { data, error } = await supabase.from("bank_accounts").insert({
+      company_id: companyId,
+      bank_name: newBankName.trim(),
+      current_balance: 0,
+    }).select().single();
+
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+    setBankDialogOpen(false);
+    setNewBankName("");
+    toast({ title: "Conta criada", description: `Conta "${data.bank_name}" criada com sucesso.` });
+
+    if (pendingFileAfterBank && pendingFileAfterBank[0]) {
+      await processFile(pendingFileAfterBank[0], data.id);
+      setPendingFileAfterBank(null);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
