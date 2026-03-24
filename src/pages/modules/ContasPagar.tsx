@@ -70,6 +70,7 @@ const ContasPagar = () => {
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
   const { data: lancamentosContasPagar = [], isLoading: isLoadingContasPagar } = useContasPagarLancamentos(companyId);
   const { data: pessoas } = usePessoas(companyId);
+  const { data: categorias } = useExpenseCategories(companyId);
   const company = companies?.find(c => c.id === companyId);
 
   const [modalOpen, setModalOpen] = useState(false);
