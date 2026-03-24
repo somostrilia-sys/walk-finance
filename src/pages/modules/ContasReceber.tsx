@@ -40,7 +40,7 @@ const isVencido = (date: string, status: string) => {
   return status === "pendente" && new Date(date) < new Date(new Date().toISOString().slice(0, 10));
 };
 
-const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", consultor_id: "" };
+const emptyForm = { entity_name: "", description: "", amount: "", date: "", payment_method: "PIX", consultor_id: "", category_id: "" };
 
 const ContasReceber = () => {
   const { companyId } = useParams();
