@@ -415,6 +415,24 @@ const ConciliacaoBancariaModule = () => {
           </Tabs>
         )}
       </div>
+
+      {/* Dialog to create bank account when none exists */}
+      <Dialog open={bankDialogOpen} onOpenChange={setBankDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar Conta Bancária</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Para importar o extrato, é necessário ter pelo menos uma conta bancária cadastrada.</p>
+          <div className="space-y-2">
+            <Label>Nome do Banco</Label>
+            <Input placeholder="Ex: Banco do Brasil, Itaú, Bradesco..." value={newBankName} onChange={e => setNewBankName(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setBankDialogOpen(false); setPendingFileAfterBank(null); }}>Cancelar</Button>
+            <Button onClick={handleCreateBankAndImport} disabled={!newBankName.trim()}>Criar e Importar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
