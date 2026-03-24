@@ -703,6 +703,9 @@ const ConciliacaoBancariaModule = () => {
                                   <Button size="sm" variant="outline" onClick={() => openCreateTitleDialog(entry)} title="Criar novo título">
                                     <Plus className="w-4 h-4 mr-1" />Novo Título
                                   </Button>
+                                  <Button size="sm" variant="outline" onClick={openTransferDialog} disabled={isObjetivo || accounts.length < 2} title="Transferência entre contas">
+                                    <Repeat className="w-4 h-4 mr-1" />Transferir
+                                  </Button>
                                   <Button size="sm" variant="ghost" onClick={() => handleIgnorar(entry.id)} title="Ignorar lançamento">
                                     <EyeOff className="w-4 h-4" />
                                   </Button>
