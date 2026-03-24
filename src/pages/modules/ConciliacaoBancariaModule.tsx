@@ -350,6 +350,71 @@ const ConciliacaoBancariaModule = () => {
     toast({ title: "Conciliação desfeita" });
   };
 
+  const handleAddAccount = async () => {
+    if (!accountForm.bank_name.trim() || !companyId) return;
+    setSubmittingAccount(true);
+    try {
+      const { error } = await supabase.from("bank_accounts").insert({
+        company_id: companyId,
+        bank_name: accountForm.bank_name,
+        account_number: accountForm.account_number || null,
+        agency: accountForm.agency || null,
+        current_balance: parseFloat(accountForm.current_balance) || 0,
+      });
+      if (error) throw error;
+      toast({ title: "Conta bancária adicionada!" });
+      setAddAccountDialogOpen(false);
+      setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" });
+      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+    setSubmittingAccount(false);
+  };
+
+  const handleEditAccount = async () => {
+    if (!editingAccount || !accountForm.bank_name.trim()) return;
+    setSubmittingAccount(true);
+    try {
+      const { error } = await supabase.from("bank_accounts").update({
+        bank_name: accountForm.bank_name,
+        account_number: accountForm.account_number || null,
+        agency: accountForm.agency || null,
+        current_balance: parseFloat(accountForm.current_balance) || 0,
+      }).eq("id", editingAccount.id);
+      if (error) throw error;
+      toast({ title: "Conta atualizada!" });
+      setEditAccountDialogOpen(false);
+      setEditingAccount(null);
+      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+    setSubmittingAccount(false);
+  };
+
+  const handleDeleteAccount = async (accountId: string) => {
+    try {
+      const { error } = await supabase.from("bank_accounts").delete().eq("id", accountId);
+      if (error) throw error;
+      toast({ title: "Conta excluída!" });
+      setDeletingAccountId(null);
+      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+    } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
+  };
+
+  const openEditAccount = (account: any) => {
+    setEditingAccount(account);
+    setAccountForm({
+      bank_name: account.bank_name,
+      account_number: account.account_number || "",
+      agency: account.agency || "",
+      current_balance: String(account.current_balance || 0),
+    });
+    setEditAccountDialogOpen(true);
+  };
+
+  const openAddAccount = () => {
+    setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" });
+    setAddAccountDialogOpen(true);
+  };
+
   const isLoading = loadingRecon;
 
   return (
