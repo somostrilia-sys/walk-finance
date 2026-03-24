@@ -1,7 +1,8 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useCompanies, useBankAccounts, useBankReconciliation, useFinancialTransactions } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
@@ -13,9 +14,66 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2 } from "lucide-react";
+import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText } from "lucide-react";
+
+// ---------- CSV / OFX parser helpers ----------
+
+interface ParsedEntry {
+  date: string;
+  description: string;
+  amount: number;
+}
+
+function parseCSV(text: string): ParsedEntry[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const header = lines[0].toLowerCase();
+  // Try to detect columns
+  const cols = header.split(/[;,\t]/);
+  const dateIdx = cols.findIndex(c => /data|date/.test(c));
+  const descIdx = cols.findIndex(c => /descri|hist|memo|description/.test(c));
+  const valIdx = cols.findIndex(c => /valor|amount|value|quantia/.test(c));
+  const sep = header.includes(';') ? ';' : header.includes('\t') ? '\t' : ',';
+
+  const entries: ParsedEntry[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const parts = lines[i].split(sep);
+    if (parts.length < 2) continue;
+    const rawDate = parts[dateIdx >= 0 ? dateIdx : 0]?.trim().replace(/"/g, '');
+    const desc = parts[descIdx >= 0 ? descIdx : 1]?.trim().replace(/"/g, '');
+    const rawVal = parts[valIdx >= 0 ? valIdx : 2]?.trim().replace(/"/g, '').replace(/\./g, '').replace(',', '.');
+    const amount = parseFloat(rawVal);
+    if (!desc || isNaN(amount)) continue;
+    // Parse date: try DD/MM/YYYY or YYYY-MM-DD
+    let isoDate = rawDate;
+    const brMatch = rawDate.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+    if (brMatch) isoDate = `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+    entries.push({ date: isoDate, description: desc, amount });
+  }
+  return entries;
+}
+
+function parseOFX(text: string): ParsedEntry[] {
+  const entries: ParsedEntry[] = [];
+  const txBlocks = text.split(/<STMTTRN>/i).slice(1);
+  for (const block of txBlocks) {
+    const getTag = (tag: string) => {
+      const m = block.match(new RegExp(`<${tag}>([^<\\n]+)`, 'i'));
+      return m ? m[1].trim() : '';
+    };
+    const rawDate = getTag('DTPOSTED');
+    const amount = parseFloat(getTag('TRNAMT').replace(',', '.'));
+    const desc = getTag('MEMO') || getTag('NAME') || 'Sem descrição';
+    if (!rawDate || isNaN(amount)) continue;
+    const isoDate = rawDate.length >= 8 ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}` : rawDate;
+    entries.push({ date: isoDate, description: desc, amount });
+  }
+  return entries;
+}
 
 type ConciliacaoStatus = "conciliado" | "pendente" | "nao_identificado";
 
