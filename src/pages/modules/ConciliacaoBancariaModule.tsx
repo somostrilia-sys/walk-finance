@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText, Plus, Pencil, Trash2, ArrowRightLeft, Eye, EyeOff } from "lucide-react";
+import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Download, Loader2, FileText, Plus, Pencil, Trash2, ArrowRightLeft, Eye, EyeOff, Repeat, AlertTriangle } from "lucide-react";
 
 // ---------- CSV / OFX / CNAB / XLSX parser helpers ----------
 
@@ -182,6 +182,20 @@ const ConciliacaoBancariaModule = () => {
     date: "",
     amount: "",
   });
+
+  // Transfer between accounts
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [submittingTransfer, setSubmittingTransfer] = useState(false);
+  const [transferForm, setTransferForm] = useState({
+    origin_account_id: "",
+    destination_account_id: "",
+    amount: "",
+    date: new Date().toISOString().slice(0, 10),
+    description: "",
+  });
+
+  // Check if company is "Objetivo" (blocked from transfers)
+  const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
 
   // ===== File handling =====
   const handleClickUpload = (e: React.MouseEvent) => {
@@ -466,6 +480,87 @@ const ConciliacaoBancariaModule = () => {
 
   const openAddAccount = () => { setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" }); setAddAccountDialogOpen(true); };
 
+  // ===== Transfer between accounts =====
+  const openTransferDialog = () => {
+    if (isObjetivo) {
+      toast({ title: "Transferência bloqueada", description: "Transferências envolvendo a empresa Objetivo não são permitidas.", variant: "destructive" });
+      return;
+    }
+    if (accounts.length < 2) {
+      toast({ title: "Contas insuficientes", description: "É necessário ter pelo menos 2 contas bancárias cadastradas.", variant: "destructive" });
+      return;
+    }
+    setTransferForm({
+      origin_account_id: accounts[0]?.id || "",
+      destination_account_id: accounts[1]?.id || "",
+      amount: "",
+      date: new Date().toISOString().slice(0, 10),
+      description: "",
+    });
+    setTransferDialogOpen(true);
+  };
+
+  const handleTransfer = async () => {
+    const { origin_account_id, destination_account_id, amount, date } = transferForm;
+    if (!origin_account_id || !destination_account_id || !amount || !date || !companyId) return;
+    if (origin_account_id === destination_account_id) {
+      toast({ title: "Erro", description: "Conta de origem e destino devem ser diferentes.", variant: "destructive" });
+      return;
+    }
+    const valor = parseFloat(amount);
+    if (isNaN(valor) || valor <= 0) {
+      toast({ title: "Erro", description: "Informe um valor válido.", variant: "destructive" });
+      return;
+    }
+
+    setSubmittingTransfer(true);
+    try {
+      const pairId = crypto.randomUUID();
+      const desc = transferForm.description || "Transferência entre contas";
+
+      // Create debit entry (origin) and credit entry (destination)
+      const { error: insertError } = await supabase.from("bank_reconciliation_entries").insert([
+        {
+          company_id: companyId,
+          bank_account_id: origin_account_id,
+          date,
+          external_description: `TED/Transf: ${desc}`,
+          amount: -valor,
+          status: "conciliado",
+          transfer_pair_id: pairId,
+        },
+        {
+          company_id: companyId,
+          bank_account_id: destination_account_id,
+          date,
+          external_description: `TED/Transf: ${desc}`,
+          amount: valor,
+          status: "conciliado",
+          transfer_pair_id: pairId,
+        },
+      ]);
+      if (insertError) throw insertError;
+
+      // Update balances
+      const originAcc = accounts.find(a => a.id === origin_account_id);
+      const destAcc = accounts.find(a => a.id === destination_account_id);
+      if (originAcc) {
+        await supabase.from("bank_accounts").update({ current_balance: Number(originAcc.current_balance) - valor }).eq("id", origin_account_id);
+      }
+      if (destAcc) {
+        await supabase.from("bank_accounts").update({ current_balance: Number(destAcc.current_balance) + valor }).eq("id", destination_account_id);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+      setTransferDialogOpen(false);
+      toast({ title: "Transferência realizada", description: `${formatCurrency(valor)} transferido com sucesso.` });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
+    setSubmittingTransfer(false);
+  };
+
   // ===== Filtered lists for association =====
   const filteredAssociatePagar = useMemo(() => {
     const q = associateSearch.toLowerCase();
@@ -484,6 +579,15 @@ const ConciliacaoBancariaModule = () => {
     return categories.filter(c => c.type === typeFilter || c.type === "ambos" || c.type === "fluxo");
   }, [categories, newTitleForm.type]);
 
+  // Check transfer pair status for entries
+  const getTransferPairStatus = useCallback((entry: any) => {
+    if (!entry.transfer_pair_id) return null;
+    const pair = entries.find(e => e.id !== entry.id && (e as any).transfer_pair_id === entry.transfer_pair_id);
+    if (!pair) return "sem_par";
+    if (pair.status === "conciliado" && entry.status === "conciliado") return "completo";
+    return "aguardando";
+  }, [entries]);
+
   const isLoading = loadingRecon;
 
   return (
@@ -497,6 +601,12 @@ const ConciliacaoBancariaModule = () => {
           <ModuleStatCard label="Não Identificados" value={totalNaoId} icon={<XCircle className="w-4 h-4" />} />
           <ModuleStatCard label="Ignorados" value={totalIgnorado} icon={<EyeOff className="w-4 h-4" />} />
           <ModuleStatCard label="Saldo Bancário" value={formatCurrency(saldoTotal)} icon={<Landmark className="w-4 h-4" />} />
+        </div>
+
+        <div className="flex justify-end mb-4">
+          <Button variant="outline" size="sm" onClick={openTransferDialog} disabled={isObjetivo || accounts.length < 2}>
+            <Repeat className="w-4 h-4 mr-1" />Transferência entre Contas
+          </Button>
         </div>
 
         {isLoading ? (
@@ -546,6 +656,8 @@ const ConciliacaoBancariaModule = () => {
                     const isPending = entry.status === "pendente" || entry.status === "nao_identificado";
                     const isConciliado = entry.status === "conciliado";
                     const isIgnorado = entry.status === "ignorado";
+                    const isTransfer = !!(entry as any).transfer_pair_id;
+                    const transferPairStatus = getTransferPairStatus(entry);
 
                     return (
                       <Card key={entry.id} className={`transition-all ${isConciliado ? 'opacity-75' : ''} ${isIgnorado ? 'opacity-50' : ''}`}>
@@ -553,10 +665,20 @@ const ConciliacaoBancariaModule = () => {
                           <div className="flex items-start justify-between gap-4">
                             {/* Left: Entry info */}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <span className="text-xs text-muted-foreground">{new Date(entry.date).toLocaleDateString("pt-BR")}</span>
                                 <Badge className={statusBadge[entry.status]?.cls || ""}>{statusBadge[entry.status]?.label || entry.status}</Badge>
                                 <span className="text-xs text-muted-foreground">• {bankName}</span>
+                                {isTransfer && (
+                                  <Badge variant="outline" className="text-xs gap-1">
+                                    <Repeat className="w-3 h-3" />Transferência
+                                  </Badge>
+                                )}
+                                {transferPairStatus === "aguardando" && (
+                                  <Badge className="bg-[hsl(var(--status-warning)/0.1)] text-[hsl(var(--status-warning))] text-xs gap-1">
+                                    <AlertTriangle className="w-3 h-3" />Aguardando par
+                                  </Badge>
+                                )}
                               </div>
                               <p className="font-medium text-foreground truncate">{entry.external_description}</p>
                               {txDesc && (
@@ -888,6 +1010,58 @@ const ConciliacaoBancariaModule = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setSelectAccountDialogOpen(false); setPendingFileForAccount(null); }}>Cancelar</Button>
             <Button onClick={handleConfirmAccountImport} disabled={!selectedImportAccountId}>Importar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer between accounts dialog */}
+      <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Repeat className="w-5 h-5" />Transferência entre Contas</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Conta de Origem *</Label>
+              <Select value={transferForm.origin_account_id} onValueChange={v => setTransferForm({ ...transferForm, origin_account_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione a conta de origem" /></SelectTrigger>
+                <SelectContent>
+                  {accounts.filter(a => a.id !== transferForm.destination_account_id).map(a => (
+                    <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""} — {formatCurrency(Number(a.current_balance))}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Conta de Destino *</Label>
+              <Select value={transferForm.destination_account_id} onValueChange={v => setTransferForm({ ...transferForm, destination_account_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione a conta de destino" /></SelectTrigger>
+                <SelectContent>
+                  {accounts.filter(a => a.id !== transferForm.origin_account_id).map(a => (
+                    <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.agency ? `• Ag ${a.agency}` : ""} {a.account_number ? `• CC ${a.account_number}` : ""} — {formatCurrency(Number(a.current_balance))}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Valor (R$) *</Label>
+                <Input type="number" step="0.01" placeholder="0,00" value={transferForm.amount} onChange={e => setTransferForm({ ...transferForm, amount: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Data *</Label>
+                <Input type="date" value={transferForm.date} onChange={e => setTransferForm({ ...transferForm, date: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição (opcional)</Label>
+              <Input placeholder="Ex: Transferência para pagamento de folha" value={transferForm.description} onChange={e => setTransferForm({ ...transferForm, description: e.target.value })} />
+            </div>
+            <p className="text-xs text-muted-foreground">A transferência gera um débito na conta de origem e um crédito na conta de destino. Não impacta DRE, Contas a Pagar ou Contas a Receber.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleTransfer} disabled={submittingTransfer || !transferForm.origin_account_id || !transferForm.destination_account_id || !transferForm.amount || !transferForm.date}>
+              {submittingTransfer ? "Processando..." : "Confirmar Transferência"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

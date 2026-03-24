@@ -1,0 +1,1 @@
+ALTER TABLE public.bank_reconciliation_entries ADD COLUMN transfer_pair_id uuid DEFAULT NULL;

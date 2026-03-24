@@ -163,6 +163,7 @@ export type Database = {
           id: string
           status: string
           transaction_id: string | null
+          transfer_pair_id: string | null
           updated_at: string
         }
         Insert: {
@@ -175,6 +176,7 @@ export type Database = {
           id?: string
           status?: string
           transaction_id?: string | null
+          transfer_pair_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -187,6 +189,7 @@ export type Database = {
           id?: string
           status?: string
           transaction_id?: string | null
+          transfer_pair_id?: string | null
           updated_at?: string
         }
         Relationships: [
