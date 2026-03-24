@@ -587,7 +587,7 @@ const ConciliacaoBancariaModule = () => {
                                 </>
                               )}
                               {(isConciliado || isIgnorado) && (
-                                <Button size="sm" variant="ghost" onClick={() => handleDesfazer(entry.id)} title="Desfazer">
+                                <Button size="sm" variant="ghost" onClick={() => handleDesfazer(entry)} title="Desconciliar">
                                   <Undo2 className="w-4 h-4 text-muted-foreground" />
                                 </Button>
                               )}
