@@ -199,13 +199,25 @@ const ConciliacaoBancariaModule = () => {
   const processFile = useCallback(async (file: File, accountId: string) => {
     setImporting(true);
     try {
-      const text = await file.text();
       const ext = file.name.split('.').pop()?.toLowerCase();
       let entries: ParsedEntry[] = [];
-      if (ext === 'ofx') {
-        entries = parseOFX(text);
+
+      if (ext === 'xlsx') {
+        const buffer = await file.arrayBuffer();
+        entries = parseXLSX(buffer);
       } else {
-        entries = parseCSV(text);
+        const text = await file.text();
+        if (ext === 'ofx') {
+          entries = parseOFX(text);
+        } else if (ext === 'ret' || ext === 'cnab') {
+          entries = parseCNAB(text);
+        } else if (ext === 'txt') {
+          // Try CNAB first, fallback to CSV
+          const cnabEntries = parseCNAB(text);
+          entries = cnabEntries.length > 0 ? cnabEntries : parseCSV(text);
+        } else {
+          entries = parseCSV(text);
+        }
       }
 
       if (entries.length === 0) {
