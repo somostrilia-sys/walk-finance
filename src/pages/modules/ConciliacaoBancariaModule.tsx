@@ -153,6 +153,9 @@ const ConciliacaoBancariaModule = () => {
   const [newBankName, setNewBankName] = useState("");
   const [pendingFileAfterBank, setPendingFileAfterBank] = useState<FileList | null>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
+  const [selectAccountDialogOpen, setSelectAccountDialogOpen] = useState(false);
+  const [selectedImportAccountId, setSelectedImportAccountId] = useState("");
+  const [pendingFileForAccount, setPendingFileForAccount] = useState<File | null>(null);
 
   // Bank account management
   const [editAccountDialogOpen, setEditAccountDialogOpen] = useState(false);
