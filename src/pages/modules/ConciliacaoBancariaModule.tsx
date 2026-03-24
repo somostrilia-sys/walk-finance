@@ -220,8 +220,19 @@ const ConciliacaoBancariaModule = () => {
     if (!['ofx', 'csv', 'ret', 'txt', 'xlsx', 'cnab'].includes(ext || '')) { return toast({ title: "Formato inválido", description: "Formatos aceitos: .ofx, .csv, .ret, .txt, .xlsx, .cnab", variant: "destructive" }); }
     const accs = bankAccounts || [];
     if (accs.length === 0) { setPendingFileAfterBank(files); setBankDialogOpen(true); return; }
-    await processFile(file, accs[0].id);
+    if (accs.length === 1) { await processFile(file, accs[0].id); return; }
+    // Multiple accounts: let user pick
+    setPendingFileForAccount(file);
+    setSelectedImportAccountId(accs[0].id);
+    setSelectAccountDialogOpen(true);
   }, [bankAccounts, processFile]);
+
+  const handleConfirmAccountImport = async () => {
+    if (!pendingFileForAccount || !selectedImportAccountId) return;
+    setSelectAccountDialogOpen(false);
+    await processFile(pendingFileForAccount, selectedImportAccountId);
+    setPendingFileForAccount(null);
+  };
 
   const handleCreateBankAndImport = async () => {
     if (!newBankName.trim() || !companyId) return;
