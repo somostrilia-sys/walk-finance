@@ -183,6 +183,20 @@ const ConciliacaoBancariaModule = () => {
     amount: "",
   });
 
+  // Transfer between accounts
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [submittingTransfer, setSubmittingTransfer] = useState(false);
+  const [transferForm, setTransferForm] = useState({
+    origin_account_id: "",
+    destination_account_id: "",
+    amount: "",
+    date: new Date().toISOString().slice(0, 10),
+    description: "",
+  });
+
+  // Check if company is "Objetivo" (blocked from transfers)
+  const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
+
   // ===== File handling =====
   const handleClickUpload = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
