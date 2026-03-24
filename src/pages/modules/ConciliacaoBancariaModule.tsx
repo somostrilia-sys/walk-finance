@@ -604,6 +604,7 @@ const ConciliacaoBancariaModule = () => {
               </Card>
             </TabsContent>
 
+            <TabsContent value="conexao">
               <Card><CardContent className="p-6 space-y-4">
                 <h3 className="text-base font-semibold flex items-center gap-2"><Landmark className="w-4 h-4 text-muted-foreground" />Conectar Conta Bancária via API</h3>
                 <p className="text-sm text-muted-foreground">Integre suas contas bancárias para importação automática de extratos e conciliação em tempo real.</p>
@@ -625,12 +626,10 @@ const ConciliacaoBancariaModule = () => {
         )}
       </div>
 
-      {/* Dialog to create bank account when none exists */}
+      {/* Dialog to create bank account when importing without accounts */}
       <Dialog open={bankDialogOpen} onOpenChange={setBankDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Criar Conta Bancária</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Criar Conta Bancária</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Para importar o extrato, é necessário ter pelo menos uma conta bancária cadastrada.</p>
           <div className="space-y-2">
             <Label>Nome do Banco</Label>
@@ -639,6 +638,56 @@ const ConciliacaoBancariaModule = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBankDialogOpen(false); setPendingFileAfterBank(null); }}>Cancelar</Button>
             <Button onClick={handleCreateBankAndImport} disabled={!newBankName.trim()}>Criar e Importar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to add new bank account */}
+      <Dialog open={addAccountDialogOpen} onOpenChange={setAddAccountDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nova Conta Bancária</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>Banco</Label><Input placeholder="Ex: Itaú, Bradesco..." value={accountForm.bank_name} onChange={e => setAccountForm({ ...accountForm, bank_name: e.target.value })} required /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Agência</Label><Input placeholder="0001" value={accountForm.agency} onChange={e => setAccountForm({ ...accountForm, agency: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Conta</Label><Input placeholder="12345-6" value={accountForm.account_number} onChange={e => setAccountForm({ ...accountForm, account_number: e.target.value })} /></div>
+            </div>
+            <div className="space-y-2"><Label>Saldo Atual (R$)</Label><Input type="number" step="0.01" placeholder="0,00" value={accountForm.current_balance} onChange={e => setAccountForm({ ...accountForm, current_balance: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddAccountDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleAddAccount} disabled={!accountForm.bank_name.trim() || submittingAccount}>{submittingAccount ? "Salvando..." : "Salvar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to edit bank account */}
+      <Dialog open={editAccountDialogOpen} onOpenChange={setEditAccountDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar Conta Bancária</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>Banco</Label><Input value={accountForm.bank_name} onChange={e => setAccountForm({ ...accountForm, bank_name: e.target.value })} required /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Agência</Label><Input value={accountForm.agency} onChange={e => setAccountForm({ ...accountForm, agency: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Conta</Label><Input value={accountForm.account_number} onChange={e => setAccountForm({ ...accountForm, account_number: e.target.value })} /></div>
+            </div>
+            <div className="space-y-2"><Label>Saldo Atual (R$)</Label><Input type="number" step="0.01" value={accountForm.current_balance} onChange={e => setAccountForm({ ...accountForm, current_balance: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditAccountDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleEditAccount} disabled={!accountForm.bank_name.trim() || submittingAccount}>{submittingAccount ? "Salvando..." : "Atualizar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to confirm delete */}
+      <Dialog open={!!deletingAccountId} onOpenChange={() => setDeletingAccountId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Excluir Conta Bancária</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir esta conta? Os lançamentos vinculados a ela também poderão ser afetados.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingAccountId(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => deletingAccountId && handleDeleteAccount(deletingAccountId)}>Excluir</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
