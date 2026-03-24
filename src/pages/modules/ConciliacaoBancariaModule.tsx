@@ -656,6 +656,8 @@ const ConciliacaoBancariaModule = () => {
                     const isPending = entry.status === "pendente" || entry.status === "nao_identificado";
                     const isConciliado = entry.status === "conciliado";
                     const isIgnorado = entry.status === "ignorado";
+                    const isTransfer = !!(entry as any).transfer_pair_id;
+                    const transferPairStatus = getTransferPairStatus(entry);
 
                     return (
                       <Card key={entry.id} className={`transition-all ${isConciliado ? 'opacity-75' : ''} ${isIgnorado ? 'opacity-50' : ''}`}>
