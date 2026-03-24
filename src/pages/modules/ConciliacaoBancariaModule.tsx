@@ -480,6 +480,87 @@ const ConciliacaoBancariaModule = () => {
 
   const openAddAccount = () => { setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" }); setAddAccountDialogOpen(true); };
 
+  // ===== Transfer between accounts =====
+  const openTransferDialog = () => {
+    if (isObjetivo) {
+      toast({ title: "Transferência bloqueada", description: "Transferências envolvendo a empresa Objetivo não são permitidas.", variant: "destructive" });
+      return;
+    }
+    if (accounts.length < 2) {
+      toast({ title: "Contas insuficientes", description: "É necessário ter pelo menos 2 contas bancárias cadastradas.", variant: "destructive" });
+      return;
+    }
+    setTransferForm({
+      origin_account_id: accounts[0]?.id || "",
+      destination_account_id: accounts[1]?.id || "",
+      amount: "",
+      date: new Date().toISOString().slice(0, 10),
+      description: "",
+    });
+    setTransferDialogOpen(true);
+  };
+
+  const handleTransfer = async () => {
+    const { origin_account_id, destination_account_id, amount, date } = transferForm;
+    if (!origin_account_id || !destination_account_id || !amount || !date || !companyId) return;
+    if (origin_account_id === destination_account_id) {
+      toast({ title: "Erro", description: "Conta de origem e destino devem ser diferentes.", variant: "destructive" });
+      return;
+    }
+    const valor = parseFloat(amount);
+    if (isNaN(valor) || valor <= 0) {
+      toast({ title: "Erro", description: "Informe um valor válido.", variant: "destructive" });
+      return;
+    }
+
+    setSubmittingTransfer(true);
+    try {
+      const pairId = crypto.randomUUID();
+      const desc = transferForm.description || "Transferência entre contas";
+
+      // Create debit entry (origin) and credit entry (destination)
+      const { error: insertError } = await supabase.from("bank_reconciliation_entries").insert([
+        {
+          company_id: companyId,
+          bank_account_id: origin_account_id,
+          date,
+          external_description: `TED/Transf: ${desc}`,
+          amount: -valor,
+          status: "conciliado",
+          transfer_pair_id: pairId,
+        },
+        {
+          company_id: companyId,
+          bank_account_id: destination_account_id,
+          date,
+          external_description: `TED/Transf: ${desc}`,
+          amount: valor,
+          status: "conciliado",
+          transfer_pair_id: pairId,
+        },
+      ]);
+      if (insertError) throw insertError;
+
+      // Update balances
+      const originAcc = accounts.find(a => a.id === origin_account_id);
+      const destAcc = accounts.find(a => a.id === destination_account_id);
+      if (originAcc) {
+        await supabase.from("bank_accounts").update({ current_balance: Number(originAcc.current_balance) - valor }).eq("id", origin_account_id);
+      }
+      if (destAcc) {
+        await supabase.from("bank_accounts").update({ current_balance: Number(destAcc.current_balance) + valor }).eq("id", destination_account_id);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+      setTransferDialogOpen(false);
+      toast({ title: "Transferência realizada", description: `${formatCurrency(valor)} transferido com sucesso.` });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
+    setSubmittingTransfer(false);
+  };
+
   // ===== Filtered lists for association =====
   const filteredAssociatePagar = useMemo(() => {
     const q = associateSearch.toLowerCase();
@@ -497,6 +578,15 @@ const ConciliacaoBancariaModule = () => {
     const typeFilter = newTitleForm.type === "entrada" ? "receita" : "despesa";
     return categories.filter(c => c.type === typeFilter || c.type === "ambos" || c.type === "fluxo");
   }, [categories, newTitleForm.type]);
+
+  // Check transfer pair status for entries
+  const getTransferPairStatus = useCallback((entry: any) => {
+    if (!entry.transfer_pair_id) return null;
+    const pair = entries.find(e => e.id !== entry.id && (e as any).transfer_pair_id === entry.transfer_pair_id);
+    if (!pair) return "sem_par";
+    if (pair.status === "conciliado" && entry.status === "conciliado") return "completo";
+    return "aguardando";
+  }, [entries]);
 
   const isLoading = loadingRecon;
 
