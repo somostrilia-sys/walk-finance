@@ -285,6 +285,7 @@ const ContasPagar = () => {
         created_by: user?.id,
         entity_name: form.entity_name,
         payment_method: form.payment_method,
+        category_id: form.category_id || null,
         parcela_atual: 1,
         total_parcelas: 1,
       } as any);
