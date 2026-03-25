@@ -1086,7 +1086,7 @@ const ConciliacaoBancariaModule = () => {
                           {isCredit ? "+" : ""}{formatCurrency(Number(entry.amount))}
                         </span>
                       </div>
-                      <p className="text-sm font-medium truncate mb-2">{entry.description || entry.external_description}</p>
+                      <p className="text-sm font-medium truncate mb-2">{(entry as any).description || (entry as any).external_description}</p>
                       <div className="flex items-center gap-1 flex-wrap">
                         <Button variant={isSelected && actionMode === "novo" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "novo")}><PlusCircle className="w-3 h-3 mr-1" />Novo</Button>
                         <Button variant={isSelected && actionMode === "transferencia" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "transferencia")} disabled={isObjetivo || accounts.length < 2}><Repeat className="w-3 h-3 mr-1" />Transferir</Button>
