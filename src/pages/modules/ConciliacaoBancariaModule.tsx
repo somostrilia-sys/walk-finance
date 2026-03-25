@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 import { useParams } from "react-router-dom";
-import { useCompanies, useBankAccounts, useBankReconciliation, useFinancialTransactions, useExpenseCategories, useContasPagar } from "@/hooks/useFinancialData";
+import { useCompanies, useBankAccounts, useBankReconciliation, useBankStatementItems, useFinancialTransactions, useExpenseCategories, useContasPagar } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
