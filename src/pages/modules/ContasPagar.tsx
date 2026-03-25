@@ -911,6 +911,52 @@ const ContasPagar = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Modal de Seleção de Conta Bancária para Baixa */}
+        <Dialog open={baixaDialogOpen} onOpenChange={o => { if (!o) { setBaixaDialogOpen(false); setBaixaConta(null); setBaixaIsBulk(false); } }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>De qual conta foi pago?</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Selecione a conta bancária de onde saiu o pagamento. O lançamento aparecerá como <strong>não conciliado</strong> na movimentação bancária até a importação do extrato.
+            </p>
+            <div className="space-y-3 pt-2">
+              <Select value={baixaAccountId} onValueChange={setBaixaAccountId}>
+                <SelectTrigger><SelectValue placeholder="Selecione a conta corrente..." /></SelectTrigger>
+                <SelectContent>
+                  {bankAccounts?.map((acc: any) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      <div className="flex items-center gap-2">
+                        <Landmark className="w-3.5 h-3.5" />
+                        <span>{acc.bank_name}</span>
+                        {acc.account_number && <span className="text-muted-foreground text-xs">Cc: {acc.account_number}</span>}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" size="sm" onClick={() => { setBaixaDialogOpen(false); setBaixaConta(null); setBaixaIsBulk(false); }}>Cancelar</Button>
+                <Button
+                  size="sm"
+                  disabled={!baixaAccountId}
+                  onClick={async () => {
+                    setBaixaDialogOpen(false);
+                    if (baixaIsBulk) {
+                      await executeBulkBaixa(baixaAccountId);
+                    } else if (baixaConta) {
+                      await executeBaixa(baixaConta, baixaAccountId);
+                    }
+                    setBaixaConta(null);
+                    setBaixaIsBulk(false);
+                    setBaixaAccountId("");
+                  }}
+                >
+                  Confirmar Baixa
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
