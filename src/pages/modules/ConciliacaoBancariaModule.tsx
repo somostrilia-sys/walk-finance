@@ -454,12 +454,12 @@ const ConciliacaoBancariaModule = () => {
         await reconcileStatementItem(actionEntry, newTx?.id);
       } else {
         const { error } = await supabase.from("contas_pagar").insert({
-          company_id: companyId, fornecedor: novoForm.entity_name || actionEntry.external_description,
-          descricao: actionEntry.external_description, categoria: categories?.find(c => c.id === novoForm.category_id)?.name || null,
+          company_id: companyId, fornecedor: novoForm.entity_name || actionEntry.description || actionEntry.external_description,
+          descricao: actionEntry.description || actionEntry.external_description, categoria: categories?.find(c => c.id === novoForm.category_id)?.name || null,
           valor: Math.abs(Number(actionEntry.amount)), vencimento: actionEntry.date, status: "pago",
         });
         if (error) throw error;
-        await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", actionEntry.id);
+        await reconcileStatementItem(actionEntry);
       }
       invalidateAll();
       toast({ title: "Lançamento criado e conciliado" }); closeAction();
