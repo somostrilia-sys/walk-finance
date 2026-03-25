@@ -186,6 +186,14 @@ const ConciliacaoBancariaModule = () => {
   const [associateSearch, setAssociateSearch] = useState("");
   const [associateTab, setAssociateTab] = useState<"pagar" | "receber">("pagar");
 
+  // Selection, edit, delete state for Movimentação
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
+  const [editEntryDialogOpen, setEditEntryDialogOpen] = useState(false);
+  const [editEntryForm, setEditEntryForm] = useState<any>(null);
+  const [deleteEntryConfirmId, setDeleteEntryConfirmId] = useState<string | null>(null);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [submittingEditEntry, setSubmittingEditEntry] = useState(false);
+
   const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
   const entries = reconciliation || [];
   const accounts = bankAccounts || [];
