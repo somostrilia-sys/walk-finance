@@ -832,7 +832,7 @@ const ConciliacaoBancariaModule = () => {
                 <div className="relative max-w-xs flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
                 {totalPendente > 0 && (
                   <Button size="sm" variant="outline" onClick={() => { 
-                    const firstPendingAccount = entries.find(e => e.status === "pendente")?.bank_account_id;
+                    const firstPendingAccount = pendingStatementItems[0]?.bank_account_id;
                     if (firstPendingAccount) { setReconcDrawerAccountId(firstPendingAccount); setReconcDrawerOpen(true); }
                   }}>
                     <ListChecks className="w-4 h-4 mr-1" />Conciliar Pendentes ({totalPendente})
