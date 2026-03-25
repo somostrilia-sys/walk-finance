@@ -1117,6 +1117,72 @@ const ConciliacaoBancariaModule = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit entry dialog */}
+      <Dialog open={editEntryDialogOpen} onOpenChange={setEditEntryDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar Lançamento</DialogTitle></DialogHeader>
+          {editEntryForm && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input value={editEntryForm.external_description} onChange={e => setEditEntryForm({ ...editEntryForm, external_description: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Valor (R$)</Label>
+                  <Input type="number" step="0.01" value={editEntryForm.amount} onChange={e => setEditEntryForm({ ...editEntryForm, amount: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data</Label>
+                  <Input type="date" value={editEntryForm.date} onChange={e => setEditEntryForm({ ...editEntryForm, date: e.target.value })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Conta Corrente</Label>
+                <Select value={editEntryForm.bank_account_id} onValueChange={v => setEditEntryForm({ ...editEntryForm, bank_account_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.account_number ? `• ${a.account_number}` : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditEntryDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleEditEntry} disabled={submittingEditEntry}>{submittingEditEntry ? "Salvando..." : "Salvar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete single entry confirmation */}
+      <AlertDialog open={!!deleteEntryConfirmId} onOpenChange={() => setDeleteEntryConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Lançamento</AlertDialogTitle>
+            <AlertDialogDescription>Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deleteEntryConfirmId && handleDeleteEntry(deleteEntryConfirmId)}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete confirmation */}
+      <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedEntryIds.size} Lançamento(s)</AlertDialogTitle>
+            <AlertDialogDescription>Tem certeza que deseja excluir os lançamentos selecionados? Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleBulkDeleteEntries}>Excluir Todos</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
