@@ -642,7 +642,7 @@ const ConciliacaoBancariaModule = () => {
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={closeAction}><XCircle className="w-4 h-4" /></Button>
           </div>
           <div className="rounded-lg bg-muted/50 p-2 mt-2">
-            <p className="text-xs font-medium truncate">{actionEntry.external_description}</p>
+            <p className="text-xs font-medium truncate">{actionEntry.description || actionEntry.external_description}</p>
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-muted-foreground">{new Date(actionEntry.date).toLocaleDateString("pt-BR")}</span>
               <span className={`text-sm font-bold ${Number(actionEntry.amount) > 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>{formatCurrency(Number(actionEntry.amount))}</span>
