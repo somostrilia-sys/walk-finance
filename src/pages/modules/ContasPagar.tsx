@@ -88,6 +88,10 @@ const ContasPagar = () => {
   const [showEditSuggestions, setShowEditSuggestions] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"delete" | "baixar" | null>(null);
+  const [baixaDialogOpen, setBaixaDialogOpen] = useState(false);
+  const [baixaConta, setBaixaConta] = useState<any>(null);
+  const [baixaAccountId, setBaixaAccountId] = useState("");
+  const [baixaIsBulk, setBaixaIsBulk] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
