@@ -367,7 +367,7 @@ const ConciliacaoBancariaModule = () => {
   }, [pendingStatementItems, reconcDrawerAccountId]);
 
   const totalConciliado = entries.filter(l => l.status === "conciliado").length;
-  const totalPendente = entries.filter(l => l.status === "pendente").length;
+  const totalPendente = pendingStatementItems.length;
   const saldoTotal = accounts.reduce((s, a) => s + Number(a.current_balance), 0);
 
   // Pending titles for association
