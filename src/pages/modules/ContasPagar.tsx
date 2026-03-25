@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { useCompanies, useFinancialTransactions, usePessoas, useExpenseCategories } from "@/hooks/useFinancialData";
+import { useCompanies, useFinancialTransactions, usePessoas, useExpenseCategories, useBankAccounts } from "@/hooks/useFinancialData";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,7 +21,7 @@ import { formatCurrency } from "@/data/mockData";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowDownCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle,
-  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat, ChevronDown, ChevronUp, Calendar
+  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat, ChevronDown, ChevronUp, Calendar, Landmark
 } from "lucide-react";
 
 type StatusCP = "pendente" | "confirmado" | "cancelado";
@@ -71,7 +71,9 @@ const ContasPagar = () => {
   const { data: lancamentosContasPagar = [], isLoading: isLoadingContasPagar } = useContasPagarLancamentos(companyId);
   const { data: pessoas } = usePessoas(companyId);
   const { data: categorias } = useExpenseCategories(companyId);
+  const { data: bankAccounts } = useBankAccounts(companyId);
   const company = companies?.find(c => c.id === companyId);
+  const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -86,6 +88,10 @@ const ContasPagar = () => {
   const [showEditSuggestions, setShowEditSuggestions] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"delete" | "baixar" | null>(null);
+  const [baixaDialogOpen, setBaixaDialogOpen] = useState(false);
+  const [baixaConta, setBaixaConta] = useState<any>(null);
+  const [baixaAccountId, setBaixaAccountId] = useState("");
+  const [baixaIsBulk, setBaixaIsBulk] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -301,6 +307,17 @@ const ContasPagar = () => {
   };
 
   const handleBaixar = async (conta: any) => {
+    if (!isObjetivo && bankAccounts && bankAccounts.length > 0) {
+      setBaixaConta(conta);
+      setBaixaIsBulk(false);
+      setBaixaAccountId("");
+      setBaixaDialogOpen(true);
+      return;
+    }
+    await executeBaixa(conta, null);
+  };
+
+  const executeBaixa = async (conta: any, accountId: string | null) => {
     const { error } = conta.source === "contas_pagar"
       ? await supabase.from("contas_pagar").update({ status: "confirmado" } as any).eq("id", conta.id)
       : await supabase.from("financial_transactions").update({
@@ -309,6 +326,19 @@ const ContasPagar = () => {
         } as any).eq("id", conta.id);
 
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+
+    // Create bank reconciliation entry (não conciliado) if account selected
+    if (accountId && companyId) {
+      await supabase.from("bank_reconciliation_entries").insert({
+        company_id: companyId,
+        bank_account_id: accountId,
+        external_description: conta.description || conta.entity_name || "Pagamento",
+        amount: -Math.abs(Number(conta.amount)),
+        date: new Date().toISOString().slice(0, 10),
+        status: "pendente",
+      } as any);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    }
 
     if (conta.source === "contas_pagar") {
       queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
@@ -381,16 +411,43 @@ const ContasPagar = () => {
     const selected = filtered.filter((c: any) => selectedIds.has(c.id) && c.status === "pendente");
     if (!selected.length) return toast({ title: "Nenhuma conta pendente selecionada", variant: "destructive" });
 
+    if (!isObjetivo && bankAccounts && bankAccounts.length > 0) {
+      setBaixaIsBulk(true);
+      setBaixaConta(null);
+      setBaixaAccountId("");
+      setBaixaDialogOpen(true);
+      setBulkAction(null);
+      return;
+    }
+
+    await executeBulkBaixa(null);
+  };
+
+  const executeBulkBaixa = async (accountId: string | null) => {
+    const selected = filtered.filter((c: any) => selectedIds.has(c.id) && c.status === "pendente");
     const ftIds = selected.filter((c: any) => c.source !== "contas_pagar").map((c: any) => c.id);
     const cpIds = selected.filter((c: any) => c.source === "contas_pagar").map((c: any) => c.id);
 
     if (ftIds.length) await supabase.from("financial_transactions").update({ status: "confirmado", payment_date: new Date().toISOString().slice(0, 10) } as any).in("id", ftIds);
     if (cpIds.length) await supabase.from("contas_pagar").update({ status: "confirmado" } as any).in("id", cpIds);
 
+    // Create bank reconciliation entries for each
+    if (accountId && companyId) {
+      const entries = selected.map((c: any) => ({
+        company_id: companyId,
+        bank_account_id: accountId,
+        external_description: c.description || c.entity_name || "Pagamento",
+        amount: -Math.abs(Number(c.amount)),
+        date: new Date().toISOString().slice(0, 10),
+        status: "pendente",
+      }));
+      await supabase.from("bank_reconciliation_entries").insert(entries as any);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    }
+
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
     setSelectedIds(new Set());
-    setBulkAction(null);
     toast({ title: `${selected.length} conta(s) baixada(s) como paga(s)` });
   };
 
@@ -851,6 +908,52 @@ const ContasPagar = () => {
               >
                 {bulkAction === "delete" ? "Excluir Todas" : "Confirmar Baixa"}
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Seleção de Conta Bancária para Baixa */}
+        <Dialog open={baixaDialogOpen} onOpenChange={o => { if (!o) { setBaixaDialogOpen(false); setBaixaConta(null); setBaixaIsBulk(false); } }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>De qual conta foi pago?</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Selecione a conta bancária de onde saiu o pagamento. O lançamento aparecerá como <strong>não conciliado</strong> na movimentação bancária até a importação do extrato.
+            </p>
+            <div className="space-y-3 pt-2">
+              <Select value={baixaAccountId} onValueChange={setBaixaAccountId}>
+                <SelectTrigger><SelectValue placeholder="Selecione a conta corrente..." /></SelectTrigger>
+                <SelectContent>
+                  {bankAccounts?.map((acc: any) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      <div className="flex items-center gap-2">
+                        <Landmark className="w-3.5 h-3.5" />
+                        <span>{acc.bank_name}</span>
+                        {acc.account_number && <span className="text-muted-foreground text-xs">Cc: {acc.account_number}</span>}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" size="sm" onClick={() => { setBaixaDialogOpen(false); setBaixaConta(null); setBaixaIsBulk(false); }}>Cancelar</Button>
+                <Button
+                  size="sm"
+                  disabled={!baixaAccountId}
+                  onClick={async () => {
+                    setBaixaDialogOpen(false);
+                    if (baixaIsBulk) {
+                      await executeBulkBaixa(baixaAccountId);
+                    } else if (baixaConta) {
+                      await executeBaixa(baixaConta, baixaAccountId);
+                    }
+                    setBaixaConta(null);
+                    setBaixaIsBulk(false);
+                    setBaixaAccountId("");
+                  }}
+                >
+                  Confirmar Baixa
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
