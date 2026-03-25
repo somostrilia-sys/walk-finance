@@ -411,16 +411,43 @@ const ContasPagar = () => {
     const selected = filtered.filter((c: any) => selectedIds.has(c.id) && c.status === "pendente");
     if (!selected.length) return toast({ title: "Nenhuma conta pendente selecionada", variant: "destructive" });
 
+    if (!isObjetivo && bankAccounts && bankAccounts.length > 0) {
+      setBaixaIsBulk(true);
+      setBaixaConta(null);
+      setBaixaAccountId("");
+      setBaixaDialogOpen(true);
+      setBulkAction(null);
+      return;
+    }
+
+    await executeBulkBaixa(null);
+  };
+
+  const executeBulkBaixa = async (accountId: string | null) => {
+    const selected = filtered.filter((c: any) => selectedIds.has(c.id) && c.status === "pendente");
     const ftIds = selected.filter((c: any) => c.source !== "contas_pagar").map((c: any) => c.id);
     const cpIds = selected.filter((c: any) => c.source === "contas_pagar").map((c: any) => c.id);
 
     if (ftIds.length) await supabase.from("financial_transactions").update({ status: "confirmado", payment_date: new Date().toISOString().slice(0, 10) } as any).in("id", ftIds);
     if (cpIds.length) await supabase.from("contas_pagar").update({ status: "confirmado" } as any).in("id", cpIds);
 
+    // Create bank reconciliation entries for each
+    if (accountId && companyId) {
+      const entries = selected.map((c: any) => ({
+        company_id: companyId,
+        bank_account_id: accountId,
+        external_description: c.description || c.entity_name || "Pagamento",
+        amount: -Math.abs(Number(c.amount)),
+        date: new Date().toISOString().slice(0, 10),
+        status: "pendente",
+      }));
+      await supabase.from("bank_reconciliation_entries").insert(entries as any);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    }
+
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
     setSelectedIds(new Set());
-    setBulkAction(null);
     toast({ title: `${selected.length} conta(s) baixada(s) como paga(s)` });
   };
 
