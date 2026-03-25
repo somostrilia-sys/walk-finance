@@ -22,6 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
 import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Loader2, FileText, Plus, Pencil, Trash2, ArrowRightLeft, EyeOff, Repeat, AlertTriangle, Wifi, PlusCircle, ListChecks } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { createPortal } from "react-dom";
 
 // ---------- Parsers ----------
@@ -183,6 +185,14 @@ const ConciliacaoBancariaModule = () => {
   // Associate state
   const [associateSearch, setAssociateSearch] = useState("");
   const [associateTab, setAssociateTab] = useState<"pagar" | "receber">("pagar");
+
+  // Selection, edit, delete state for Movimentação
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
+  const [editEntryDialogOpen, setEditEntryDialogOpen] = useState(false);
+  const [editEntryForm, setEditEntryForm] = useState<any>(null);
+  const [deleteEntryConfirmId, setDeleteEntryConfirmId] = useState<string | null>(null);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [submittingEditEntry, setSubmittingEditEntry] = useState(false);
 
   const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
   const entries = reconciliation || [];
@@ -521,6 +531,83 @@ const ConciliacaoBancariaModule = () => {
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
   };
 
+  // ===== Movimentação selection, edit, delete =====
+  const toggleEntrySelect = (id: string) => {
+    setSelectedEntryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleEntrySelectAll = () => {
+    if (selectedEntryIds.size === displayEntries.length) {
+      setSelectedEntryIds(new Set());
+    } else {
+      setSelectedEntryIds(new Set(displayEntries.map(e => e.id)));
+    }
+  };
+
+  const openEditEntry = (entry: any) => {
+    setEditEntryForm({
+      id: entry.id,
+      external_description: entry.external_description || "",
+      amount: String(entry.amount),
+      date: entry.date,
+      status: entry.status,
+      bank_account_id: entry.bank_account_id,
+    });
+    setEditEntryDialogOpen(true);
+  };
+
+  const handleEditEntry = async () => {
+    if (!editEntryForm) return;
+    setSubmittingEditEntry(true);
+    try {
+      const { error } = await supabase.from("bank_reconciliation_entries").update({
+        external_description: editEntryForm.external_description,
+        amount: Number(editEntryForm.amount),
+        date: editEntryForm.date,
+        bank_account_id: editEntryForm.bank_account_id,
+      }).eq("id", editEntryForm.id);
+      if (error) throw error;
+      toast({ title: "Lançamento atualizado" });
+      setEditEntryDialogOpen(false);
+      setEditEntryForm(null);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
+    setSubmittingEditEntry(false);
+  };
+
+  const handleDeleteEntry = async (id: string) => {
+    try {
+      const { error } = await supabase.from("bank_reconciliation_entries").delete().eq("id", id);
+      if (error) throw error;
+      toast({ title: "Lançamento excluído" });
+      setDeleteEntryConfirmId(null);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleBulkDeleteEntries = async () => {
+    const ids = Array.from(selectedEntryIds);
+    if (!ids.length) return;
+    try {
+      const { error } = await supabase.from("bank_reconciliation_entries").delete().in("id", ids);
+      if (error) throw error;
+      toast({ title: `${ids.length} lançamento(s) excluído(s)` });
+      setSelectedEntryIds(new Set());
+      setBulkDeleteConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
+  };
+
   // ===== Bank account CRUD =====
   const handleAddAccount = async () => { if (!accountForm.bank_name.trim() || !companyId) return; setSubmittingAccount(true); try { await supabase.from("bank_accounts").insert({ company_id: companyId, bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 }); toast({ title: "Conta bancária adicionada!" }); setAddAccountDialogOpen(false); setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" }); queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); } setSubmittingAccount(false); };
   const handleEditAccount = async () => { if (!editingAccount || !accountForm.bank_name.trim()) return; setSubmittingAccount(true); try { await supabase.from("bank_accounts").update({ bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 }).eq("id", editingAccount.id); toast({ title: "Conta atualizada!" }); setEditAccountDialogOpen(false); setEditingAccount(null); queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); } setSubmittingAccount(false); };
@@ -714,6 +801,17 @@ const ConciliacaoBancariaModule = () => {
                 )}
               </div>
 
+              {/* Bulk action bar */}
+              {selectedEntryIds.size > 0 && (
+                <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-muted/50 border border-border">
+                  <span className="text-sm font-medium">{selectedEntryIds.size} selecionado(s)</span>
+                  <Button size="sm" variant="destructive" onClick={() => setBulkDeleteConfirmOpen(true)}>
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />Excluir Selecionados
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedEntryIds(new Set())}>Limpar seleção</Button>
+                </div>
+              )}
+
               <Card>
                 <CardContent className="p-0">
                   {displayEntries.length === 0 ? (
@@ -722,6 +820,12 @@ const ConciliacaoBancariaModule = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[40px]">
+                            <Checkbox
+                              checked={displayEntries.length > 0 && selectedEntryIds.size === displayEntries.length}
+                              onCheckedChange={toggleEntrySelectAll}
+                            />
+                          </TableHead>
                           <TableHead className="w-[100px]">Situação</TableHead>
                           <TableHead className="w-[90px]">Data</TableHead>
                           <TableHead>Cliente / Prestador</TableHead>
@@ -729,7 +833,7 @@ const ConciliacaoBancariaModule = () => {
                           <TableHead>Categoria</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
                           <TableHead className="text-right">Saldo</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
+                          <TableHead className="w-[100px] text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -743,6 +847,12 @@ const ConciliacaoBancariaModule = () => {
 
                           return (
                             <TableRow key={entry.id} className={`${isPending ? "bg-[hsl(var(--status-warning)/0.05)] border-l-2 border-l-[hsl(var(--status-warning))]" : ""} ${isIgnorado ? "opacity-50" : ""}`}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedEntryIds.has(entry.id)}
+                                  onCheckedChange={() => toggleEntrySelect(entry.id)}
+                                />
+                              </TableCell>
                               <TableCell>
                                 {isConciliado ? (
                                   <Badge className="bg-[hsl(var(--status-positive)/0.1)] text-[hsl(var(--status-positive))] text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Conciliado</Badge>
@@ -763,9 +873,19 @@ const ConciliacaoBancariaModule = () => {
                                 {formatCurrency((entry as any).saldo)}
                               </TableCell>
                               <TableCell>
-                                {(isConciliado || isIgnorado) && (
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Desfazer" onClick={() => handleDesfazer(entry)}><Undo2 className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                                )}
+                                <div className="flex items-center justify-end gap-0.5">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar" onClick={() => openEditEntry(entry)}>
+                                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" title="Excluir" onClick={() => setDeleteEntryConfirmId(entry.id)}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                  {(isConciliado || isIgnorado) && (
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Desfazer" onClick={() => handleDesfazer(entry)}>
+                                      <Undo2 className="w-3.5 h-3.5 text-muted-foreground" />
+                                    </Button>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
@@ -997,6 +1117,72 @@ const ConciliacaoBancariaModule = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit entry dialog */}
+      <Dialog open={editEntryDialogOpen} onOpenChange={setEditEntryDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar Lançamento</DialogTitle></DialogHeader>
+          {editEntryForm && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input value={editEntryForm.external_description} onChange={e => setEditEntryForm({ ...editEntryForm, external_description: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Valor (R$)</Label>
+                  <Input type="number" step="0.01" value={editEntryForm.amount} onChange={e => setEditEntryForm({ ...editEntryForm, amount: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data</Label>
+                  <Input type="date" value={editEntryForm.date} onChange={e => setEditEntryForm({ ...editEntryForm, date: e.target.value })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Conta Corrente</Label>
+                <Select value={editEntryForm.bank_account_id} onValueChange={v => setEditEntryForm({ ...editEntryForm, bank_account_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.bank_name} {a.account_number ? `• ${a.account_number}` : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditEntryDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleEditEntry} disabled={submittingEditEntry}>{submittingEditEntry ? "Salvando..." : "Salvar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete single entry confirmation */}
+      <AlertDialog open={!!deleteEntryConfirmId} onOpenChange={() => setDeleteEntryConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Lançamento</AlertDialogTitle>
+            <AlertDialogDescription>Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deleteEntryConfirmId && handleDeleteEntry(deleteEntryConfirmId)}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete confirmation */}
+      <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedEntryIds.size} Lançamento(s)</AlertDialogTitle>
+            <AlertDialogDescription>Tem certeza que deseja excluir os lançamentos selecionados? Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleBulkDeleteEntries}>Excluir Todos</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
