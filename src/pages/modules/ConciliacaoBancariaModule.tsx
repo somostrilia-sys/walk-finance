@@ -795,7 +795,7 @@ const ConciliacaoBancariaModule = () => {
     );
   };
 
-  const isLoading = loadingRecon;
+  const isLoading = loadingRecon || loadingStatement;
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
