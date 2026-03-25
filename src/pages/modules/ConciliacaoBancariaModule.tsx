@@ -198,6 +198,7 @@ const ConciliacaoBancariaModule = () => {
 
   const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
   const entries = reconciliation || [];
+  const pendingStatementItems = useMemo(() => (statementItems || []).filter(i => i.status === "pendente"), [statementItems]);
   const accounts = bankAccounts || [];
 
   // ===== File handling =====
