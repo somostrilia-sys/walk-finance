@@ -216,6 +216,70 @@ export type Database = {
           },
         ]
       }
+      bank_statement_items: {
+        Row: {
+          amount: number
+          bank_account_id: string
+          company_id: string
+          created_at: string
+          date: string
+          description: string
+          id: string
+          ofx_transaction_id: string | null
+          status: string
+          transaction_id: string | null
+          type: string
+        }
+        Insert: {
+          amount: number
+          bank_account_id: string
+          company_id: string
+          created_at?: string
+          date: string
+          description: string
+          id?: string
+          ofx_transaction_id?: string | null
+          status?: string
+          transaction_id?: string | null
+          type?: string
+        }
+        Update: {
+          amount?: number
+          bank_account_id?: string
+          company_id?: string
+          created_at?: string
+          date?: string
+          description?: string
+          id?: string
+          ofx_transaction_id?: string | null
+          status?: string
+          transaction_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_statement_items_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_statement_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_statement_items_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           city: string | null

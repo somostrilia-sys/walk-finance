@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 import { useParams } from "react-router-dom";
-import { useCompanies, useBankAccounts, useBankReconciliation, useFinancialTransactions, useExpenseCategories, useContasPagar } from "@/hooks/useFinancialData";
+import { useCompanies, useBankAccounts, useBankReconciliation, useBankStatementItems, useFinancialTransactions, useExpenseCategories, useContasPagar } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,7 +28,7 @@ import { createPortal } from "react-dom";
 
 // ---------- Parsers ----------
 
-interface ParsedEntry { date: string; description: string; amount: number; }
+interface ParsedEntry { date: string; description: string; amount: number; fitid?: string; }
 
 function parseCSV(text: string): ParsedEntry[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -64,9 +64,10 @@ function parseOFX(text: string): ParsedEntry[] {
     const rawDate = getTag('DTPOSTED');
     const amount = parseFloat(getTag('TRNAMT').replace(',', '.'));
     const desc = getTag('MEMO') || getTag('NAME') || 'Sem descrição';
+    const fitid = getTag('FITID') || undefined;
     if (!rawDate || isNaN(amount)) continue;
     const isoDate = rawDate.length >= 8 ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}` : rawDate;
-    entries.push({ date: isoDate, description: desc, amount });
+    entries.push({ date: isoDate, description: desc, amount, fitid });
   }
   return entries;
 }
@@ -132,6 +133,7 @@ const ConciliacaoBancariaModule = () => {
   const { data: companies } = useCompanies();
   const company = companies?.find(c => c.id === companyId);
   const { data: reconciliation, isLoading: loadingRecon } = useBankReconciliation(companyId);
+  const { data: statementItems, isLoading: loadingStatement } = useBankStatementItems(companyId);
   const { data: bankAccounts } = useBankAccounts(companyId);
   const { data: transactions } = useFinancialTransactions(companyId);
   const { data: categories } = useExpenseCategories(companyId);
@@ -196,39 +198,13 @@ const ConciliacaoBancariaModule = () => {
 
   const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
   const entries = reconciliation || [];
+  const pendingStatementItems = useMemo(() => (statementItems || []).filter(i => i.status === "pendente"), [statementItems]);
   const accounts = bankAccounts || [];
 
   // ===== File handling =====
   const handleClickUpload = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); if (inputFileRef.current) { inputFileRef.current.value = ''; inputFileRef.current.click(); } };
 
-  const autoMatch = useCallback(async (importedEntries: { id: string; description: string; amount: number; date: string }[]) => {
-    const cpList = contasPagar || [];
-    const crList = (transactions || []).filter(t => t.type === "entrada" && t.status === "pendente");
-    let matched = 0;
 
-    for (const entry of importedEntries) {
-      const absAmt = Math.abs(entry.amount);
-      const descLower = entry.description.toLowerCase();
-      const isDebit = entry.amount < 0;
-
-      if (isDebit) {
-        const match = cpList.find(c => (c.status === "a_vencer" || c.status === "pendente") && Math.abs(Number(c.valor) - absAmt) < 0.02 && c.fornecedor.toLowerCase().split(/\s+/).some(w => w.length > 3 && descLower.includes(w)));
-        if (match) {
-          await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", entry.id);
-          await supabase.from("contas_pagar").update({ status: "pago" }).eq("id", match.id);
-          matched++;
-        }
-      } else {
-        const match = crList.find(t => Math.abs(Number(t.amount) - absAmt) < 0.02 && (t.entity_name || t.description).toLowerCase().split(/\s+/).some(w => w.length > 3 && descLower.includes(w)));
-        if (match) {
-          await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transaction_id: match.id }).eq("id", entry.id);
-          await supabase.from("financial_transactions").update({ status: "recebido" }).eq("id", match.id);
-          matched++;
-        }
-      }
-    }
-    return matched;
-  }, [contasPagar, transactions]);
 
   const processFile = useCallback(async (file: File, accountId: string) => {
     setImporting(true);
@@ -245,19 +221,20 @@ const ConciliacaoBancariaModule = () => {
       }
       if (parsed.length === 0) { toast({ title: "Nenhum lançamento encontrado", description: "Verifique o formato do arquivo.", variant: "destructive" }); setImporting(false); return; }
 
-      // ===== DUPLICATE PREVENTION =====
-      // Fetch existing entries for this account to check duplicates
-      const { data: existingEntries } = await supabase
-        .from("bank_reconciliation_entries")
-        .select("date, external_description, amount")
+      // ===== DUPLICATE PREVENTION via ofx_transaction_id (FITID) =====
+      const { data: existingItems } = await supabase
+        .from("bank_statement_items" as any)
+        .select("ofx_transaction_id, date, description, amount")
         .eq("company_id", companyId!)
         .eq("bank_account_id", accountId);
 
+      const existingFitids = new Set((existingItems || []).filter((e: any) => e.ofx_transaction_id).map((e: any) => e.ofx_transaction_id));
       const existingSet = new Set(
-        (existingEntries || []).map(e => `${e.date}|${e.external_description.toLowerCase().trim()}|${Number(e.amount).toFixed(2)}`)
+        (existingItems || []).map((e: any) => `${e.date}|${e.description.toLowerCase().trim()}|${Number(e.amount).toFixed(2)}`)
       );
 
       const newEntries = parsed.filter(e => {
+        if (e.fitid && existingFitids.has(e.fitid)) return false;
         const key = `${e.date}|${e.description.toLowerCase().trim()}|${e.amount.toFixed(2)}`;
         return !existingSet.has(key);
       });
@@ -270,28 +247,33 @@ const ConciliacaoBancariaModule = () => {
         return;
       }
 
-      const rows = newEntries.map(e => ({ company_id: companyId!, bank_account_id: accountId, date: e.date, external_description: e.description, amount: e.amount, status: "pendente" as const }));
-      const { data: inserted, error } = await supabase.from("bank_reconciliation_entries").insert(rows).select("id, external_description, amount, date");
+      const rows = newEntries.map(e => ({
+        company_id: companyId!,
+        bank_account_id: accountId,
+        date: e.date,
+        description: e.description,
+        amount: e.amount,
+        type: e.amount >= 0 ? 'credito' : 'debito',
+        status: 'pendente',
+        ofx_transaction_id: e.fitid || null,
+      }));
+
+      const { error } = await supabase.from("bank_statement_items" as any).insert(rows);
       if (error) { toast({ title: "Erro ao importar", description: error.message, variant: "destructive" }); setImporting(false); return; }
 
-      // Auto-match
-      const matchedCount = inserted ? await autoMatch(inserted.map(r => ({ id: r.id, description: r.external_description, amount: Number(r.amount), date: r.date }))) : 0;
-
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["bank_statement_items", companyId] });
       setParsedFileName(file.name);
       setParsedCount(newEntries.length);
 
       const dupMsg = duplicateCount > 0 ? ` ${duplicateCount} duplicados ignorados.` : "";
-      toast({ title: "Importação concluída", description: `${newEntries.length} lançamentos importados. ${matchedCount} conciliados automaticamente.${dupMsg}` });
+      toast({ title: "Importação concluída", description: `${newEntries.length} lançamentos importados para conciliação.${dupMsg}` });
 
       // Open the reconciliation drawer for this account
       setReconcDrawerAccountId(accountId);
       setReconcDrawerOpen(true);
     } catch (err: any) { toast({ title: "Erro ao processar arquivo", description: err?.message || "Verifique o formato.", variant: "destructive" }); }
     setImporting(false);
-  }, [companyId, queryClient, autoMatch]);
+  }, [companyId, queryClient]);
 
   // ALWAYS ask which account before processing
   const handleFiles = useCallback(async (files: FileList) => {
@@ -314,13 +296,12 @@ const ConciliacaoBancariaModule = () => {
   const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); };
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(false); if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files); };
 
-  // ===== Computed data for MOVIMENTAÇÃO (only conciliado entries, pendentes highlighted) =====
+  // ===== Computed data for MOVIMENTAÇÃO (only conciliado/manually created entries) =====
   const movimentacaoEntries = useMemo(() => {
     return entries
       .filter(l => {
         if (filtroConta !== "todos" && l.bank_account_id !== filtroConta) return false;
         if (search && !l.external_description.toLowerCase().includes(search.toLowerCase())) return false;
-        // Show conciliado + pendente (highlighted) + ignorado. Exclude nothing—just separate visually.
         return true;
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -352,13 +333,13 @@ const ConciliacaoBancariaModule = () => {
 
   // Drawer pending entries (for the reconciliation workspace)
   const drawerPendingEntries = useMemo(() => {
-    return entries
-      .filter(e => e.bank_account_id === reconcDrawerAccountId && (e.status === "pendente" || e.status === "nao_identificado"))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [entries, reconcDrawerAccountId]);
+    return pendingStatementItems
+      .filter(e => e.bank_account_id === reconcDrawerAccountId)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [pendingStatementItems, reconcDrawerAccountId]);
 
   const totalConciliado = entries.filter(l => l.status === "conciliado").length;
-  const totalPendente = entries.filter(l => l.status === "pendente").length;
+  const totalPendente = pendingStatementItems.length;
   const saldoTotal = accounts.reduce((s, a) => s + Number(a.current_balance), 0);
 
   // Pending titles for association
@@ -398,7 +379,7 @@ const ConciliacaoBancariaModule = () => {
       setTransferForm({ origin_account_id: entry.bank_account_id, destination_account_id: accounts.find(a => a.id !== entry.bank_account_id)?.id || "", description: "" });
     } else if (mode === "conta_pr") {
       const isDebit = Number(entry.amount) < 0;
-      setContaPrForm({ type: isDebit ? "saida" : "entrada", description: entry.external_description || "", entity_name: "", category_id: "", date: entry.date || new Date().toISOString().slice(0, 10), amount: String(Math.abs(Number(entry.amount))) });
+      setContaPrForm({ type: isDebit ? "saida" : "entrada", description: entry.description || entry.external_description || "", entity_name: "", category_id: "", date: entry.date || new Date().toISOString().slice(0, 10), amount: String(Math.abs(Number(entry.amount))) });
     } else if (mode === "associar") {
       setAssociateSearch("");
       setAssociateTab(Number(entry.amount) < 0 ? "pagar" : "receber");
@@ -409,8 +390,25 @@ const ConciliacaoBancariaModule = () => {
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["bank_statement_items", companyId] });
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+  };
+
+  // Helper: mark statement item as conciliado and create bank_reconciliation_entry
+  const reconcileStatementItem = async (item: any, transactionId?: string) => {
+    // Create the reconciliation entry
+    await supabase.from("bank_reconciliation_entries").insert({
+      company_id: companyId!,
+      bank_account_id: item.bank_account_id,
+      date: item.date,
+      external_description: item.description,
+      amount: item.amount,
+      status: "conciliado",
+      transaction_id: transactionId || null,
+    });
+    // Mark statement item as conciliado
+    await supabase.from("bank_statement_items" as any).update({ status: "conciliado", transaction_id: transactionId || null }).eq("id", item.id);
   };
 
   // a) Add as new lancamento
@@ -420,20 +418,20 @@ const ConciliacaoBancariaModule = () => {
     try {
       if (isCredit) {
         const { data: newTx, error } = await supabase.from("financial_transactions").insert({
-          company_id: companyId, description: actionEntry.external_description, entity_name: novoForm.entity_name || null,
+          company_id: companyId, description: actionEntry.description || actionEntry.external_description, entity_name: novoForm.entity_name || null,
           category_id: novoForm.category_id, amount: Math.abs(Number(actionEntry.amount)), date: actionEntry.date,
           type: "entrada", status: "recebido",
         }).select().single();
         if (error) throw error;
-        if (newTx) await supabase.from("bank_reconciliation_entries").update({ transaction_id: newTx.id, status: "conciliado" }).eq("id", actionEntry.id);
+        await reconcileStatementItem(actionEntry, newTx?.id);
       } else {
         const { error } = await supabase.from("contas_pagar").insert({
-          company_id: companyId, fornecedor: novoForm.entity_name || actionEntry.external_description,
-          descricao: actionEntry.external_description, categoria: categories?.find(c => c.id === novoForm.category_id)?.name || null,
+          company_id: companyId, fornecedor: novoForm.entity_name || actionEntry.description || actionEntry.external_description,
+          descricao: actionEntry.description || actionEntry.external_description, categoria: categories?.find(c => c.id === novoForm.category_id)?.name || null,
           valor: Math.abs(Number(actionEntry.amount)), vencimento: actionEntry.date, status: "pago",
         });
         if (error) throw error;
-        await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", actionEntry.id);
+        await reconcileStatementItem(actionEntry);
       }
       invalidateAll();
       toast({ title: "Lançamento criado e conciliado" }); closeAction();
@@ -450,16 +448,25 @@ const ConciliacaoBancariaModule = () => {
       const valor = Math.abs(Number(actionEntry.amount));
       const pairId = crypto.randomUUID();
       const desc = description || "Transferência entre contas";
+      // Create reconciliation entry for origin (the statement item)
+      await reconcileStatementItem(actionEntry);
+      // Update the just-created recon entry with transfer_pair_id
+      const { data: originRecon } = await supabase.from("bank_reconciliation_entries")
+        .select("id").eq("company_id", companyId!).eq("bank_account_id", actionEntry.bank_account_id)
+        .eq("external_description", actionEntry.description).eq("date", actionEntry.date).order("created_at", { ascending: false }).limit(1);
+      if (originRecon?.[0]) {
+        await supabase.from("bank_reconciliation_entries").update({ transfer_pair_id: pairId }).eq("id", originRecon[0].id);
+      }
+      // Create reconciliation entry for destination
       await supabase.from("bank_reconciliation_entries").insert({
         company_id: companyId, bank_account_id: destination_account_id, date: actionEntry.date,
         external_description: `TED/Transf: ${desc}`, amount: valor, status: "conciliado", transfer_pair_id: pairId,
       });
-      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transfer_pair_id: pairId }).eq("id", actionEntry.id);
       const originAcc = accounts.find(a => a.id === origin_account_id);
       const destAcc = accounts.find(a => a.id === destination_account_id);
       if (originAcc) await supabase.from("bank_accounts").update({ current_balance: Number(originAcc.current_balance) - valor }).eq("id", origin_account_id);
       if (destAcc) await supabase.from("bank_accounts").update({ current_balance: Number(destAcc.current_balance) + valor }).eq("id", destination_account_id);
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      invalidateAll();
       queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
       toast({ title: "Transferência registrada e conciliada" }); closeAction();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
@@ -478,15 +485,15 @@ const ConciliacaoBancariaModule = () => {
           descricao: contaPrForm.description, categoria: categories?.find(c => c.id === contaPrForm.category_id)?.name || null,
           valor: parseFloat(contaPrForm.amount) || Math.abs(Number(actionEntry.amount)), vencimento: contaPrForm.date, status: "pago",
         });
+        await reconcileStatementItem(actionEntry);
       } else {
         const { data: newTx } = await supabase.from("financial_transactions").insert({
           company_id: companyId, description: contaPrForm.description, entity_name: contaPrForm.entity_name || null,
           category_id: contaPrForm.category_id, amount: parseFloat(contaPrForm.amount) || Math.abs(Number(actionEntry.amount)),
           date: contaPrForm.date, type: "entrada", status: "recebido",
         }).select().single();
-        if (newTx) await supabase.from("bank_reconciliation_entries").update({ transaction_id: newTx.id }).eq("id", actionEntry.id);
+        await reconcileStatementItem(actionEntry, newTx?.id);
       }
-      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", actionEntry.id);
       invalidateAll();
       toast({ title: "Título criado e conciliado" }); closeAction();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
@@ -496,7 +503,8 @@ const ConciliacaoBancariaModule = () => {
   const handleAssociate = async (titleId: string, source: "pagar" | "receber") => {
     if (!actionEntry) return;
     try {
-      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transaction_id: source === "receber" ? titleId : null }).eq("id", actionEntry.id);
+      const txId = source === "receber" ? titleId : undefined;
+      await reconcileStatementItem(actionEntry, txId);
       if (source === "pagar") {
         await supabase.from("contas_pagar").update({ status: "pago" }).eq("id", titleId);
       } else {
@@ -507,10 +515,13 @@ const ConciliacaoBancariaModule = () => {
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
   };
 
-  // e) Ignore
+  // e) Ignore — for statement items, just mark as conciliado with no linked transaction
   const handleIgnorar = async (id: string) => {
-    await supabase.from("bank_reconciliation_entries").update({ status: "ignorado" }).eq("id", id);
-    queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    const item = pendingStatementItems.find(i => i.id === id);
+    if (item) {
+      await reconcileStatementItem(item);
+    }
+    invalidateAll();
     toast({ title: "Lançamento ignorado" });
   };
 
@@ -756,7 +767,7 @@ const ConciliacaoBancariaModule = () => {
     );
   };
 
-  const isLoading = loadingRecon;
+  const isLoading = loadingRecon || loadingStatement;
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
@@ -793,7 +804,7 @@ const ConciliacaoBancariaModule = () => {
                 <div className="relative max-w-xs flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
                 {totalPendente > 0 && (
                   <Button size="sm" variant="outline" onClick={() => { 
-                    const firstPendingAccount = entries.find(e => e.status === "pendente")?.bank_account_id;
+                    const firstPendingAccount = pendingStatementItems[0]?.bank_account_id;
                     if (firstPendingAccount) { setReconcDrawerAccountId(firstPendingAccount); setReconcDrawerOpen(true); }
                   }}>
                     <ListChecks className="w-4 h-4 mr-1" />Conciliar Pendentes ({totalPendente})
@@ -1011,7 +1022,7 @@ const ConciliacaoBancariaModule = () => {
                           {isCredit ? "+" : ""}{formatCurrency(Number(entry.amount))}
                         </span>
                       </div>
-                      <p className="text-sm font-medium truncate mb-2">{entry.external_description}</p>
+                      <p className="text-sm font-medium truncate mb-2">{entry.description || entry.external_description}</p>
                       <div className="flex items-center gap-1 flex-wrap">
                         <Button variant={isSelected && actionMode === "novo" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "novo")}><PlusCircle className="w-3 h-3 mr-1" />Novo</Button>
                         <Button variant={isSelected && actionMode === "transferencia" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "transferencia")} disabled={isObjetivo || accounts.length < 2}><Repeat className="w-3 h-3 mr-1" />Transferir</Button>
