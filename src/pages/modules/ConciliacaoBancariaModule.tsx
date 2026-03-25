@@ -323,13 +323,12 @@ const ConciliacaoBancariaModule = () => {
   const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); };
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(false); if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files); };
 
-  // ===== Computed data for MOVIMENTAÇÃO (only conciliado entries, pendentes highlighted) =====
+  // ===== Computed data for MOVIMENTAÇÃO (only conciliado/manually created entries) =====
   const movimentacaoEntries = useMemo(() => {
     return entries
       .filter(l => {
         if (filtroConta !== "todos" && l.bank_account_id !== filtroConta) return false;
         if (search && !l.external_description.toLowerCase().includes(search.toLowerCase())) return false;
-        // Show conciliado + pendente (highlighted) + ignorado. Exclude nothing—just separate visually.
         return true;
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
