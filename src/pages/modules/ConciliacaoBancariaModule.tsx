@@ -408,7 +408,7 @@ const ConciliacaoBancariaModule = () => {
       transaction_id: transactionId || null,
     });
     // Mark statement item as conciliado
-    await supabase.from("bank_statement_items" as any).update({ status: "conciliado", transaction_id: transactionId || null }).eq("id", item.id);
+    await supabase.from("bank_statement_items").update({ status: "conciliado", transaction_id: transactionId || null }).eq("id", item.id);
   };
 
   // a) Add as new lancamento
