@@ -223,7 +223,7 @@ const ConciliacaoBancariaModule = () => {
 
       // ===== DUPLICATE PREVENTION via ofx_transaction_id (FITID) =====
       const { data: existingItems } = await supabase
-        .from("bank_statement_items" as any)
+        .from("bank_statement_items")
         .select("ofx_transaction_id, date, description, amount")
         .eq("company_id", companyId!)
         .eq("bank_account_id", accountId);
@@ -258,7 +258,7 @@ const ConciliacaoBancariaModule = () => {
         ofx_transaction_id: e.fitid || null,
       }));
 
-      const { error } = await supabase.from("bank_statement_items" as any).insert(rows);
+      const { error } = await supabase.from("bank_statement_items").insert(rows);
       if (error) { toast({ title: "Erro ao importar", description: error.message, variant: "destructive" }); setImporting(false); return; }
 
       queryClient.invalidateQueries({ queryKey: ["bank_statement_items", companyId] });
@@ -408,7 +408,7 @@ const ConciliacaoBancariaModule = () => {
       transaction_id: transactionId || null,
     });
     // Mark statement item as conciliado
-    await supabase.from("bank_statement_items" as any).update({ status: "conciliado", transaction_id: transactionId || null }).eq("id", item.id);
+    await supabase.from("bank_statement_items").update({ status: "conciliado", transaction_id: transactionId || null }).eq("id", item.id);
   };
 
   // a) Add as new lancamento
@@ -642,7 +642,7 @@ const ConciliacaoBancariaModule = () => {
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={closeAction}><XCircle className="w-4 h-4" /></Button>
           </div>
           <div className="rounded-lg bg-muted/50 p-2 mt-2">
-            <p className="text-xs font-medium truncate">{actionEntry.external_description}</p>
+            <p className="text-xs font-medium truncate">{actionEntry.description || actionEntry.external_description}</p>
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-muted-foreground">{new Date(actionEntry.date).toLocaleDateString("pt-BR")}</span>
               <span className={`text-sm font-bold ${Number(actionEntry.amount) > 0 ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>{formatCurrency(Number(actionEntry.amount))}</span>
@@ -936,9 +936,73 @@ const ConciliacaoBancariaModule = () => {
                   <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wifi className="w-4 h-4" />Open Finance</CardTitle></CardHeader>
                   <CardContent className="text-center space-y-4">
                     <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Wifi className="w-8 h-8 text-muted-foreground" /></div>
-                    <p className="text-sm text-muted-foreground">Conecte sua conta bancária via Open Finance para importar extratos automaticamente, sem necessidade de upload de arquivos.</p>
-                    <p className="text-xs text-muted-foreground">A conciliação automática funciona da mesma forma que a importação manual.</p>
+                    <p className="text-sm text-muted-foreground">Conecte sua conta bancária via Open Finance para importar extratos automaticamente.</p>
                     <Button variant="outline" disabled><Wifi className="w-4 h-4 mr-2" />Conectar via Open Finance<Badge variant="secondary" className="ml-2 text-[10px]">Em breve</Badge></Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* ===== EXTRATO BANCÁRIO — Pending items section ===== */}
+              <div className="mt-6">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-[hsl(var(--status-warning))]" />
+                      Extrato Bancário — Pendentes ({pendingStatementItems.length})
+                    </CardTitle>
+                    {pendingStatementItems.length > 0 && (
+                      <Button size="sm" variant="outline" onClick={() => {
+                        const firstAccount = pendingStatementItems[0]?.bank_account_id;
+                        if (firstAccount) { setReconcDrawerAccountId(firstAccount); setReconcDrawerOpen(true); }
+                      }}>
+                        <ListChecks className="w-4 h-4 mr-1" />Conciliar Todos
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {pendingStatementItems.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground text-sm">
+                        <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-[hsl(var(--status-positive))]" />
+                        Nenhum item pendente. Importe um extrato para começar.
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[90px]">Data</TableHead>
+                            <TableHead>Descrição</TableHead>
+                            <TableHead>Conta</TableHead>
+                            <TableHead className="text-right">Valor</TableHead>
+                            <TableHead className="w-[120px] text-right">Ação</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pendingStatementItems.map((item: any) => {
+                            const isCredit = Number(item.amount) > 0;
+                            const bankName = item.bank_accounts?.bank_name || accounts.find(a => a.id === item.bank_account_id)?.bank_name || "—";
+                            return (
+                              <TableRow key={item.id} className="bg-[hsl(var(--status-warning)/0.03)]">
+                                <TableCell className="text-xs">{new Date(item.date).toLocaleDateString("pt-BR")}</TableCell>
+                                <TableCell className="text-sm font-medium truncate max-w-[250px]">{item.description}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{bankName}</TableCell>
+                                <TableCell className={`text-right font-medium ${isCredit ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                                  {isCredit ? "+" : ""}{formatCurrency(Number(item.amount))}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                                    setReconcDrawerAccountId(item.bank_account_id);
+                                    setReconcDrawerOpen(true);
+                                    openAction(item, "novo");
+                                  }}>
+                                    <Link2 className="w-3 h-3 mr-1" />Conciliar
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -1022,7 +1086,7 @@ const ConciliacaoBancariaModule = () => {
                           {isCredit ? "+" : ""}{formatCurrency(Number(entry.amount))}
                         </span>
                       </div>
-                      <p className="text-sm font-medium truncate mb-2">{entry.description || entry.external_description}</p>
+                      <p className="text-sm font-medium truncate mb-2">{(entry as any).description || (entry as any).external_description}</p>
                       <div className="flex items-center gap-1 flex-wrap">
                         <Button variant={isSelected && actionMode === "novo" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "novo")}><PlusCircle className="w-3 h-3 mr-1" />Novo</Button>
                         <Button variant={isSelected && actionMode === "transferencia" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => openAction(entry, "transferencia")} disabled={isObjetivo || accounts.length < 2}><Repeat className="w-3 h-3 mr-1" />Transferir</Button>
