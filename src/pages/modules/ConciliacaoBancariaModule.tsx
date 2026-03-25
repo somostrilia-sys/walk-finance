@@ -407,7 +407,7 @@ const ConciliacaoBancariaModule = () => {
       setTransferForm({ origin_account_id: entry.bank_account_id, destination_account_id: accounts.find(a => a.id !== entry.bank_account_id)?.id || "", description: "" });
     } else if (mode === "conta_pr") {
       const isDebit = Number(entry.amount) < 0;
-      setContaPrForm({ type: isDebit ? "saida" : "entrada", description: entry.external_description || "", entity_name: "", category_id: "", date: entry.date || new Date().toISOString().slice(0, 10), amount: String(Math.abs(Number(entry.amount))) });
+      setContaPrForm({ type: isDebit ? "saida" : "entrada", description: entry.description || entry.external_description || "", entity_name: "", category_id: "", date: entry.date || new Date().toISOString().slice(0, 10), amount: String(Math.abs(Number(entry.amount))) });
     } else if (mode === "associar") {
       setAssociateSearch("");
       setAssociateTab(Number(entry.amount) < 0 ? "pagar" : "receber");
