@@ -204,33 +204,8 @@ const ConciliacaoBancariaModule = () => {
   // ===== File handling =====
   const handleClickUpload = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); if (inputFileRef.current) { inputFileRef.current.value = ''; inputFileRef.current.click(); } };
 
-  const autoMatch = useCallback(async (importedEntries: { id: string; description: string; amount: number; date: string }[]) => {
-    const cpList = contasPagar || [];
-    const crList = (transactions || []).filter(t => t.type === "entrada" && t.status === "pendente");
-    let matched = 0;
 
-    for (const entry of importedEntries) {
-      const absAmt = Math.abs(entry.amount);
-      const descLower = entry.description.toLowerCase();
-      const isDebit = entry.amount < 0;
 
-      if (isDebit) {
-        const match = cpList.find(c => (c.status === "a_vencer" || c.status === "pendente") && Math.abs(Number(c.valor) - absAmt) < 0.02 && c.fornecedor.toLowerCase().split(/\s+/).some(w => w.length > 3 && descLower.includes(w)));
-        if (match) {
-          await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", entry.id);
-          await supabase.from("contas_pagar").update({ status: "pago" }).eq("id", match.id);
-          matched++;
-        }
-      } else {
-        const match = crList.find(t => Math.abs(Number(t.amount) - absAmt) < 0.02 && (t.entity_name || t.description).toLowerCase().split(/\s+/).some(w => w.length > 3 && descLower.includes(w)));
-        if (match) {
-          await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transaction_id: match.id }).eq("id", entry.id);
-          await supabase.from("financial_transactions").update({ status: "recebido" }).eq("id", match.id);
-          matched++;
-        }
-      }
-    }
-    return matched;
   }, [contasPagar, transactions]);
 
   const processFile = useCallback(async (file: File, accountId: string) => {
