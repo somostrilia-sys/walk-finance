@@ -674,7 +674,7 @@ const ConciliacaoBancariaModule = () => {
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
-        <PageHeader title="Extrato / Conciliação Bancária" subtitle="Movimentação, conciliação e importação de extratos" showBack companyLogo={company?.logo_url} />
+        <PageHeader title="Conciliação Bancária" subtitle="Movimentação, conciliação e importação de extratos" showBack companyLogo={company?.logo_url} />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
           <ModuleStatCard label="Conciliados" value={totalConciliado} icon={<CheckCircle2 className="w-4 h-4" />} />
