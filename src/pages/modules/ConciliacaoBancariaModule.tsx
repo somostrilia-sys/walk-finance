@@ -476,16 +476,25 @@ const ConciliacaoBancariaModule = () => {
       const valor = Math.abs(Number(actionEntry.amount));
       const pairId = crypto.randomUUID();
       const desc = description || "Transferência entre contas";
+      // Create reconciliation entry for origin (the statement item)
+      await reconcileStatementItem(actionEntry);
+      // Update the just-created recon entry with transfer_pair_id
+      const { data: originRecon } = await supabase.from("bank_reconciliation_entries")
+        .select("id").eq("company_id", companyId!).eq("bank_account_id", actionEntry.bank_account_id)
+        .eq("external_description", actionEntry.description).eq("date", actionEntry.date).order("created_at", { ascending: false }).limit(1);
+      if (originRecon?.[0]) {
+        await supabase.from("bank_reconciliation_entries").update({ transfer_pair_id: pairId }).eq("id", originRecon[0].id);
+      }
+      // Create reconciliation entry for destination
       await supabase.from("bank_reconciliation_entries").insert({
         company_id: companyId, bank_account_id: destination_account_id, date: actionEntry.date,
         external_description: `TED/Transf: ${desc}`, amount: valor, status: "conciliado", transfer_pair_id: pairId,
       });
-      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transfer_pair_id: pairId }).eq("id", actionEntry.id);
       const originAcc = accounts.find(a => a.id === origin_account_id);
       const destAcc = accounts.find(a => a.id === destination_account_id);
       if (originAcc) await supabase.from("bank_accounts").update({ current_balance: Number(originAcc.current_balance) - valor }).eq("id", origin_account_id);
       if (destAcc) await supabase.from("bank_accounts").update({ current_balance: Number(destAcc.current_balance) + valor }).eq("id", destination_account_id);
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      invalidateAll();
       queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
       toast({ title: "Transferência registrada e conciliada" }); closeAction();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
@@ -504,15 +513,15 @@ const ConciliacaoBancariaModule = () => {
           descricao: contaPrForm.description, categoria: categories?.find(c => c.id === contaPrForm.category_id)?.name || null,
           valor: parseFloat(contaPrForm.amount) || Math.abs(Number(actionEntry.amount)), vencimento: contaPrForm.date, status: "pago",
         });
+        await reconcileStatementItem(actionEntry);
       } else {
         const { data: newTx } = await supabase.from("financial_transactions").insert({
           company_id: companyId, description: contaPrForm.description, entity_name: contaPrForm.entity_name || null,
           category_id: contaPrForm.category_id, amount: parseFloat(contaPrForm.amount) || Math.abs(Number(actionEntry.amount)),
           date: contaPrForm.date, type: "entrada", status: "recebido",
         }).select().single();
-        if (newTx) await supabase.from("bank_reconciliation_entries").update({ transaction_id: newTx.id }).eq("id", actionEntry.id);
+        await reconcileStatementItem(actionEntry, newTx?.id);
       }
-      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", actionEntry.id);
       invalidateAll();
       toast({ title: "Título criado e conciliado" }); closeAction();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
@@ -522,7 +531,8 @@ const ConciliacaoBancariaModule = () => {
   const handleAssociate = async (titleId: string, source: "pagar" | "receber") => {
     if (!actionEntry) return;
     try {
-      await supabase.from("bank_reconciliation_entries").update({ status: "conciliado", transaction_id: source === "receber" ? titleId : null }).eq("id", actionEntry.id);
+      const txId = source === "receber" ? titleId : undefined;
+      await reconcileStatementItem(actionEntry, txId);
       if (source === "pagar") {
         await supabase.from("contas_pagar").update({ status: "pago" }).eq("id", titleId);
       } else {
@@ -533,10 +543,13 @@ const ConciliacaoBancariaModule = () => {
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
   };
 
-  // e) Ignore
+  // e) Ignore — for statement items, just mark as conciliado with no linked transaction
   const handleIgnorar = async (id: string) => {
-    await supabase.from("bank_reconciliation_entries").update({ status: "ignorado" }).eq("id", id);
-    queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    const item = pendingStatementItems.find(i => i.id === id);
+    if (item) {
+      await reconcileStatementItem(item);
+    }
+    invalidateAll();
     toast({ title: "Lançamento ignorado" });
   };
 
