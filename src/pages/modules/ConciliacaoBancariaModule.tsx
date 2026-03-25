@@ -531,6 +531,83 @@ const ConciliacaoBancariaModule = () => {
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); }
   };
 
+  // ===== Movimentação selection, edit, delete =====
+  const toggleEntrySelect = (id: string) => {
+    setSelectedEntryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleEntrySelectAll = () => {
+    if (selectedEntryIds.size === displayEntries.length) {
+      setSelectedEntryIds(new Set());
+    } else {
+      setSelectedEntryIds(new Set(displayEntries.map(e => e.id)));
+    }
+  };
+
+  const openEditEntry = (entry: any) => {
+    setEditEntryForm({
+      id: entry.id,
+      external_description: entry.external_description || "",
+      amount: String(entry.amount),
+      date: entry.date,
+      status: entry.status,
+      bank_account_id: entry.bank_account_id,
+    });
+    setEditEntryDialogOpen(true);
+  };
+
+  const handleEditEntry = async () => {
+    if (!editEntryForm) return;
+    setSubmittingEditEntry(true);
+    try {
+      const { error } = await supabase.from("bank_reconciliation_entries").update({
+        external_description: editEntryForm.external_description,
+        amount: Number(editEntryForm.amount),
+        date: editEntryForm.date,
+        bank_account_id: editEntryForm.bank_account_id,
+      }).eq("id", editEntryForm.id);
+      if (error) throw error;
+      toast({ title: "Lançamento atualizado" });
+      setEditEntryDialogOpen(false);
+      setEditEntryForm(null);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
+    setSubmittingEditEntry(false);
+  };
+
+  const handleDeleteEntry = async (id: string) => {
+    try {
+      const { error } = await supabase.from("bank_reconciliation_entries").delete().eq("id", id);
+      if (error) throw error;
+      toast({ title: "Lançamento excluído" });
+      setDeleteEntryConfirmId(null);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleBulkDeleteEntries = async () => {
+    const ids = Array.from(selectedEntryIds);
+    if (!ids.length) return;
+    try {
+      const { error } = await supabase.from("bank_reconciliation_entries").delete().in("id", ids);
+      if (error) throw error;
+      toast({ title: `${ids.length} lançamento(s) excluído(s)` });
+      setSelectedEntryIds(new Set());
+      setBulkDeleteConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
+  };
+
   // ===== Bank account CRUD =====
   const handleAddAccount = async () => { if (!accountForm.bank_name.trim() || !companyId) return; setSubmittingAccount(true); try { await supabase.from("bank_accounts").insert({ company_id: companyId, bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 }); toast({ title: "Conta bancária adicionada!" }); setAddAccountDialogOpen(false); setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" }); queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); } setSubmittingAccount(false); };
   const handleEditAccount = async () => { if (!editingAccount || !accountForm.bank_name.trim()) return; setSubmittingAccount(true); try { await supabase.from("bank_accounts").update({ bank_name: accountForm.bank_name, account_number: accountForm.account_number || null, agency: accountForm.agency || null, current_balance: parseFloat(accountForm.current_balance) || 0 }).eq("id", editingAccount.id); toast({ title: "Conta atualizada!" }); setEditAccountDialogOpen(false); setEditingAccount(null); queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] }); } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "destructive" }); } setSubmittingAccount(false); };
