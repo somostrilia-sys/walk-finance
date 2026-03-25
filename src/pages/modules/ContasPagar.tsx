@@ -71,7 +71,9 @@ const ContasPagar = () => {
   const { data: lancamentosContasPagar = [], isLoading: isLoadingContasPagar } = useContasPagarLancamentos(companyId);
   const { data: pessoas } = usePessoas(companyId);
   const { data: categorias } = useExpenseCategories(companyId);
+  const { data: bankAccounts } = useBankAccounts(companyId);
   const company = companies?.find(c => c.id === companyId);
+  const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
