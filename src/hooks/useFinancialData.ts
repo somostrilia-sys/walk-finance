@@ -218,3 +218,20 @@ export const useContasPagar = (companyId: string | undefined) => {
     },
   });
 };
+
+export const useBankStatementItems = (companyId: string | undefined) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["bank_statement_items", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bank_statement_items" as any)
+        .select("*, bank_accounts(bank_name)")
+        .eq("company_id", companyId!)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+};
