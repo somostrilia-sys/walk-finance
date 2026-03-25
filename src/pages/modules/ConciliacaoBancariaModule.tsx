@@ -936,9 +936,73 @@ const ConciliacaoBancariaModule = () => {
                   <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wifi className="w-4 h-4" />Open Finance</CardTitle></CardHeader>
                   <CardContent className="text-center space-y-4">
                     <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Wifi className="w-8 h-8 text-muted-foreground" /></div>
-                    <p className="text-sm text-muted-foreground">Conecte sua conta bancária via Open Finance para importar extratos automaticamente, sem necessidade de upload de arquivos.</p>
-                    <p className="text-xs text-muted-foreground">A conciliação automática funciona da mesma forma que a importação manual.</p>
+                    <p className="text-sm text-muted-foreground">Conecte sua conta bancária via Open Finance para importar extratos automaticamente.</p>
                     <Button variant="outline" disabled><Wifi className="w-4 h-4 mr-2" />Conectar via Open Finance<Badge variant="secondary" className="ml-2 text-[10px]">Em breve</Badge></Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* ===== EXTRATO BANCÁRIO — Pending items section ===== */}
+              <div className="mt-6">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-[hsl(var(--status-warning))]" />
+                      Extrato Bancário — Pendentes ({pendingStatementItems.length})
+                    </CardTitle>
+                    {pendingStatementItems.length > 0 && (
+                      <Button size="sm" variant="outline" onClick={() => {
+                        const firstAccount = pendingStatementItems[0]?.bank_account_id;
+                        if (firstAccount) { setReconcDrawerAccountId(firstAccount); setReconcDrawerOpen(true); }
+                      }}>
+                        <ListChecks className="w-4 h-4 mr-1" />Conciliar Todos
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {pendingStatementItems.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground text-sm">
+                        <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-[hsl(var(--status-positive))]" />
+                        Nenhum item pendente. Importe um extrato para começar.
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[90px]">Data</TableHead>
+                            <TableHead>Descrição</TableHead>
+                            <TableHead>Conta</TableHead>
+                            <TableHead className="text-right">Valor</TableHead>
+                            <TableHead className="w-[120px] text-right">Ação</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pendingStatementItems.map((item: any) => {
+                            const isCredit = Number(item.amount) > 0;
+                            const bankName = item.bank_accounts?.bank_name || accounts.find(a => a.id === item.bank_account_id)?.bank_name || "—";
+                            return (
+                              <TableRow key={item.id} className="bg-[hsl(var(--status-warning)/0.03)]">
+                                <TableCell className="text-xs">{new Date(item.date).toLocaleDateString("pt-BR")}</TableCell>
+                                <TableCell className="text-sm font-medium truncate max-w-[250px]">{item.description}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{bankName}</TableCell>
+                                <TableCell className={`text-right font-medium ${isCredit ? "text-[hsl(var(--status-positive))]" : "text-[hsl(var(--status-danger))]"}`}>
+                                  {isCredit ? "+" : ""}{formatCurrency(Number(item.amount))}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                                    setReconcDrawerAccountId(item.bank_account_id);
+                                    setReconcDrawerOpen(true);
+                                    openAction(item, "novo");
+                                  }}>
+                                    <Link2 className="w-3 h-3 mr-1" />Conciliar
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
                   </CardContent>
                 </Card>
               </div>
