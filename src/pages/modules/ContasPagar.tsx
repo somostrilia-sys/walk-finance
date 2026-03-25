@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { useCompanies, useFinancialTransactions, usePessoas, useExpenseCategories } from "@/hooks/useFinancialData";
+import { useCompanies, useFinancialTransactions, usePessoas, useExpenseCategories, useBankAccounts } from "@/hooks/useFinancialData";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
