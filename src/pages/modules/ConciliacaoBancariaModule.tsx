@@ -28,7 +28,7 @@ import { createPortal } from "react-dom";
 
 // ---------- Parsers ----------
 
-interface ParsedEntry { date: string; description: string; amount: number; }
+interface ParsedEntry { date: string; description: string; amount: number; fitid?: string; }
 
 function parseCSV(text: string): ParsedEntry[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
