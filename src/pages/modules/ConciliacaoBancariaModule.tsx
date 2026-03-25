@@ -361,10 +361,10 @@ const ConciliacaoBancariaModule = () => {
 
   // Drawer pending entries (for the reconciliation workspace)
   const drawerPendingEntries = useMemo(() => {
-    return entries
-      .filter(e => e.bank_account_id === reconcDrawerAccountId && (e.status === "pendente" || e.status === "nao_identificado"))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [entries, reconcDrawerAccountId]);
+    return pendingStatementItems
+      .filter(e => e.bank_account_id === reconcDrawerAccountId)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [pendingStatementItems, reconcDrawerAccountId]);
 
   const totalConciliado = entries.filter(l => l.status === "conciliado").length;
   const totalPendente = entries.filter(l => l.status === "pendente").length;
