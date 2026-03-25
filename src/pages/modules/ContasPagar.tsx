@@ -21,7 +21,7 @@ import { formatCurrency } from "@/data/mockData";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowDownCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle,
-  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat, ChevronDown, ChevronUp, Calendar
+  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat, ChevronDown, ChevronUp, Calendar, Landmark
 } from "lucide-react";
 
 type StatusCP = "pendente" | "confirmado" | "cancelado";
