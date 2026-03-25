@@ -22,6 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
 import { Landmark, Upload, CheckCircle2, XCircle, Clock, Link2, Undo2, Search, Loader2, FileText, Plus, Pencil, Trash2, ArrowRightLeft, EyeOff, Repeat, AlertTriangle, Wifi, PlusCircle, ListChecks } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { createPortal } from "react-dom";
 
 // ---------- Parsers ----------
