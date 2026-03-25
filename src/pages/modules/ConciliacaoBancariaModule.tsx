@@ -418,8 +418,25 @@ const ConciliacaoBancariaModule = () => {
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["bank_statement_items", companyId] });
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+  };
+
+  // Helper: mark statement item as conciliado and create bank_reconciliation_entry
+  const reconcileStatementItem = async (item: any, transactionId?: string) => {
+    // Create the reconciliation entry
+    await supabase.from("bank_reconciliation_entries").insert({
+      company_id: companyId!,
+      bank_account_id: item.bank_account_id,
+      date: item.date,
+      external_description: item.description,
+      amount: item.amount,
+      status: "conciliado",
+      transaction_id: transactionId || null,
+    });
+    // Mark statement item as conciliado
+    await supabase.from("bank_statement_items" as any).update({ status: "conciliado", transaction_id: transactionId || null }).eq("id", item.id);
   };
 
   // a) Add as new lancamento
