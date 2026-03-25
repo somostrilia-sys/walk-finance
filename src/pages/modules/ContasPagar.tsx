@@ -307,6 +307,17 @@ const ContasPagar = () => {
   };
 
   const handleBaixar = async (conta: any) => {
+    if (!isObjetivo && bankAccounts && bankAccounts.length > 0) {
+      setBaixaConta(conta);
+      setBaixaIsBulk(false);
+      setBaixaAccountId("");
+      setBaixaDialogOpen(true);
+      return;
+    }
+    await executeBaixa(conta, null);
+  };
+
+  const executeBaixa = async (conta: any, accountId: string | null) => {
     const { error } = conta.source === "contas_pagar"
       ? await supabase.from("contas_pagar").update({ status: "confirmado" } as any).eq("id", conta.id)
       : await supabase.from("financial_transactions").update({
@@ -315,6 +326,19 @@ const ContasPagar = () => {
         } as any).eq("id", conta.id);
 
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
+
+    // Create bank reconciliation entry (não conciliado) if account selected
+    if (accountId && companyId) {
+      await supabase.from("bank_reconciliation_entries").insert({
+        company_id: companyId,
+        bank_account_id: accountId,
+        external_description: conta.description || conta.entity_name || "Pagamento",
+        amount: -Math.abs(Number(conta.amount)),
+        date: new Date().toISOString().slice(0, 10),
+        status: "pendente",
+      } as any);
+      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+    }
 
     if (conta.source === "contas_pagar") {
       queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
