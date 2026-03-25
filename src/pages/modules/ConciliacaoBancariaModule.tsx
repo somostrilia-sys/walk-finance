@@ -133,6 +133,7 @@ const ConciliacaoBancariaModule = () => {
   const { data: companies } = useCompanies();
   const company = companies?.find(c => c.id === companyId);
   const { data: reconciliation, isLoading: loadingRecon } = useBankReconciliation(companyId);
+  const { data: statementItems, isLoading: loadingStatement } = useBankStatementItems(companyId);
   const { data: bankAccounts } = useBankAccounts(companyId);
   const { data: transactions } = useFinancialTransactions(companyId);
   const { data: categories } = useExpenseCategories(companyId);
