@@ -801,6 +801,17 @@ const ConciliacaoBancariaModule = () => {
                 )}
               </div>
 
+              {/* Bulk action bar */}
+              {selectedEntryIds.size > 0 && (
+                <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-muted/50 border border-border">
+                  <span className="text-sm font-medium">{selectedEntryIds.size} selecionado(s)</span>
+                  <Button size="sm" variant="destructive" onClick={() => setBulkDeleteConfirmOpen(true)}>
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />Excluir Selecionados
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedEntryIds(new Set())}>Limpar seleção</Button>
+                </div>
+              )}
+
               <Card>
                 <CardContent className="p-0">
                   {displayEntries.length === 0 ? (
@@ -809,6 +820,12 @@ const ConciliacaoBancariaModule = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[40px]">
+                            <Checkbox
+                              checked={displayEntries.length > 0 && selectedEntryIds.size === displayEntries.length}
+                              onCheckedChange={toggleEntrySelectAll}
+                            />
+                          </TableHead>
                           <TableHead className="w-[100px]">Situação</TableHead>
                           <TableHead className="w-[90px]">Data</TableHead>
                           <TableHead>Cliente / Prestador</TableHead>
@@ -816,7 +833,7 @@ const ConciliacaoBancariaModule = () => {
                           <TableHead>Categoria</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
                           <TableHead className="text-right">Saldo</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
+                          <TableHead className="w-[100px] text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -830,6 +847,12 @@ const ConciliacaoBancariaModule = () => {
 
                           return (
                             <TableRow key={entry.id} className={`${isPending ? "bg-[hsl(var(--status-warning)/0.05)] border-l-2 border-l-[hsl(var(--status-warning))]" : ""} ${isIgnorado ? "opacity-50" : ""}`}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedEntryIds.has(entry.id)}
+                                  onCheckedChange={() => toggleEntrySelect(entry.id)}
+                                />
+                              </TableCell>
                               <TableCell>
                                 {isConciliado ? (
                                   <Badge className="bg-[hsl(var(--status-positive)/0.1)] text-[hsl(var(--status-positive))] text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Conciliado</Badge>
@@ -850,9 +873,19 @@ const ConciliacaoBancariaModule = () => {
                                 {formatCurrency((entry as any).saldo)}
                               </TableCell>
                               <TableCell>
-                                {(isConciliado || isIgnorado) && (
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Desfazer" onClick={() => handleDesfazer(entry)}><Undo2 className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                                )}
+                                <div className="flex items-center justify-end gap-0.5">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar" onClick={() => openEditEntry(entry)}>
+                                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" title="Excluir" onClick={() => setDeleteEntryConfirmId(entry.id)}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                  {(isConciliado || isIgnorado) && (
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Desfazer" onClick={() => handleDesfazer(entry)}>
+                                      <Undo2 className="w-3.5 h-3.5 text-muted-foreground" />
+                                    </Button>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
