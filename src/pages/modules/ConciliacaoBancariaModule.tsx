@@ -206,8 +206,6 @@ const ConciliacaoBancariaModule = () => {
 
 
 
-  }, [contasPagar, transactions]);
-
   const processFile = useCallback(async (file: File, accountId: string) => {
     setImporting(true);
     try {
