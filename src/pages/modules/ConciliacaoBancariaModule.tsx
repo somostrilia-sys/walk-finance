@@ -64,9 +64,10 @@ function parseOFX(text: string): ParsedEntry[] {
     const rawDate = getTag('DTPOSTED');
     const amount = parseFloat(getTag('TRNAMT').replace(',', '.'));
     const desc = getTag('MEMO') || getTag('NAME') || 'Sem descrição';
+    const fitid = getTag('FITID') || undefined;
     if (!rawDate || isNaN(amount)) continue;
     const isoDate = rawDate.length >= 8 ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}` : rawDate;
-    entries.push({ date: isoDate, description: desc, amount });
+    entries.push({ date: isoDate, description: desc, amount, fitid });
   }
   return entries;
 }
