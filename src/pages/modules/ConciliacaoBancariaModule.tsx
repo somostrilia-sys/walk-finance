@@ -223,7 +223,7 @@ const ConciliacaoBancariaModule = () => {
 
       // ===== DUPLICATE PREVENTION via ofx_transaction_id (FITID) =====
       const { data: existingItems } = await supabase
-        .from("bank_statement_items" as any)
+        .from("bank_statement_items")
         .select("ofx_transaction_id, date, description, amount")
         .eq("company_id", companyId!)
         .eq("bank_account_id", accountId);
