@@ -248,19 +248,20 @@ const ConciliacaoBancariaModule = () => {
       }
       if (parsed.length === 0) { toast({ title: "Nenhum lançamento encontrado", description: "Verifique o formato do arquivo.", variant: "destructive" }); setImporting(false); return; }
 
-      // ===== DUPLICATE PREVENTION =====
-      // Fetch existing entries for this account to check duplicates
-      const { data: existingEntries } = await supabase
-        .from("bank_reconciliation_entries")
-        .select("date, external_description, amount")
+      // ===== DUPLICATE PREVENTION via ofx_transaction_id (FITID) =====
+      const { data: existingItems } = await supabase
+        .from("bank_statement_items" as any)
+        .select("ofx_transaction_id, date, description, amount")
         .eq("company_id", companyId!)
         .eq("bank_account_id", accountId);
 
+      const existingFitids = new Set((existingItems || []).filter((e: any) => e.ofx_transaction_id).map((e: any) => e.ofx_transaction_id));
       const existingSet = new Set(
-        (existingEntries || []).map(e => `${e.date}|${e.external_description.toLowerCase().trim()}|${Number(e.amount).toFixed(2)}`)
+        (existingItems || []).map((e: any) => `${e.date}|${e.description.toLowerCase().trim()}|${Number(e.amount).toFixed(2)}`)
       );
 
       const newEntries = parsed.filter(e => {
+        if (e.fitid && existingFitids.has(e.fitid)) return false;
         const key = `${e.date}|${e.description.toLowerCase().trim()}|${e.amount.toFixed(2)}`;
         return !existingSet.has(key);
       });
@@ -273,28 +274,33 @@ const ConciliacaoBancariaModule = () => {
         return;
       }
 
-      const rows = newEntries.map(e => ({ company_id: companyId!, bank_account_id: accountId, date: e.date, external_description: e.description, amount: e.amount, status: "pendente" as const }));
-      const { data: inserted, error } = await supabase.from("bank_reconciliation_entries").insert(rows).select("id, external_description, amount, date");
+      const rows = newEntries.map(e => ({
+        company_id: companyId!,
+        bank_account_id: accountId,
+        date: e.date,
+        description: e.description,
+        amount: e.amount,
+        type: e.amount >= 0 ? 'credito' : 'debito',
+        status: 'pendente',
+        ofx_transaction_id: e.fitid || null,
+      }));
+
+      const { error } = await supabase.from("bank_statement_items" as any).insert(rows);
       if (error) { toast({ title: "Erro ao importar", description: error.message, variant: "destructive" }); setImporting(false); return; }
 
-      // Auto-match
-      const matchedCount = inserted ? await autoMatch(inserted.map(r => ({ id: r.id, description: r.external_description, amount: Number(r.amount), date: r.date }))) : 0;
-
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["bank_statement_items", companyId] });
       setParsedFileName(file.name);
       setParsedCount(newEntries.length);
 
       const dupMsg = duplicateCount > 0 ? ` ${duplicateCount} duplicados ignorados.` : "";
-      toast({ title: "Importação concluída", description: `${newEntries.length} lançamentos importados. ${matchedCount} conciliados automaticamente.${dupMsg}` });
+      toast({ title: "Importação concluída", description: `${newEntries.length} lançamentos importados para conciliação.${dupMsg}` });
 
       // Open the reconciliation drawer for this account
       setReconcDrawerAccountId(accountId);
       setReconcDrawerOpen(true);
     } catch (err: any) { toast({ title: "Erro ao processar arquivo", description: err?.message || "Verifique o formato.", variant: "destructive" }); }
     setImporting(false);
-  }, [companyId, queryClient, autoMatch]);
+  }, [companyId, queryClient]);
 
   // ALWAYS ask which account before processing
   const handleFiles = useCallback(async (files: FileList) => {
