@@ -446,12 +446,12 @@ const ConciliacaoBancariaModule = () => {
     try {
       if (isCredit) {
         const { data: newTx, error } = await supabase.from("financial_transactions").insert({
-          company_id: companyId, description: actionEntry.external_description, entity_name: novoForm.entity_name || null,
+          company_id: companyId, description: actionEntry.description || actionEntry.external_description, entity_name: novoForm.entity_name || null,
           category_id: novoForm.category_id, amount: Math.abs(Number(actionEntry.amount)), date: actionEntry.date,
           type: "entrada", status: "recebido",
         }).select().single();
         if (error) throw error;
-        if (newTx) await supabase.from("bank_reconciliation_entries").update({ transaction_id: newTx.id, status: "conciliado" }).eq("id", actionEntry.id);
+        await reconcileStatementItem(actionEntry, newTx?.id);
       } else {
         const { error } = await supabase.from("contas_pagar").insert({
           company_id: companyId, fornecedor: novoForm.entity_name || actionEntry.external_description,
