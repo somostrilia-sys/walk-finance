@@ -258,7 +258,7 @@ const ConciliacaoBancariaModule = () => {
         ofx_transaction_id: e.fitid || null,
       }));
 
-      const { error } = await supabase.from("bank_statement_items" as any).insert(rows);
+      const { error } = await supabase.from("bank_statement_items").insert(rows);
       if (error) { toast({ title: "Erro ao importar", description: error.message, variant: "destructive" }); setImporting(false); return; }
 
       queryClient.invalidateQueries({ queryKey: ["bank_statement_items", companyId] });
