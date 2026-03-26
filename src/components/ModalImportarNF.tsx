@@ -81,32 +81,23 @@ export default function ModalImportarNF({ open, onOpenChange, companyId }: Modal
 
           const { error } = await supabase.from("notas_fiscais").insert({
             company_id: companyId,
-            chave_acesso: dados.chave_acesso || null,
             numero: dados.numero,
-            serie: dados.serie,
+            cnpj_emissor: dados.emitente_cnpj,
+            razao_social: dados.emitente_nome,
             data_emissao: dados.data_emissao ? dados.data_emissao.split("T")[0] : null,
-            emitente_nome: dados.emitente_nome,
-            emitente_cnpj: dados.emitente_cnpj,
-            destinatario_nome: dados.destinatario_nome,
-            destinatario_cnpj: dados.destinatario_cnpj,
-            valor_total: dados.valor_total,
-            valor_icms: dados.valor_icms,
-            valor_pis: dados.valor_pis,
-            valor_cofins: dados.valor_cofins,
-            valor_iss: dados.valor_iss,
-            natureza_operacao: dados.natureza_operacao,
+            valor: dados.valor_total,
+            tipo: "entrada",
             status: "processada",
-            origem: "manual",
-            arquivo_nome: item.file.name,
+            observacao: `Importado via XML — ${item.file.name}`,
           } as never);
 
           if (error && error.code !== "23505") { erros++; } else { importadas++; }
         } else if (item.tipo === "pdf") {
           const { error } = await supabase.from("notas_fiscais").insert({
             company_id: companyId,
+            tipo: "entrada",
             status: "pdf_importado",
-            origem: "manual",
-            arquivo_nome: item.file.name,
+            observacao: `PDF importado — ${item.file.name}`,
           } as never);
 
           if (error) { erros++; } else { importadas++; }
