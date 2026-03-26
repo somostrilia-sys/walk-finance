@@ -81,11 +81,11 @@ export default function ModalImportarNF({ open, onOpenChange, companyId }: Modal
 
           const { error } = await supabase.from("notas_fiscais").insert({
             company_id: companyId,
-            numero: dados.numero,
-            cnpj_emissor: dados.emitente_cnpj,
-            razao_social: dados.emitente_nome,
+            numero: dados.numero || item.file.name.replace(/\.xml$/i, ""),
+            cnpj_emissor: dados.emitente_cnpj || null,
+            razao_social: dados.emitente_nome || "Emitente não identificado",
             data_emissao: dados.data_emissao ? dados.data_emissao.split("T")[0] : null,
-            valor: dados.valor_total,
+            valor: dados.valor_total || 0,
             tipo: "entrada",
             status: "processada",
             observacao: `Importado via XML — ${item.file.name}`,
@@ -95,6 +95,8 @@ export default function ModalImportarNF({ open, onOpenChange, companyId }: Modal
         } else if (item.tipo === "pdf") {
           const { error } = await supabase.from("notas_fiscais").insert({
             company_id: companyId,
+            numero: item.file.name.replace(/\.pdf$/i, ""),
+            razao_social: "PDF importado",
             tipo: "entrada",
             status: "pdf_importado",
             observacao: `PDF importado — ${item.file.name}`,
