@@ -23,7 +23,16 @@ import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
 import { Upload, Camera, Building2, Plus, Pencil, Trash2 } from "lucide-react";
 import { parsePixQRCode, parseOpenFinanceData } from "@/lib/pixParser";
-import ModalConciliacao, { ItemExtrato } from "@/components/ModalConciliacao";
+import ModalConciliacaoV2 from "@/components/ModalConciliacaoV2";
+
+type ItemExtrato = {
+  id: string;
+  data: string;
+  descricao: string;
+  valor: number;
+  tipo: "credito" | "debito";
+  fitid?: string;
+};
 import QRCodeScanner from "@/components/QRCodeScanner";
 
 // ─── Parsers ─────────────────────────────────────────────────────────────────
@@ -120,6 +129,7 @@ function parsedToItemExtrato(entries: ParsedEntry[]): ItemExtrato[] {
     data: e.date,
     descricao: e.description,
     valor: e.amount,
+    tipo: e.amount >= 0 ? "credito" : "debito",
     fitid: e.fitid,
   }));
 }
@@ -191,6 +201,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
         .from("extrato_bancario")
         .select("id, data_lancamento, descricao, valor, tipo, status, arquivo_origem")
         .eq("company_id", companyId)
+        .eq("status", "conciliado")
         .order("data_lancamento", { ascending: false });
       if (branchId) q = q.eq("branch_id", branchId);
       if (bankAccountId) q = q.eq("bank_account_id", bankAccountId);
@@ -270,6 +281,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       data: new Date().toISOString().slice(0, 10),
       descricao: pix.nome_recebedor ? `PIX - ${pix.nome_recebedor}` : "PIX QR Code",
       valor: -(pix.valor || 0),
+      tipo: "debito" as const,
       fitid: pix.txid,
     };
     setItensExtrato([item]);
@@ -289,12 +301,16 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       toast({ title: "Dados inválidos", description: "Formato não reconhecido", variant: "destructive" });
       return;
     }
-    const items: ItemExtrato[] = resultado.map((r: any, i: number) => ({
-      id: `of-${i}-${Date.now()}`,
-      data: r.date || r.data || new Date().toISOString().slice(0, 10),
-      descricao: r.description || r.descricao || `${bancoBf} - Open Finance`,
-      valor: Number(r.amount || r.value || r.valor || 0),
-    }));
+    const items: ItemExtrato[] = resultado.map((r: any, i: number) => {
+      const val = Number(r.amount || r.value || r.valor || 0);
+      return {
+        id: `of-${i}-${Date.now()}`,
+        data: r.date || r.data || new Date().toISOString().slice(0, 10),
+        descricao: r.description || r.descricao || `${bancoBf} - Open Finance`,
+        valor: val,
+        tipo: val >= 0 ? "credito" : "debito" as "credito" | "debito",
+      };
+    });
     setItensExtrato(items);
     setOrigemModal("open_finance");
     setOpenFinanceOpen(false);
@@ -577,9 +593,9 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
         </DialogContent>
       </Dialog>
 
-      {/* Modal Conciliação */}
+      {/* Modal Conciliação V2 */}
       {conciliacaoOpen && itensExtrato.length > 0 && (
-        <ModalConciliacao
+        <ModalConciliacaoV2
           isOpen={conciliacaoOpen}
           onClose={() => {
             setConciliacaoOpen(false);
