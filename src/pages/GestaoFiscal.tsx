@@ -5,8 +5,6 @@ import { useCompanies } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
-import ModalImportarNF from "@/components/ModalImportarNF";
-import ModalBuscarNFAutomatico from "@/components/ModalBuscarNFAutomatico";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -163,8 +161,6 @@ const GestaoFiscal = () => {
   const alertas = useMemo(() => genAlertas(notas), [notas]);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalImportarOpen, setModalImportarOpen] = useState(false);
-  const [modalBuscarOpen, setModalBuscarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   // Real NFs from DB
@@ -308,31 +304,9 @@ const GestaoFiscal = () => {
             </DialogContent>
           </Dialog>
 
-          <Button variant="outline" className="gap-2" onClick={() => setModalImportarOpen(true)}>
-            <Upload className="w-4 h-4" />Importar NF
-          </Button>
-          <Button variant="outline" className="gap-2" onClick={() => setModalBuscarOpen(true)}>
-            <Search className="w-4 h-4" />Buscar NFs Automático
-          </Button>
           <Button variant="outline" className="gap-2"><Download className="w-4 h-4" />Exportar Relatório Fiscal</Button>
         </div>
 
-        {/* ── Modals ── */}
-        {companyId && (
-          <>
-            <ModalImportarNF
-              open={modalImportarOpen}
-              onOpenChange={(v) => { setModalImportarOpen(v); if (!v) refetchNFs(); }}
-              companyId={companyId}
-            />
-            <ModalBuscarNFAutomatico
-              open={modalBuscarOpen}
-              onOpenChange={(v) => { setModalBuscarOpen(v); if (!v) refetchNFs(); }}
-              companyId={companyId}
-              companyCnpj={undefined}
-            />
-          </>
-        )}
 
         {/* ── DataTable ── */}
         <Card className="border-border">

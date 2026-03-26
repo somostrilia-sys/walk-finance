@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import ModalImportarNF from "@/components/ModalImportarNF";
+import ModalBuscarNFAutomatico from "@/components/ModalBuscarNFAutomatico";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,8 +121,8 @@ const ImpostoFiscal = () => {
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [openNF, setOpenNF] = useState(false);
   const [openAlerta, setOpenAlerta] = useState(false);
-  const [openImport, setOpenImport] = useState(false);
-  const [importStep, setImportStep] = useState(0);
+  const [openImportarNF, setOpenImportarNF] = useState(false);
+  const [openBuscarNFAuto, setOpenBuscarNFAuto] = useState(false);
   const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState("");
   const [filtroPeriodoFim, setFiltroPeriodoFim] = useState("");
   const [filtroAuditoria, setFiltroAuditoria] = useState("todos");
@@ -273,33 +275,12 @@ const ImpostoFiscal = () => {
                 <SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="entrada">Entrada</SelectItem><SelectItem value="saida">Saída</SelectItem></SelectContent>
               </Select>
               <div className="flex-1" />
-              <Dialog open={openImport} onOpenChange={v => { setOpenImport(v); if (!v) setImportStep(0); }}>
-                <DialogTrigger asChild><Button variant="outline" size="sm"><Upload className="w-4 h-4 mr-1" />Importar NFs (XML/PDF)</Button></DialogTrigger>
-                <DialogContent>
-                  <DialogHeader><DialogTitle>Importar em Massa — Etapa {importStep + 1}/3</DialogTitle></DialogHeader>
-                  {importStep === 0 && (
-                    <div className="space-y-4">
-                      <p className="text-sm text-muted-foreground">Selecione o formato:</p>
-                      <div className="grid grid-cols-3 gap-3">
-                        {["XML (NF-e)", "PDF", "CSV"].map(f => (<Button key={f} variant="outline" className="h-20 flex-col" onClick={() => setImportStep(1)}><FileText className="w-6 h-6 mb-1" /><span className="text-xs">{f}</span></Button>))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Auto-organiza, auto-vincula por CNPJ+valor+data. Se não houver match → status "pendente".</p>
-                    </div>
-                  )}
-                  {importStep === 1 && (
-                    <div className="space-y-4">
-                      <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground"><Upload className="w-8 h-8 mx-auto mb-2" /><p className="text-sm">Arraste ou clique para upload</p></div>
-                      <div className="flex gap-2 justify-end"><Button variant="outline" onClick={() => setImportStep(0)}>Voltar</Button><Button onClick={() => setImportStep(2)}>Validar</Button></div>
-                    </div>
-                  )}
-                  {importStep === 2 && (
-                    <div className="space-y-4">
-                      <Card><CardContent className="p-4"><div className="grid grid-cols-3 gap-4 text-center"><div><p className="text-2xl font-bold">0</p><p className="text-xs text-muted-foreground">Encontradas</p></div><div><p className="text-2xl font-bold text-emerald-600">0</p><p className="text-xs text-muted-foreground">Válidas</p></div><div><p className="text-2xl font-bold text-amber-600">0</p><p className="text-xs text-muted-foreground">Erros</p></div></div></CardContent></Card>
-                      <div className="flex gap-2 justify-end"><Button variant="outline" onClick={() => setImportStep(1)}>Voltar</Button><Button onClick={() => { setOpenImport(false); setImportStep(0); toast({ title: "Importação preparada" }); }}>Concluir</Button></div>
-                    </div>
-                  )}
-                </DialogContent>
-              </Dialog>
+              <Button variant="outline" size="sm" onClick={() => setOpenImportarNF(true)}>
+                <Upload className="w-4 h-4 mr-1" />Importar NF
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setOpenBuscarNFAuto(true)}>
+                <Search className="w-4 h-4 mr-1" />Buscar NFs Automático
+              </Button>
               <Dialog open={openNF} onOpenChange={setOpenNF}>
                 <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" />Nova NF</Button></DialogTrigger>
                 <DialogContent>
