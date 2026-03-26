@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import ModalImportarNF from "@/components/ModalImportarNF";
 import ModalBuscarNFAutomatico from "@/components/ModalBuscarNFAutomatico";
+import ModalDetalheNF from "@/components/ModalDetalheNF";
+import ConfiguracaoCNPJModal from "@/components/ConfiguracaoCNPJModal";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,7 +26,7 @@ import { formatCurrency } from "@/data/mockData";
 import {
   Receipt, Upload, Search, Download, AlertTriangle, CheckCircle2,
   Clock, FileText, Calculator, Bell, Plus, Link2, Trash2,
-  Shield, Settings, CalendarDays, History,
+  Shield, Settings, CalendarDays, History, Eye,
 } from "lucide-react";
 
 const useNotasFiscais = (companyId?: string) => {
@@ -79,6 +81,17 @@ const useAuditoriaFiscal = (companyId?: string) => {
   });
 };
 
+const useCompanyCNPJ = (companyId?: string) => {
+  return useQuery({
+    queryKey: ["company_cnpj", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await supabase.from("companies").select("cnpj, cnpj_secundarios").eq("id", companyId!).single();
+      return data as { cnpj: string | null; cnpj_secundarios: string[] | null } | null;
+    },
+  });
+};
+
 async function logAuditoria(companyId: string, acao: string, entidade: string, entidadeId: string | null, detalhes: Record<string, unknown>, userId?: string, userName?: string) {
   await supabase.from("auditoria_fiscal").insert([{ company_id: companyId, acao, entidade, entidade_id: entidadeId, detalhes: detalhes as any, usuario_id: userId ?? null, usuario_nome: userName ?? null }]);
 }
@@ -103,6 +116,21 @@ const IMPOSTOS_PADRAO: Record<string, { imposto: string; aliquota: number }[]> =
   lucro_real: [{ imposto: "ISS", aliquota: 5 }, { imposto: "PIS", aliquota: 1.65 }, { imposto: "COFINS", aliquota: 7.6 }, { imposto: "IRPJ", aliquota: 15 }, { imposto: "CSLL", aliquota: 9 }, { imposto: "IRPJ Adicional", aliquota: 10 }],
 };
 
+function abrirArquivoNF(nf: any) {
+  if (nf.arquivo_base64) {
+    try {
+      const binStr = atob(nf.arquivo_base64);
+      const bytes = Uint8Array.from(binStr, (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "text/xml;charset=utf-8" });
+      window.open(URL.createObjectURL(blob), "_blank");
+    } catch {
+      window.open(`data:text/xml;base64,${nf.arquivo_base64}`, "_blank");
+    }
+  } else if (nf.arquivo_url) {
+    window.open(nf.arquivo_url, "_blank");
+  }
+}
+
 const ImpostoFiscal = () => {
   const { companyId } = useParams();
   const { user } = useAuth();
@@ -115,6 +143,7 @@ const ImpostoFiscal = () => {
   const { data: alertas = [] } = useAlertasFiscais(companyId);
   const { data: auditoria = [] } = useAuditoriaFiscal(companyId);
   const { data: transactions = [] } = useFinancialTransactions(companyId);
+  const { data: companyCNPJ, refetch: refetchCNPJ } = useCompanyCNPJ(companyId);
 
   const [search, setSearch] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
@@ -123,6 +152,9 @@ const ImpostoFiscal = () => {
   const [openAlerta, setOpenAlerta] = useState(false);
   const [openImportarNF, setOpenImportarNF] = useState(false);
   const [openBuscarNFAuto, setOpenBuscarNFAuto] = useState(false);
+  const [openConfigCNPJ, setOpenConfigCNPJ] = useState(false);
+  const [selectedNF, setSelectedNF] = useState<any>(null);
+  const [openDetalheNF, setOpenDetalheNF] = useState(false);
   const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState("");
   const [filtroPeriodoFim, setFiltroPeriodoFim] = useState("");
   const [filtroAuditoria, setFiltroAuditoria] = useState("todos");
@@ -144,7 +176,6 @@ const ImpostoFiscal = () => {
   }));
   const totalImpostos = impostosCalculados.reduce((s: number, i: any) => s + i.valor_estimado, 0);
 
-  // Alertas proativos: NFs pendentes (sem pagamento)
   const nfsSemPagamento = (nfs as any[]).filter((n: any) => n.status === "pendente" && !n.transaction_id);
 
   const handleAddNF = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -220,7 +251,6 @@ const ImpostoFiscal = () => {
 
   const currentRegime = regimes.length > 0 ? (regimes[0] as any).regime : null;
 
-  // Auditoria: relatórios filtrados
   const filteredAuditoria = useMemo(() => {
     let items = auditoria as any[];
     if (filtroAuditoria !== "todos") items = items.filter(a => a.entidade === filtroAuditoria);
@@ -229,12 +259,25 @@ const ImpostoFiscal = () => {
     return items;
   }, [auditoria, filtroAuditoria, filtroPeriodoInicio, filtroPeriodoFim]);
 
+  const cnpjAtual = companyCNPJ?.cnpj;
+
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
-        <PageHeader title="Imposto e Fiscal" subtitle="NFs, cálculo tributário, alertas e auditoria" showBack companyLogo={company?.logo_url} />
+        <div className="flex items-center justify-between mb-1">
+          <PageHeader title="Imposto e Fiscal" subtitle="NFs, cálculo tributário, alertas e auditoria" showBack companyLogo={company?.logo_url} />
+          <div className="flex items-center gap-2 shrink-0">
+            {cnpjAtual && (
+              <Badge variant="outline" className="text-xs font-mono hidden sm:flex">
+                CNPJ: {cnpjAtual}
+              </Badge>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setOpenConfigCNPJ(true)}>
+              <Settings className="w-4 h-4 mr-1" />Configurar CNPJ
+            </Button>
+          </div>
+        </div>
 
-        {/* Alertas proativos — NFs sem pagamento */}
         {nfsSemPagamento.length > 0 && (
           <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
             <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
@@ -298,7 +341,6 @@ const ImpostoFiscal = () => {
                         <Select name="tipo" defaultValue="entrada"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="entrada">Entrada</SelectItem><SelectItem value="saida">Saída</SelectItem></SelectContent></Select>
                       </div>
                     </div>
-                    <div><Label>Arquivo</Label><p className="text-xs text-muted-foreground">Upload de XML/PDF será habilitado com storage.</p></div>
                     <div><Label>Observação</Label><Textarea name="observacao" rows={2} /></div>
                     <Button type="submit" className="w-full">Cadastrar NF</Button>
                   </form>
@@ -312,28 +354,55 @@ const ImpostoFiscal = () => {
               <Card><CardContent className="p-0">
                 <Table>
                   <TableHeader><TableRow>
-                    <TableHead>Nº NF</TableHead><TableHead>Emissor</TableHead><TableHead>CNPJ</TableHead><TableHead>Data</TableHead><TableHead>Tipo</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Status</TableHead><TableHead>Arquivo</TableHead><TableHead className="w-24">Ações</TableHead>
+                    <TableHead>Nº NF</TableHead>
+                    <TableHead>Emitente</TableHead>
+                    <TableHead>CNPJ</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead>Impostos</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-28">Ações</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
                     {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma NF encontrada.</TableCell></TableRow>}
-                    {filtered.map((n: any) => (
-                      <TableRow key={n.id}>
-                        <TableCell className="font-medium">{n.numero}</TableCell>
-                        <TableCell>{n.razao_social}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{n.cnpj_emissor || "—"}</TableCell>
-                        <TableCell>{n.data_emissao}</TableCell>
-                        <TableCell><Badge variant={n.tipo === "entrada" ? "default" : "secondary"}>{n.tipo === "entrada" ? "Entrada" : "Saída"}</Badge></TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(n.valor)}</TableCell>
-                        <TableCell><Badge className={statusBadge[n.status as NFStatus]?.cls || ""}>{statusBadge[n.status as NFStatus]?.icon} {statusBadge[n.status as NFStatus]?.label || n.status}</Badge></TableCell>
-                        <TableCell>{n.xml_anexo ? "📎" : "—"}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {n.status === "pendente" && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleVincular(n.id, n.numero)}><Link2 className="w-3.5 h-3.5" /></Button>}
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteNF(n.id, n.numero)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {filtered.map((n: any) => {
+                      const icms = Number(n.valor_icms) || 0;
+                      const pis = Number(n.valor_pis) || 0;
+                      const cofins = Number(n.valor_cofins) || 0;
+                      const totalImps = icms + pis + cofins;
+                      const hasArquivo = !!(n.arquivo_base64 || n.arquivo_url);
+                      return (
+                        <TableRow key={n.id}>
+                          <TableCell className="font-medium">{n.numero}</TableCell>
+                          <TableCell className="max-w-[160px] truncate">{n.razao_social}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{n.cnpj_emissor || "—"}</TableCell>
+                          <TableCell>{n.data_emissao}</TableCell>
+                          <TableCell><Badge variant={n.tipo === "entrada" ? "default" : "secondary"}>{n.tipo === "entrada" ? "Entrada" : "Saída"}</Badge></TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(n.valor)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{totalImps > 0 ? formatCurrency(totalImps) : "—"}</TableCell>
+                          <TableCell><Badge className={statusBadge[n.status as NFStatus]?.cls || ""}>{statusBadge[n.status as NFStatus]?.icon} {statusBadge[n.status as NFStatus]?.label || n.status}</Badge></TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7" title="Ver detalhes"
+                                onClick={() => { setSelectedNF(n); setOpenDetalheNF(true); }}
+                              ><Eye className="w-3.5 h-3.5" /></Button>
+                              {hasArquivo && (
+                                <Button
+                                  variant="ghost" size="icon" className="h-7 w-7" title="Ver arquivo"
+                                  onClick={() => abrirArquivoNF(n)}
+                                ><FileText className="w-3.5 h-3.5" /></Button>
+                              )}
+                              {n.status === "pendente" && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleVincular(n.id, n.numero)}><Link2 className="w-3.5 h-3.5" /></Button>
+                              )}
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteNF(n.id, n.numero)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent></Card>
@@ -459,15 +528,17 @@ const ImpostoFiscal = () => {
           </TabsContent>
         </Tabs>
       </div>
-      <ModalImportarNF
-        open={openImportarNF}
-        onOpenChange={setOpenImportarNF}
+
+      <ModalImportarNF open={openImportarNF} onOpenChange={(v) => { setOpenImportarNF(v); if (!v) queryClient.invalidateQueries({ queryKey: ["notas_fiscais", companyId] }); }} companyId={companyId!} />
+      <ModalBuscarNFAutomatico open={openBuscarNFAuto} onOpenChange={setOpenBuscarNFAuto} companyId={companyId!} />
+      <ModalDetalheNF nf={selectedNF} open={openDetalheNF} onOpenChange={setOpenDetalheNF} />
+      <ConfiguracaoCNPJModal
+        open={openConfigCNPJ}
+        onOpenChange={setOpenConfigCNPJ}
         companyId={companyId!}
-      />
-      <ModalBuscarNFAutomatico
-        open={openBuscarNFAuto}
-        onOpenChange={setOpenBuscarNFAuto}
-        companyId={companyId!}
+        currentCnpj={cnpjAtual || null}
+        currentSecundarios={companyCNPJ?.cnpj_secundarios || []}
+        onSaved={() => refetchCNPJ()}
       />
     </AppLayout>
   );

@@ -1,236 +1,231 @@
 import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/hooks/useFinancialData";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
-import { Card, CardContent } from "@/components/ui/card";
+import ModuleStatCard from "@/components/ModuleStatCard";
+import ModalImportarNF from "@/components/ModalImportarNF";
+import ModalBuscarNFAutomatico from "@/components/ModalBuscarNFAutomatico";
+import ModalDetalheNF from "@/components/ModalDetalheNF";
+import ConfiguracaoCNPJModal from "@/components/ConfiguracaoCNPJModal";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
 import {
-  FileText, CheckCircle2, AlertTriangle, XCircle, Plus, Download,
-  Search, Loader2, CircleDot, FileWarning, Copy, ArrowUpDown, Upload,
+  FileText, CheckCircle2, AlertTriangle, Search, Download, Upload,
+  Eye, Trash2, Settings, Shield, Plus, Bell, Calculator, CalendarDays,
+  Receipt, History, Loader2,
 } from "lucide-react";
 
-/* ── seed random ── */
-function seedRandom(seed: number) {
-  let s = seed;
-  return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+/* ── Hooks ── */
+const useNotasFiscais = (companyId?: string) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["notas_fiscais", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("notas_fiscais").select("*").eq("company_id", companyId!).order("data_emissao", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};
+
+const useRegimeFiscal = (companyId?: string) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["regime_fiscal", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("regime_fiscal").select("*").eq("company_id", companyId!).order("imposto");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};
+
+const useAlertasFiscais = (companyId?: string) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["alertas_fiscais", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("alertas_fiscais").select("*").eq("company_id", companyId!).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};
+
+const useAuditoriaFiscal = (companyId?: string) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["auditoria_fiscal", companyId],
+    enabled: !!user && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("auditoria_fiscal").select("*").eq("company_id", companyId!).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};
+
+const useCompanyCNPJ = (companyId?: string) => {
+  return useQuery({
+    queryKey: ["company_cnpj", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await supabase.from("companies").select("cnpj, cnpj_secundarios").eq("id", companyId!).single();
+      return data as { cnpj: string | null; cnpj_secundarios: string[] | null } | null;
+    },
+  });
+};
+
+async function logAuditoria(companyId: string, acao: string, entidade: string, entidadeId: string | null, detalhes: Record<string, unknown>, userId?: string, userName?: string) {
+  await supabase.from("auditoria_fiscal").insert([{ company_id: companyId, acao, entidade, entidade_id: entidadeId, detalhes: detalhes as any, usuario_id: userId ?? null, usuario_nome: userName ?? null }]);
 }
 
-/* ── mock data ── */
-const fornecedores = [
-  { nome: "Auto Peças Brasil Ltda", cnpj: "12.345.678/0001-90" },
-  { nome: "Distribuidora Nacional S.A.", cnpj: "23.456.789/0001-01" },
-  { nome: "Rede Combustíveis Ltda", cnpj: "34.567.890/0001-12" },
-  { nome: "Seguros Aliança S.A.", cnpj: "45.678.901/0001-23" },
-  { nome: "Transportes Rodoviários Ltda", cnpj: "56.789.012/0001-34" },
-  { nome: "Elétrica Paulista ME", cnpj: "67.890.123/0001-45" },
-  { nome: "Oficina Mecânica Central", cnpj: "78.901.234/0001-56" },
-  { nome: "TecnoServ Informática Ltda", cnpj: "89.012.345/0001-67" },
-  { nome: "Papelaria & Escritório S.A.", cnpj: "90.123.456/0001-78" },
-  { nome: "Limpeza Total Ltda", cnpj: "01.234.567/0001-89" },
-  { nome: "Vidraçaria São Paulo ME", cnpj: "11.222.333/0001-44" },
-  { nome: "Borracharia Express Ltda", cnpj: "22.333.444/0001-55" },
-  { nome: "Gráfica Impressa Ltda", cnpj: "33.444.555/0001-66" },
-  { nome: "Ar Condicionado Center", cnpj: "44.555.666/0001-77" },
-  { nome: "Funilaria & Pintura Ltda", cnpj: "55.666.777/0001-88" },
+type NFStatus = "conciliada" | "pendente" | "divergente" | "cancelada" | "processada" | "pdf_importado";
+const statusBadge: Record<string, { label: string; icon: string; cls: string }> = {
+  conciliada: { label: "Conciliada", icon: "🟢", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" },
+  pendente: { label: "Pendente", icon: "🔴", cls: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  divergente: { label: "Divergente", icon: "🟡", cls: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
+  cancelada: { label: "Cancelada", icon: "⚫", cls: "bg-muted text-muted-foreground" },
+  processada: { label: "Processada", icon: "🟢", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" },
+  pdf_importado: { label: "PDF", icon: "🔵", cls: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
+};
+
+const REGIMES = [
+  { value: "simples_nacional", label: "Simples Nacional" },
+  { value: "lucro_presumido", label: "Lucro Presumido" },
+  { value: "lucro_real", label: "Lucro Real" },
 ];
 
-type NFStatus = "conciliada" | "pendente" | "divergente";
-
-interface NotaFiscal {
-  id: string;
-  numero: string;
-  fornecedor: string;
-  cnpj: string;
-  valor: number;
-  dataEmissao: string;
-  status: NFStatus;
-  pagamentoVinculado: string | null;
-  valorPagamento: number | null;
-  observacoes: string;
-}
-
-function genNotas(): NotaFiscal[] {
-  const rng = seedRandom(7777);
-  const notas: NotaFiscal[] = [];
-  for (let i = 0; i < 40; i++) {
-    const f = fornecedores[Math.floor(rng() * fornecedores.length)];
-    const valor = Math.round((rng() * 45000 + 500) * 100) / 100;
-    const dia = Math.floor(rng() * 28) + 1;
-    const mes = Math.floor(rng() * 3); // 0=mar, 1=fev, 2=jan
-    const statusRoll = rng();
-    let status: NFStatus;
-    let pagId: string | null = null;
-    let valorPag: number | null = null;
-
-    if (statusRoll < 0.5) {
-      status = "conciliada";
-      pagId = `PAG-${String(1000 + i).padStart(5, "0")}`;
-      valorPag = valor;
-    } else if (statusRoll < 0.75) {
-      status = "pendente";
-    } else {
-      status = "divergente";
-      pagId = `PAG-${String(1000 + i).padStart(5, "0")}`;
-      valorPag = Math.round(valor * (0.85 + rng() * 0.3) * 100) / 100;
-    }
-
-    notas.push({
-      id: `nf-${i}`,
-      numero: `NF-${String(2025000 + i * 3)}`,
-      fornecedor: f.nome,
-      cnpj: f.cnpj,
-      valor,
-      dataEmissao: `2025-0${3 - mes}-${String(dia).padStart(2, "0")}`,
-      status,
-      pagamentoVinculado: pagId,
-      valorPagamento: valorPag,
-      observacoes: "",
-    });
-  }
-  return notas;
-}
-
-interface Alerta {
-  id: string;
-  tipo: "duplicidade" | "divergencia" | "sem_pagamento";
-  titulo: string;
-  descricao: string;
-  severity: "warning" | "danger";
-}
-
-function genAlertas(notas: NotaFiscal[]): Alerta[] {
-  const alertas: Alerta[] = [];
-  const divergentes = notas.filter((n) => n.status === "divergente");
-  const pendentes = notas.filter((n) => n.status === "pendente");
-
-  divergentes.slice(0, 3).forEach((n, i) => {
-    alertas.push({
-      id: `al-div-${i}`,
-      tipo: "divergencia",
-      titulo: `Divergência de valor — ${n.numero}`,
-      descricao: `NF ${n.numero} (${n.fornecedor}): valor NF ${formatCurrency(n.valor)} ≠ pagamento ${formatCurrency(n.valorPagamento || 0)}`,
-      severity: "danger",
-    });
-  });
-
-  // fake duplicidade
-  alertas.push({
-    id: "al-dup-0",
-    tipo: "duplicidade",
-    titulo: "Possível NF duplicada",
-    descricao: `NF-2025006 e NF-2025033 do mesmo fornecedor com valores idênticos em datas próximas.`,
-    severity: "warning",
-  });
-
-  if (pendentes.length > 3) {
-    alertas.push({
-      id: "al-sem-0",
-      tipo: "sem_pagamento",
-      titulo: `${pendentes.length} NFs sem pagamento vinculado`,
-      descricao: `Existem ${pendentes.length} notas fiscais cadastradas sem pagamento correspondente identificado.`,
-      severity: "warning",
-    });
-  }
-
-  return alertas;
-}
-
-const statusConfig: Record<NFStatus, { label: string; badgeClass: string; icon: React.ReactNode }> = {
-  conciliada: { label: "Conciliada", badgeClass: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" /> },
-  pendente: { label: "Pendente", badgeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30", icon: <AlertTriangle className="w-4 h-4 text-amber-400" /> },
-  divergente: { label: "Divergente", badgeClass: "bg-red-500/15 text-red-400 border-red-500/30", icon: <XCircle className="w-4 h-4 text-red-400" /> },
+const IMPOSTOS_PADRAO: Record<string, { imposto: string; aliquota: number }[]> = {
+  simples_nacional: [{ imposto: "DAS (Simples)", aliquota: 6 }],
+  lucro_presumido: [{ imposto: "ISS", aliquota: 5 }, { imposto: "PIS", aliquota: 0.65 }, { imposto: "COFINS", aliquota: 3 }, { imposto: "IRPJ", aliquota: 15 }, { imposto: "CSLL", aliquota: 9 }],
+  lucro_real: [{ imposto: "ISS", aliquota: 5 }, { imposto: "PIS", aliquota: 1.65 }, { imposto: "COFINS", aliquota: 7.6 }, { imposto: "IRPJ", aliquota: 15 }, { imposto: "CSLL", aliquota: 9 }, { imposto: "IRPJ Adicional", aliquota: 10 }],
 };
+
+function abrirArquivoNF(nf: any) {
+  if (nf.arquivo_base64) {
+    try {
+      const binStr = atob(nf.arquivo_base64);
+      const bytes = Uint8Array.from(binStr, (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "text/xml;charset=utf-8" });
+      window.open(URL.createObjectURL(blob), "_blank");
+    } catch {
+      window.open(`data:text/xml;base64,${nf.arquivo_base64}`, "_blank");
+    }
+  } else if (nf.arquivo_url) {
+    window.open(nf.arquivo_url, "_blank");
+  }
+}
 
 const GestaoFiscal = () => {
   const { companyId } = useParams();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: companies, isLoading } = useCompanies();
   const company = companies?.find((c) => c.id === companyId);
 
-  const [notas, setNotas] = useState<NotaFiscal[]>(() => genNotas());
-  const alertas = useMemo(() => genAlertas(notas), [notas]);
+  const { data: nfs = [], isLoading: loadingNFs } = useNotasFiscais(companyId);
+  const { data: regimes = [] } = useRegimeFiscal(companyId);
+  const { data: alertas = [] } = useAlertasFiscais(companyId);
+  const { data: auditoria = [] } = useAuditoriaFiscal(companyId);
+  const { data: companyCNPJ, refetch: refetchCNPJ } = useCompanyCNPJ(companyId);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [search, setSearch] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState("todos");
+  const [openImportarNF, setOpenImportarNF] = useState(false);
+  const [openBuscarNFAuto, setOpenBuscarNFAuto] = useState(false);
+  const [openConfigCNPJ, setOpenConfigCNPJ] = useState(false);
+  const [openAlerta, setOpenAlerta] = useState(false);
+  const [selectedNF, setSelectedNF] = useState<any>(null);
+  const [openDetalheNF, setOpenDetalheNF] = useState(false);
+  const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState("");
+  const [filtroPeriodoFim, setFiltroPeriodoFim] = useState("");
+  const [filtroAuditoria, setFiltroAuditoria] = useState("todos");
 
-  // Real NFs from DB
-  const { data: notasDB, refetch: refetchNFs } = useQuery({
-    queryKey: ["notas_fiscais", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("notas_fiscais" as never)
-        .select("*")
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false })
-        .limit(100);
-      return data as Array<{
-        id: string; numero: string | null; emitente_nome: string | null; emitente_cnpj: string | null;
-        valor_total: number | null; data_emissao: string | null; status: string | null;
-        chave_acesso: string | null; natureza_operacao: string | null;
-      }> | null;
-    },
-  });
-  const [filterStatus, setFilterStatus] = useState<string>("todos");
-  const [editingObs, setEditingObs] = useState<string | null>(null);
-  const [obsValue, setObsValue] = useState("");
+  const filtered = useMemo(() => (nfs as any[]).filter((n: any) => {
+    if (filtroStatus !== "todos" && n.status !== filtroStatus) return false;
+    const emitente = n.razao_social || n.emitente_nome || "";
+    const cnpj = n.cnpj_emissor || n.emitente_cnpj || "";
+    if (search && !String(n.numero || "").toLowerCase().includes(search.toLowerCase()) && !emitente.toLowerCase().includes(search.toLowerCase()) && !cnpj.includes(search)) return false;
+    return true;
+  }), [nfs, filtroStatus, search]);
 
-  /* stats */
-  const totalCadastradas = notas.length;
-  const totalConciliadas = notas.filter((n) => n.status === "conciliada").length;
-  const totalSemPagamento = notas.filter((n) => n.status === "pendente").length;
-  const totalSemNF = notas.filter((n) => n.status === "divergente").length;
+  const totalNFs = nfs.length;
+  const totalProcessadas = (nfs as any[]).filter((n: any) => n.status === "processada" || n.status === "conciliada").length;
+  const alertasAtivos = (alertas as any[]).filter((a: any) => !a.resolvido).length;
+  const totalValor = (nfs as any[]).reduce((s: number, n: any) => s + Number(n.valor || n.valor_total || 0), 0);
 
-  /* filtered */
-  const filtered = useMemo(() => {
-    let list = notas;
-    if (filterStatus !== "todos") list = list.filter((n) => n.status === filterStatus);
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      list = list.filter((n) =>
-        n.numero.toLowerCase().includes(q) ||
-        n.fornecedor.toLowerCase().includes(q) ||
-        n.cnpj.includes(q)
-      );
-    }
-    return list;
-  }, [notas, filterStatus, searchTerm]);
+  const faturamentoTotal = totalValor;
+  const impostosCalculados = (regimes as any[]).filter((r: any) => r.ativo).map((r: any) => ({
+    ...r, base_calculo: faturamentoTotal, valor_estimado: (faturamentoTotal * Number(r.aliquota)) / 100,
+  }));
+  const totalImpostos = impostosCalculados.reduce((s: number, i: any) => s + i.valor_estimado, 0);
+  const currentRegime = regimes.length > 0 ? (regimes[0] as any).regime : null;
 
-  /* new NF handler */
-  const handleAddNF = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleDeleteNF = async (id: string, numero: string) => {
+    const { error } = await supabase.from("notas_fiscais").delete().eq("id", id);
+    if (error) { toast({ title: "Erro", variant: "destructive" }); return; }
+    await logAuditoria(companyId!, "excluiu", "nota_fiscal", id, { numero }, user?.id, user?.email);
+    queryClient.invalidateQueries({ queryKey: ["notas_fiscais", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["auditoria_fiscal", companyId] });
+    toast({ title: "NF excluída" });
+  };
+
+  const handleSeedRegime = async (regime: string) => {
+    const impostos = IMPOSTOS_PADRAO[regime] || [];
+    await supabase.from("regime_fiscal").delete().eq("company_id", companyId!);
+    const rows = impostos.map(i => ({ company_id: companyId!, regime, imposto: i.imposto, aliquota: i.aliquota }));
+    if (rows.length) { const { error } = await supabase.from("regime_fiscal").insert(rows); if (error) { toast({ title: "Erro", variant: "destructive" }); return; } }
+    queryClient.invalidateQueries({ queryKey: ["regime_fiscal", companyId] });
+    toast({ title: `Regime ${REGIMES.find(r => r.value === regime)?.label} configurado` });
+  };
+
+  const handleAddAlerta = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const newNF: NotaFiscal = {
-      id: `nf-${Date.now()}`,
-      numero: fd.get("numero") as string,
-      fornecedor: fd.get("fornecedor") as string,
-      cnpj: fd.get("cnpj") as string,
-      valor: parseFloat(fd.get("valor") as string) || 0,
-      dataEmissao: fd.get("dataEmissao") as string,
-      status: "pendente",
-      pagamentoVinculado: null,
-      valorPagamento: null,
-      observacoes: "",
-    };
-    setNotas((prev) => [newNF, ...prev]);
-    setModalOpen(false);
+    const { error } = await supabase.from("alertas_fiscais").insert({
+      company_id: companyId!, tipo: fd.get("tipo") as string, titulo: fd.get("titulo") as string,
+      descricao: fd.get("descricao") as string || null, severity: fd.get("severity") as string,
+      data_vencimento: (fd.get("data_vencimento") as string) || null,
+    });
+    if (error) { toast({ title: "Erro", variant: "destructive" }); return; }
+    queryClient.invalidateQueries({ queryKey: ["alertas_fiscais", companyId] });
+    setOpenAlerta(false);
+    toast({ title: "Alerta criado" });
   };
 
-  /* obs save */
-  const saveObs = (id: string) => {
-    setNotas((prev) => prev.map((n) => n.id === id ? { ...n, observacoes: obsValue } : n));
-    setEditingObs(null);
+  const handleResolverAlerta = async (id: string) => {
+    await supabase.from("alertas_fiscais").update({ resolvido: true, resolvido_por: user?.id, resolvido_em: new Date().toISOString() }).eq("id", id);
+    queryClient.invalidateQueries({ queryKey: ["alertas_fiscais", companyId] });
+    toast({ title: "Alerta resolvido" });
   };
+
+  const filteredAuditoria = useMemo(() => {
+    let items = auditoria as any[];
+    if (filtroAuditoria !== "todos") items = items.filter(a => a.entidade === filtroAuditoria);
+    if (filtroPeriodoInicio) items = items.filter(a => a.created_at >= filtroPeriodoInicio);
+    if (filtroPeriodoFim) items = items.filter(a => a.created_at <= filtroPeriodoFim + "T23:59:59");
+    return items;
+  }, [auditoria, filtroAuditoria, filtroPeriodoInicio, filtroPeriodoFim]);
+
+  const cnpjAtual = companyCNPJ?.cnpj;
 
   if (isLoading) {
     return (
@@ -243,226 +238,280 @@ const GestaoFiscal = () => {
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <PageHeader title="Gestão Fiscal Inteligente" subtitle={company?.name} showBack />
+        <div className="flex items-center justify-between">
+          <PageHeader title="Gestão Fiscal Inteligente" subtitle={company?.name} showBack />
+          <div className="flex items-center gap-2 shrink-0">
+            {cnpjAtual && (
+              <Badge variant="outline" className="text-xs font-mono hidden sm:flex">
+                CNPJ: {cnpjAtual}
+              </Badge>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setOpenConfigCNPJ(true)}>
+              <Settings className="w-4 h-4 mr-1" />Configurar CNPJ
+            </Button>
+          </div>
+        </div>
 
-        {/* ── Stat Cards ── */}
+        {/* Info Objetivo */}
+        <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm text-blue-700 dark:text-blue-300">
+          A Objetivo é uma associação isenta. Exibindo NFs emitidas por fornecedores contra o CNPJ da associação.
+        </div>
+
+        {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="NFs Cadastradas no Mês" value={totalCadastradas} icon={<FileText className="w-5 h-5" />} color="info" />
-          <StatCard label="NFs Conciliadas" value={totalConciliadas} icon={<CheckCircle2 className="w-5 h-5" />} color="positive" />
-          <StatCard label="NFs Sem Pagamento" value={totalSemPagamento} icon={<AlertTriangle className="w-5 h-5" />} color="warning" />
-          <StatCard label="Pagamentos Sem NF" value={totalSemNF} icon={<XCircle className="w-5 h-5" />} color="danger" />
+          <StatCard label="Notas emitidas contra a Objetivo" value={totalNFs} icon={<Receipt className="w-5 h-5" />} color="info" />
+          <StatCard label="NFs Processadas" value={totalProcessadas} icon={<CheckCircle2 className="w-5 h-5" />} color="positive" />
+          <StatCard label="Alertas Ativos" value={alertasAtivos} icon={<AlertTriangle className="w-5 h-5" />} color="warning" />
+          <StatCard label="Valor Total NFs" value={formatCurrency(totalValor)} icon={<FileText className="w-5 h-5" />} color="info" />
         </div>
 
-        {/* ── Toolbar ── */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[220px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar NF, fornecedor ou CNPJ..."
-              className="pl-9 bg-card border-border"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[170px] bg-card border-border">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os Status</SelectItem>
-              <SelectItem value="conciliada">Conciliada</SelectItem>
-              <SelectItem value="pendente">Pendente</SelectItem>
-              <SelectItem value="divergente">Divergente</SelectItem>
-            </SelectContent>
-          </Select>
+        <Tabs defaultValue="nfs">
+          <TabsList className="mb-4">
+            <TabsTrigger value="nfs">Notas Fiscais</TabsTrigger>
+            <TabsTrigger value="impostos">Cálculo Impostos</TabsTrigger>
+            <TabsTrigger value="alertas">Alertas ({alertasAtivos})</TabsTrigger>
+            <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
+          </TabsList>
 
-          <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2"><Plus className="w-4 h-4" />Cadastrar NF</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader><DialogTitle>Cadastrar Nota Fiscal</DialogTitle></DialogHeader>
-              <form onSubmit={handleAddNF} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label htmlFor="numero">Número NF</Label><Input id="numero" name="numero" required placeholder="NF-2025042" /></div>
-                  <div className="space-y-2"><Label htmlFor="cnpj">CNPJ</Label><Input id="cnpj" name="cnpj" required placeholder="00.000.000/0001-00" /></div>
-                </div>
-                <div className="space-y-2"><Label htmlFor="fornecedor">Fornecedor</Label><Input id="fornecedor" name="fornecedor" required /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label htmlFor="valor">Valor (R$)</Label><Input id="valor" name="valor" type="number" step="0.01" required /></div>
-                  <div className="space-y-2"><Label htmlFor="dataEmissao">Data Emissão</Label><Input id="dataEmissao" name="dataEmissao" type="date" required /></div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="arquivo">Arquivo NF (XML/PDF)</Label>
-                  <Input id="arquivo" name="arquivo" type="file" accept=".xml,.pdf" className="cursor-pointer" />
-                </div>
-                <DialogFooter>
-                  <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
-                  <Button type="submit">Cadastrar</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          <Button variant="outline" className="gap-2"><Download className="w-4 h-4" />Exportar Relatório Fiscal</Button>
-        </div>
-
-
-        {/* ── DataTable ── */}
-        <Card className="border-border">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-8"></TableHead>
-                    <TableHead>Número NF</TableHead>
-                    <TableHead>Fornecedor</TableHead>
-                    <TableHead>CNPJ</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead>Data Emissão</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pagamento Vinculado</TableHead>
-                    <TableHead>Observações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((nf) => {
-                    const cfg = statusConfig[nf.status];
-                    return (
-                      <TableRow key={nf.id}>
-                        <TableCell>{cfg.icon}</TableCell>
-                        <TableCell className="font-medium">{nf.numero}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{nf.fornecedor}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground font-mono">{nf.cnpj}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(nf.valor)}</TableCell>
-                        <TableCell>{new Date(nf.dataEmissao).toLocaleDateString("pt-BR")}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cfg.badgeClass}>{cfg.label}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {nf.pagamentoVinculado ? (
-                            <span className="text-xs font-mono text-muted-foreground">
-                              {nf.pagamentoVinculado}
-                              {nf.status === "divergente" && nf.valorPagamento != null && (
-                                <span className="ml-1 text-red-400">({formatCurrency(nf.valorPagamento)})</span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground italic">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-[180px]">
-                          {editingObs === nf.id ? (
-                            <div className="flex gap-1">
-                              <Input
-                                className="h-7 text-xs"
-                                value={obsValue}
-                                onChange={(e) => setObsValue(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && saveObs(nf.id)}
-                                autoFocus
-                              />
-                              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => saveObs(nf.id)}>OK</Button>
-                            </div>
-                          ) : (
-                            <button
-                              className="text-xs text-muted-foreground hover:text-foreground truncate max-w-[160px] block text-left"
-                              onClick={() => { setEditingObs(nf.id); setObsValue(nf.observacoes); }}
-                              title="Clique para editar"
-                            >
-                              {nf.observacoes || <span className="italic opacity-50">Adicionar obs...</span>}
-                            </button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+          {/* NOTAS FISCAIS */}
+          <TabsContent value="nfs">
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <div className="relative max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Buscar NF, fornecedor, CNPJ..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+              </div>
+              <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="processada">🟢 Processada</SelectItem>
+                  <SelectItem value="pendente">🔴 Pendente</SelectItem>
+                  <SelectItem value="pdf_importado">🔵 PDF</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex-1" />
+              <Button variant="outline" size="sm" onClick={() => setOpenImportarNF(true)}>
+                <Upload className="w-4 h-4 mr-1" />Importar NF
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setOpenBuscarNFAuto(true)}>
+                <Search className="w-4 h-4 mr-1" />Buscar NFs Automático
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => toast({ title: "Exportação em desenvolvimento" })}>
+                <Download className="w-4 h-4 mr-1" />Exportar
+              </Button>
             </div>
-          </CardContent>
-        </Card>
 
-        <p className="text-xs text-muted-foreground">Exibindo {filtered.length} de {notas.length} notas fiscais (mock)</p>
-
-        {/* ── NFs Importadas (tabela real) ── */}
-        {notasDB && notasDB.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              NFs Importadas ({notasDB.length})
-            </h3>
-            <Card className="border-border">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Número</TableHead>
-                        <TableHead>Emitente</TableHead>
-                        <TableHead>CNPJ Emitente</TableHead>
-                        <TableHead className="text-right">Valor Total</TableHead>
-                        <TableHead>Data Emissão</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Natureza</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {notasDB.map((nf) => (
-                        <TableRow key={nf.id}>
-                          <TableCell className="font-mono text-xs">{nf.numero || "—"}</TableCell>
-                          <TableCell className="max-w-[180px] truncate text-sm">{nf.emitente_nome || "—"}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground font-mono">{nf.emitente_cnpj || "—"}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(nf.valor_total || 0)}</TableCell>
-                          <TableCell className="text-sm">
-                            {nf.data_emissao ? new Date(nf.data_emissao).toLocaleDateString("pt-BR") : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={
-                              nf.status === "processada" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
-                              nf.status === "pdf_importado" ? "bg-blue-500/15 text-blue-400 border-blue-500/30" :
-                              "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                            }>
-                              {nf.status || "—"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground max-w-[140px] truncate">
-                            {nf.natureza_operacao || "—"}
-                          </TableCell>
+            {loadingNFs ? (
+              <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+            ) : (
+              <Card className="border-border">
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nº NF</TableHead>
+                          <TableHead>Emitente</TableHead>
+                          <TableHead>CNPJ</TableHead>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
+                          <TableHead>Impostos</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-28">Ações</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* ── Alertas ── */}
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <FileWarning className="w-5 h-5 text-amber-400" />
-            Alertas Fiscais Automáticos
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {alertas.map((al) => (
-              <Card
-                key={al.id}
-                className={`border ${al.severity === "danger" ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5"}`}
-              >
-                <CardContent className="p-4 space-y-1">
-                  <div className="flex items-center gap-2">
-                    {al.severity === "danger" ? <XCircle className="w-4 h-4 text-red-400" /> : <AlertTriangle className="w-4 h-4 text-amber-400" />}
-                    <span className="font-semibold text-sm text-foreground">{al.titulo}</span>
+                      </TableHeader>
+                      <TableBody>
+                        {filtered.length === 0 && (
+                          <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma NF encontrada.</TableCell></TableRow>
+                        )}
+                        {filtered.map((n: any) => {
+                          const emitente = n.razao_social || n.emitente_nome || "—";
+                          const cnpj = n.cnpj_emissor || n.emitente_cnpj || "—";
+                          const valor = n.valor ?? n.valor_total ?? 0;
+                          const icms = Number(n.valor_icms) || 0;
+                          const pis = Number(n.valor_pis) || 0;
+                          const cofins = Number(n.valor_cofins) || 0;
+                          const totalImps = icms + pis + cofins;
+                          const hasArquivo = !!(n.arquivo_base64 || n.arquivo_url);
+                          const sb = statusBadge[n.status] || { label: n.status, icon: "⚪", cls: "bg-muted text-muted-foreground" };
+                          return (
+                            <TableRow key={n.id}>
+                              <TableCell className="font-medium font-mono text-xs">{n.numero || "—"}</TableCell>
+                              <TableCell className="max-w-[160px] truncate">{emitente}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground font-mono">{cnpj}</TableCell>
+                              <TableCell className="text-sm">{n.data_emissao ? new Date(n.data_emissao).toLocaleDateString("pt-BR") : "—"}</TableCell>
+                              <TableCell><Badge variant="default">{n.tipo === "entrada" ? "Entrada" : n.tipo || "—"}</Badge></TableCell>
+                              <TableCell className="text-right font-medium">{formatCurrency(valor)}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{totalImps > 0 ? formatCurrency(totalImps) : "—"}</TableCell>
+                              <TableCell><Badge className={sb.cls}>{sb.icon} {sb.label}</Badge></TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost" size="icon" className="h-7 w-7" title="Ver detalhes"
+                                    onClick={() => { setSelectedNF(n); setOpenDetalheNF(true); }}
+                                  ><Eye className="w-3.5 h-3.5" /></Button>
+                                  {hasArquivo && (
+                                    <Button
+                                      variant="ghost" size="icon" className="h-7 w-7" title="Ver arquivo"
+                                      onClick={() => abrirArquivoNF(n)}
+                                    ><FileText className="w-3.5 h-3.5" /></Button>
+                                  )}
+                                  <Button
+                                    variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Excluir"
+                                    onClick={() => handleDeleteNF(n.id, n.numero)}
+                                  ><Trash2 className="w-3.5 h-3.5" /></Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{al.descricao}</p>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </div>
+            )}
+          </TabsContent>
+
+          {/* CÁLCULO IMPOSTOS */}
+          <TabsContent value="impostos">
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-700 dark:text-amber-300">
+                A Objetivo é uma associação isenta de impostos. As informações abaixo são para referência e auditoria das NFs recebidas.
+              </div>
+              <Card>
+                <CardHeader><CardTitle className="text-base flex items-center gap-2"><Shield className="w-4 h-4" />Regime Fiscal</CardTitle></CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-3">{currentRegime ? `Regime: ${REGIMES.find(r => r.value === currentRegime)?.label}` : "Selecione um regime:"}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {REGIMES.map(r => (<Button key={r.value} variant={currentRegime === r.value ? "default" : "outline"} size="sm" onClick={() => handleSeedRegime(r.value)}><Settings className="w-3.5 h-3.5 mr-1" />{r.label}</Button>))}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle className="text-base">Tabela: Imposto / Base / Alíquota / Valor Estimado</CardTitle></CardHeader>
+                <CardContent>
+                  {impostosCalculados.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Configure o regime acima.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Imposto</TableHead><TableHead className="text-right">Base Cálculo</TableHead><TableHead className="text-right">Alíquota</TableHead><TableHead className="text-right">Valor Estimado</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {impostosCalculados.map((i: any) => (
+                          <TableRow key={i.id}><TableCell className="font-medium">{i.imposto}</TableCell><TableCell className="text-right">{formatCurrency(i.base_calculo)}</TableCell><TableCell className="text-right">{Number(i.aliquota)}%</TableCell><TableCell className="text-right font-bold">{formatCurrency(i.valor_estimado)}</TableCell></TableRow>
+                        ))}
+                        <TableRow className="font-bold border-t-2"><TableCell colSpan={3}>TOTAL</TableCell><TableCell className="text-right">{formatCurrency(totalImpostos)}</TableCell></TableRow>
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* ALERTAS */}
+          <TabsContent value="alertas">
+            <div className="flex justify-end mb-4">
+              <Dialog open={openAlerta} onOpenChange={setOpenAlerta}>
+                <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" />Novo Alerta</Button></DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Criar Alerta Fiscal</DialogTitle></DialogHeader>
+                  <form onSubmit={handleAddAlerta} className="space-y-3">
+                    <div><Label>Título</Label><Input name="titulo" required /></div>
+                    <div><Label>Descrição</Label><Textarea name="descricao" rows={2} /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Tipo</Label>
+                        <Select name="tipo" defaultValue="vencimento"><SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="vencimento">Vencimento</SelectItem><SelectItem value="divergencia">Divergência NF</SelectItem><SelectItem value="obrigacao">Obrigação</SelectItem></SelectContent></Select>
+                      </div>
+                      <div><Label>Severidade</Label>
+                        <Select name="severity" defaultValue="warning"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="warning">Atenção</SelectItem><SelectItem value="danger">Crítico</SelectItem></SelectContent></Select>
+                      </div>
+                    </div>
+                    <div><Label>Data Vencimento</Label><Input name="data_vencimento" type="date" /></div>
+                    <Button type="submit" className="w-full">Criar</Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+            {(alertas as any[]).length === 0 ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground">Nenhum alerta.</CardContent></Card>
+            ) : (
+              <div className="space-y-3">
+                {(alertas as any[]).map((a: any) => (
+                  <Card key={a.id} className={`border-l-4 ${a.resolvido ? "border-l-muted opacity-60" : a.severity === "danger" ? "border-l-destructive" : "border-l-amber-500"}`}>
+                    <CardContent className="p-4 flex items-start gap-3">
+                      {a.resolvido ? <CheckCircle2 className="w-5 h-5 mt-0.5 text-muted-foreground" /> : <AlertTriangle className={`w-5 h-5 mt-0.5 ${a.severity === "danger" ? "text-destructive" : "text-amber-500"}`} />}
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{a.titulo}</p>
+                        <p className="text-xs text-muted-foreground">{a.descricao}</p>
+                        <div className="flex items-center gap-2 mt-1"><Badge variant="outline">{a.tipo}</Badge>{a.data_vencimento && <span className="text-xs text-muted-foreground flex items-center gap-1"><CalendarDays className="w-3 h-3" />{a.data_vencimento}</span>}</div>
+                      </div>
+                      {!a.resolvido && <Button variant="outline" size="sm" onClick={() => handleResolverAlerta(a.id)}><CheckCircle2 className="w-3.5 h-3.5 mr-1" />Resolver</Button>}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* AUDITORIA */}
+          <TabsContent value="auditoria">
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <Select value={filtroAuditoria} onValueChange={setFiltroAuditoria}>
+                <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="nota_fiscal">NFs</SelectItem>
+                  <SelectItem value="alerta_fiscal">Alertas</SelectItem>
+                  <SelectItem value="regime_fiscal">Regime</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input type="date" className="w-[150px]" value={filtroPeriodoInicio} onChange={e => setFiltroPeriodoInicio(e.target.value)} />
+              <Input type="date" className="w-[150px]" value={filtroPeriodoFim} onChange={e => setFiltroPeriodoFim(e.target.value)} />
+              <div className="flex-1" />
+              <Button variant="outline" size="sm" onClick={() => toast({ title: "Exportação em desenvolvimento" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
+            </div>
+            {filteredAuditoria.length === 0 ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground">Nenhum registro.</CardContent></Card>
+            ) : (
+              <Card><CardContent className="p-0">
+                <Table>
+                  <TableHeader><TableRow><TableHead>Data/Hora</TableHead><TableHead>Ação</TableHead><TableHead>Entidade</TableHead><TableHead>Detalhes</TableHead><TableHead>Usuário</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {filteredAuditoria.map((a: any) => (
+                      <TableRow key={a.id}>
+                        <TableCell className="text-xs whitespace-nowrap">{new Date(a.created_at).toLocaleString("pt-BR")}</TableCell>
+                        <TableCell><Badge variant={a.acao.includes("exclu") ? "destructive" : "secondary"}>{a.acao}</Badge></TableCell>
+                        <TableCell className="text-sm">{a.entidade}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{a.detalhes ? JSON.stringify(a.detalhes) : "—"}</TableCell>
+                        <TableCell className="text-xs">{a.usuario_nome || "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent></Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
+
+      <ModalImportarNF
+        open={openImportarNF}
+        onOpenChange={(v) => { setOpenImportarNF(v); if (!v) queryClient.invalidateQueries({ queryKey: ["notas_fiscais", companyId] }); }}
+        companyId={companyId!}
+      />
+      <ModalBuscarNFAutomatico open={openBuscarNFAuto} onOpenChange={setOpenBuscarNFAuto} companyId={companyId!} />
+      <ModalDetalheNF nf={selectedNF} open={openDetalheNF} onOpenChange={setOpenDetalheNF} />
+      <ConfiguracaoCNPJModal
+        open={openConfigCNPJ}
+        onOpenChange={setOpenConfigCNPJ}
+        companyId={companyId!}
+        currentCnpj={cnpjAtual || null}
+        currentSecundarios={companyCNPJ?.cnpj_secundarios || []}
+        onSaved={() => refetchCNPJ()}
+      />
     </AppLayout>
   );
 };
