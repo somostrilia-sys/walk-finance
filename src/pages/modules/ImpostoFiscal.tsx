@@ -459,6 +459,16 @@ const ImpostoFiscal = () => {
           </TabsContent>
         </Tabs>
       </div>
+      <ModalImportarNF
+        open={openImportarNF}
+        onOpenChange={setOpenImportarNF}
+        companyId={companyId!}
+      />
+      <ModalBuscarNFAutomatico
+        open={openBuscarNFAuto}
+        onOpenChange={setOpenBuscarNFAuto}
+        companyId={companyId!}
+      />
     </AppLayout>
   );
 };
