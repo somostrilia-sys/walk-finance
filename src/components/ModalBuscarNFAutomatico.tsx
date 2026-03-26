@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,9 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Search, Info, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  consultarNFsSefaz,
+  salvarCertificado,
+  buscarCertificadoAtivo,
+  carregarCertificadoDoStorage,
+  type CertificadoAtivo,
+} from "@/lib/sefazClient";
 
 interface NFItem {
   id: string;
@@ -31,12 +39,23 @@ export default function ModalBuscarNFAutomatico({ open, onOpenChange, companyId,
   const [cnpj, setCnpj] = useState(companyCnpj || "");
   const [certFile, setCertFile] = useState<File | null>(null);
   const [certSenha, setCertSenha] = useState("");
+  const [salvarCert, setSalvarCert] = useState(false);
+  const [ambiente, setAmbiente] = useState<"producao" | "homologacao">("producao");
+  const [certSalvo, setCertSalvo] = useState<CertificadoAtivo | null>(null);
   const [consultando, setConsultando] = useState(false);
   const [nfsEncontradas, setNfsEncontradas] = useState<NFItem[]>([]);
   const [consultaFeita, setConsultaFeita] = useState(false);
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const [importando, setImportando] = useState(false);
   const [importResult, setImportResult] = useState<{ importadas: number; erros: number } | null>(null);
+  const [consultaErro, setConsultaErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    buscarCertificadoAtivo(companyId)
+      .then((cert) => setCertSalvo(cert))
+      .catch(() => setCertSalvo(null));
+  }, [open, companyId]);
 
   // Busca NFs já existentes para verificar duplicatas
   const { data: nfsExistentes } = useQuery({
@@ -71,16 +90,52 @@ export default function ModalBuscarNFAutomatico({ open, onOpenChange, companyId,
   async function handleConsultar() {
     setConsultando(true);
     setConsultaFeita(false);
+    setConsultaErro(null);
     setNfsEncontradas([]);
     setSelecionadas(new Set());
 
-    // Simulação: em produção, chamar endpoint real com certificado digital
-    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      let certificado_base64: string | undefined;
 
-    // UI completo — integração SEFAZ real é endpoint futuro
-    setNfsEncontradas([]);
-    setConsultando(false);
-    setConsultaFeita(true);
+      if (certFile) {
+        const arrayBuffer = await certFile.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        const binary = bytes.reduce((acc, byte) => acc + String.fromCharCode(byte), "");
+        certificado_base64 = btoa(binary);
+      } else if (certSalvo?.arquivo_url) {
+        certificado_base64 = await carregarCertificadoDoStorage(certSalvo.arquivo_url);
+      }
+
+      const notas = await consultarNFsSefaz({
+        cnpj,
+        certificado_base64,
+        senha_certificado: certSenha || undefined,
+        ambiente,
+      });
+
+      if (salvarCert && certFile && certSenha) {
+        await salvarCertificado(companyId, certFile, certSenha);
+        const cert = await buscarCertificadoAtivo(companyId);
+        setCertSalvo(cert);
+      }
+
+      setNfsEncontradas(
+        notas.map((n, i) => ({
+          id: n.chave_acesso || String(i),
+          chave_acesso: n.chave_acesso,
+          numero: n.numero,
+          emitente_nome: n.emitente_nome,
+          valor_total: n.valor_total,
+          data_emissao: n.data_emissao,
+          status: n.status,
+        }))
+      );
+    } catch (err) {
+      setConsultaErro((err as Error).message || "Erro ao consultar SEFAZ");
+    } finally {
+      setConsultando(false);
+      setConsultaFeita(true);
+    }
   }
 
   async function handleImportarSelecionadas() {
@@ -113,9 +168,12 @@ export default function ModalBuscarNFAutomatico({ open, onOpenChange, companyId,
     setCnpj(companyCnpj || "");
     setCertFile(null);
     setCertSenha("");
+    setSalvarCert(false);
+    setAmbiente("producao");
     setConsultando(false);
     setNfsEncontradas([]);
     setConsultaFeita(false);
+    setConsultaErro(null);
     setSelecionadas(new Set());
     setImportando(false);
     setImportResult(null);
@@ -156,6 +214,14 @@ export default function ModalBuscarNFAutomatico({ open, onOpenChange, companyId,
               <p>Este recurso consulta a SEFAZ para buscar NFs emitidas contra o CNPJ da empresa. Requer certificado digital válido (A1/A3).</p>
             </div>
 
+            {/* Cert salvo */}
+            {certSalvo && !certFile && (
+              <div className="flex gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                <p>Certificado salvo encontrado. Insira a senha para consultar (ou faça upload de um novo).</p>
+              </div>
+            )}
+
             {/* Form */}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1.5">
@@ -167,7 +233,7 @@ export default function ModalBuscarNFAutomatico({ open, onOpenChange, companyId,
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Certificado Digital (.pfx / .p12)</Label>
+                <Label>Certificado Digital A1 (.pfx)</Label>
                 <Input
                   type="file"
                   accept=".pfx,.p12"
@@ -184,6 +250,30 @@ export default function ModalBuscarNFAutomatico({ open, onOpenChange, companyId,
                   placeholder="••••••••"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>Ambiente</Label>
+                <Select value={ambiente} onValueChange={(v) => setAmbiente(v as "producao" | "homologacao")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="producao">Produção</SelectItem>
+                    <SelectItem value="homologacao">Homologação</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {certFile && (
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="salvar-cert"
+                    checked={salvarCert}
+                    onCheckedChange={(v) => setSalvarCert(!!v)}
+                  />
+                  <Label htmlFor="salvar-cert" className="text-sm font-normal cursor-pointer">
+                    Salvar certificado para próximas consultas
+                  </Label>
+                </div>
+              )}
             </div>
 
             <Button
@@ -198,10 +288,15 @@ export default function ModalBuscarNFAutomatico({ open, onOpenChange, companyId,
             {/* Results */}
             {consultaFeita && (
               <div className="space-y-3">
-                {nfsEncontradas.length === 0 ? (
+                {consultaErro ? (
+                  <div className="text-center py-6 text-red-400 text-sm">
+                    <p className="font-medium">Erro ao consultar SEFAZ</p>
+                    <p className="text-xs mt-1">{consultaErro}</p>
+                  </div>
+                ) : nfsEncontradas.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground text-sm">
                     <p>Nenhuma NF encontrada.</p>
-                    <p className="text-xs mt-1">A integração SEFAZ real estará disponível em breve.</p>
+                    <p className="text-xs mt-1">Infraestrutura pronta — insira o certificado A1 (.pfx) para consultar a SEFAZ real.</p>
                   </div>
                 ) : (
                   <>
