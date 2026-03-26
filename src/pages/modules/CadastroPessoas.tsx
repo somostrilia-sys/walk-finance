@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { Users, UserPlus, Building2, Wrench, Search, Download, FileText, Landmark, Loader2, Trash2, Eye, Tag, Plus } from "lucide-react";
+import EmpresaTab from "@/components/EmpresaTab";
 import { formatCurrency } from "@/data/mockData";
 
 type PessoaTipo = "cliente" | "prestador" | "ambos";
@@ -201,8 +202,15 @@ const CadastroPessoas = () => {
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
-        <PageHeader title="Clientes e Prestadores" subtitle="Cadastros, vínculos financeiros e histórico" showBack companyLogo={company?.logo_url} />
+        <PageHeader title="Cadastros" subtitle="Clientes, prestadores e dados da empresa" showBack companyLogo={company?.logo_url} />
 
+        <Tabs defaultValue="pessoas" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="pessoas">Clientes e Prestadores</TabsTrigger>
+            <TabsTrigger value="empresa">Empresa</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="pessoas">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
           <ModuleStatCard label="Clientes" value={clientes.length} icon={<Building2 className="w-4 h-4" />} />
           <ModuleStatCard label="Prestadores" value={prestadores.length} icon={<Wrench className="w-4 h-4" />} />
@@ -418,6 +426,12 @@ const CadastroPessoas = () => {
             </Table>
           </CardContent></Card>
         )}
+          </TabsContent>
+
+          <TabsContent value="empresa">
+            <EmpresaTab companyId={companyId!} />
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
