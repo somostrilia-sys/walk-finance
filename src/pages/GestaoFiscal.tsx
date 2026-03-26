@@ -1,8 +1,12 @@
 import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useCompanies } from "@/hooks/useFinancialData";
+import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
+import ModalImportarNF from "@/components/ModalImportarNF";
+import ModalBuscarNFAutomatico from "@/components/ModalBuscarNFAutomatico";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +19,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { formatCurrency } from "@/data/mockData";
 import {
   FileText, CheckCircle2, AlertTriangle, XCircle, Plus, Download,
-  Search, Loader2, CircleDot, FileWarning, Copy, ArrowUpDown,
+  Search, Loader2, CircleDot, FileWarning, Copy, ArrowUpDown, Upload,
 } from "lucide-react";
 
 /* ── seed random ── */
@@ -159,7 +163,28 @@ const GestaoFiscal = () => {
   const alertas = useMemo(() => genAlertas(notas), [notas]);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalImportarOpen, setModalImportarOpen] = useState(false);
+  const [modalBuscarOpen, setModalBuscarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Real NFs from DB
+  const { data: notasDB, refetch: refetchNFs } = useQuery({
+    queryKey: ["notas_fiscais", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("notas_fiscais" as never)
+        .select("*")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      return data as Array<{
+        id: string; numero: string | null; emitente_nome: string | null; emitente_cnpj: string | null;
+        valor_total: number | null; data_emissao: string | null; status: string | null;
+        chave_acesso: string | null; natureza_operacao: string | null;
+      }> | null;
+    },
+  });
   const [filterStatus, setFilterStatus] = useState<string>("todos");
   const [editingObs, setEditingObs] = useState<string | null>(null);
   const [obsValue, setObsValue] = useState("");
@@ -283,8 +308,31 @@ const GestaoFiscal = () => {
             </DialogContent>
           </Dialog>
 
+          <Button variant="outline" className="gap-2" onClick={() => setModalImportarOpen(true)}>
+            <Upload className="w-4 h-4" />Importar NF
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={() => setModalBuscarOpen(true)}>
+            <Search className="w-4 h-4" />Buscar NFs Automático
+          </Button>
           <Button variant="outline" className="gap-2"><Download className="w-4 h-4" />Exportar Relatório Fiscal</Button>
         </div>
+
+        {/* ── Modals ── */}
+        {companyId && (
+          <>
+            <ModalImportarNF
+              open={modalImportarOpen}
+              onOpenChange={(v) => { setModalImportarOpen(v); if (!v) refetchNFs(); }}
+              companyId={companyId}
+            />
+            <ModalBuscarNFAutomatico
+              open={modalBuscarOpen}
+              onOpenChange={(v) => { setModalBuscarOpen(v); if (!v) refetchNFs(); }}
+              companyId={companyId}
+              companyCnpj={undefined}
+            />
+          </>
+        )}
 
         {/* ── DataTable ── */}
         <Card className="border-border">
@@ -361,7 +409,61 @@ const GestaoFiscal = () => {
           </CardContent>
         </Card>
 
-        <p className="text-xs text-muted-foreground">Exibindo {filtered.length} de {notas.length} notas fiscais</p>
+        <p className="text-xs text-muted-foreground">Exibindo {filtered.length} de {notas.length} notas fiscais (mock)</p>
+
+        {/* ── NFs Importadas (tabela real) ── */}
+        {notasDB && notasDB.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              NFs Importadas ({notasDB.length})
+            </h3>
+            <Card className="border-border">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Número</TableHead>
+                        <TableHead>Emitente</TableHead>
+                        <TableHead>CNPJ Emitente</TableHead>
+                        <TableHead className="text-right">Valor Total</TableHead>
+                        <TableHead>Data Emissão</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Natureza</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {notasDB.map((nf) => (
+                        <TableRow key={nf.id}>
+                          <TableCell className="font-mono text-xs">{nf.numero || "—"}</TableCell>
+                          <TableCell className="max-w-[180px] truncate text-sm">{nf.emitente_nome || "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">{nf.emitente_cnpj || "—"}</TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(nf.valor_total || 0)}</TableCell>
+                          <TableCell className="text-sm">
+                            {nf.data_emissao ? new Date(nf.data_emissao).toLocaleDateString("pt-BR") : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={
+                              nf.status === "processada" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
+                              nf.status === "pdf_importado" ? "bg-blue-500/15 text-blue-400 border-blue-500/30" :
+                              "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                            }>
+                              {nf.status || "—"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[140px] truncate">
+                            {nf.natureza_operacao || "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* ── Alertas ── */}
         <div className="space-y-3">
