@@ -19,6 +19,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
 import { Send, Plus, Download, Search, DollarSign, AlertTriangle, Clock, CheckCircle2, Percent, Loader2, Handshake, XCircle, Shield, BarChart3 } from "lucide-react";
+import CobrancasTab from "@/components/CobrancasTab";
+import ConfiguracaoCobrancaTab from "@/components/ConfiguracaoCobrancaTab";
 
 const FaturamentoCobranca = () => {
   const { companyId } = useParams();
@@ -158,6 +160,8 @@ const FaturamentoCobranca = () => {
               <TabsTrigger value="faturamento">Faturamento</TabsTrigger>
               <TabsTrigger value="cobranca">Cobrança ({cob.length})</TabsTrigger>
               <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
+              <TabsTrigger value="cobrancas-auto">Cobranças</TabsTrigger>
+              <TabsTrigger value="config-cobranca">Config. Cobrança</TabsTrigger>
             </TabsList>
 
             {/* FATURAMENTO */}
@@ -332,6 +336,15 @@ const FaturamentoCobranca = () => {
                   </CardContent>
                 </Card>
               </div>
+            </TabsContent>
+            {/* COBRANÇAS AUTOMÁTICAS */}
+            <TabsContent value="cobrancas-auto">
+              {companyId && <CobrancasTab companyId={companyId} />}
+            </TabsContent>
+
+            {/* CONFIG. COBRANÇA */}
+            <TabsContent value="config-cobranca">
+              {companyId && <ConfiguracaoCobrancaTab companyId={companyId} />}
             </TabsContent>
           </Tabs>
         )}

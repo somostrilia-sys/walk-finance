@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useCompanies, useFinancialTransactions, usePessoas, useColaboradores, useExpenseCategories } from "@/hooks/useFinancialData";
+import { criarCobrancaAutomatica } from "@/hooks/useCobrancas";
 import { calcularCompetenciaComissao, gerarParcelas, labelParcela } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -210,6 +211,21 @@ const ContasReceber = () => {
       const { error } = await supabase.from("financial_transactions").insert(records as any);
       if (error) { setSubmitting(false); return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" }); }
 
+      // Cobranças automáticas — silenciosas
+      if (companyId !== "b1000000-0000-0000-0000-000000000001") {
+        const pessoaRef = (pessoas || []).find(p => p.razao_social === form.entity_name);
+        for (const p of parcelas) {
+          criarCobrancaAutomatica({
+            companyId: companyId!,
+            clienteNome: form.entity_name,
+            clienteEmail: (pessoaRef as any)?.email || null,
+            clienteTelefone: (pessoaRef as any)?.telefone || null,
+            valor: p.valor,
+            dataVencimento: p.vencimento,
+          });
+        }
+      }
+
       // Comissão for first installment only
       if (consultorId) {
         const consul = consultores.find((c: any) => c.id === consultorId);
@@ -257,6 +273,19 @@ const ContasReceber = () => {
       } as any);
 
       if (error) { setSubmitting(false); return toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" }); }
+
+      // Cobrança automática — silenciosa
+      if (companyId !== "b1000000-0000-0000-0000-000000000001") {
+        const pessoaRef = (pessoas || []).find(p => p.razao_social === form.entity_name);
+        criarCobrancaAutomatica({
+          companyId: companyId!,
+          clienteNome: form.entity_name,
+          clienteEmail: (pessoaRef as any)?.email || null,
+          clienteTelefone: (pessoaRef as any)?.telefone || null,
+          valor: Number(form.amount),
+          dataVencimento: form.date,
+        });
+      }
 
       // Comissão
       if (consultorId) {
