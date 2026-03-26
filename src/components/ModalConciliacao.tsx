@@ -88,27 +88,7 @@ export default function ModalConciliacao({
   });
   const [salvando, setSalvando] = useState(false);
 
-  const { data: transactions = [] } = useQuery({
-    queryKey: ["modal_transactions", companyId],
-    enabled: !!companyId && isOpen,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("financial_transactions")
-        .select("id, date, description, amount, type, conciliado")
-        .eq("company_id", companyId)
-        .or("conciliado.is.null,conciliado.eq.false")
-        .order("date", { ascending: false });
-      if (error) throw error;
-      return (data || []).map((t: any) => ({
-        id: t.id,
-        date: t.date,
-        description: t.description,
-        amount: Number(t.amount),
-        type: t.type,
-        source: "transaction" as const,
-      })) as SistemaItem[];
-    },
-  });
+  // financial_transactions removido — apenas contas a pagar/receber como referência
 
   const { data: contasPagar = [] } = useQuery({
     queryKey: ["modal_contas_pagar", companyId],
