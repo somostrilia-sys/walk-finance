@@ -20,8 +20,9 @@ import { toast } from "@/hooks/use-toast";
 import {
   ArrowDownCircle, ArrowUpCircle, DollarSign, CalendarDays, FileText,
   CheckCircle2, XCircle, Upload, AlertTriangle, Clock, Link2, Plus,
-  Search, Loader2, Eye,
+  Search, Loader2, Eye, Landmark,
 } from "lucide-react";
+import ConciliacaoBancariaTab from "@/components/ConciliacaoBancariaTab";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -130,6 +131,9 @@ const FluxoCaixaDiario = () => {
             <TabsTrigger value="notas-fiscais" className="gap-1.5">
               <FileText className="w-3.5 h-3.5" /> Notas Fiscais
             </TabsTrigger>
+            <TabsTrigger value="conciliacao" className="gap-1.5">
+              <Landmark className="w-3.5 h-3.5" /> Conciliação
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="recebimentos">
@@ -140,6 +144,9 @@ const FluxoCaixaDiario = () => {
           </TabsContent>
           <TabsContent value="notas-fiscais">
             <NotasFiscaisTab companyId={companyId} />
+          </TabsContent>
+          <TabsContent value="conciliacao">
+            <ConciliacaoBancariaTab companyId={companyId!} />
           </TabsContent>
         </Tabs>
       </div>
