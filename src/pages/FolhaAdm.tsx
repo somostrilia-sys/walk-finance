@@ -79,6 +79,17 @@ const FolhaAdm = () => {
     enabled: !!companyId,
   });
 
+  // Folha pagamento — used for unidade mapping
+  const { data: folhaPagamento } = useQuery({
+    queryKey: ["folha-pagamento", companyId],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any).from("folha_pagamento").select("*").eq("company_id", companyId!);
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
   const folha = useMemo(() => {
     return (colaboradores || []).map(c => {
       const comissaoMes = (comissoes || []).filter(cm => cm.colaborador_id === c.id).reduce((s, cm) => s + Number(cm.valor || 0), 0);
@@ -87,6 +98,15 @@ const FolhaAdm = () => {
       const adiantamentos = descontosMes.filter(d => d.tipo.toLowerCase().includes("adiantamento")).reduce((s, d) => s + Number(d.valor || 0), 0);
       const outrosDescontos = totalDescontos - adiantamentos;
       const descontoMotivos = descontosMes.filter(d => !d.tipo.toLowerCase().includes("adiantamento")).map(d => `${d.tipo}: ${formatCurrency(Number(d.valor))}`).join(", ");
+
+      // Determine unidade from most recent folha_pagamento record
+      const folhaRecords = (folhaPagamento || [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((f: any) => f.colaborador_id === c.id)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const unidade = (folhaRecords[0] as any)?.unidade || null;
 
       const base = Number(c.salario_base || 0);
       const total = base + comissaoMes - adiantamentos - outrosDescontos;
@@ -98,10 +118,11 @@ const FolhaAdm = () => {
         descontos: outrosDescontos,
         descontoMotivos,
         total,
+        unidade,
         statusPagamento: "Pendente" as string,
       };
     });
-  }, [colaboradores, comissoes, descontos]);
+  }, [colaboradores, comissoes, descontos, folhaPagamento]);
 
   const filtered = useMemo(() => {
     let list = folha;
@@ -110,12 +131,13 @@ const FolhaAdm = () => {
       list = list.filter(c => c.nome.toLowerCase().includes(q));
     }
     if (filtroUnidade !== "todas") {
-      // Filter by branch name stored in colaboradores (if branch_id or unidade field exists)
-      // Since colaboradores doesn't have direct branch field, filter by name match in cargo or skip
-      // We keep filter UI for UX consistency but apply when branch data exists
+      const branchName = (branches || []).find(b => b.id === filtroUnidade)?.name;
+      if (branchName) {
+        list = list.filter(c => c.unidade === branchName);
+      }
     }
     return list;
-  }, [folha, busca, filtroUnidade]);
+  }, [folha, busca, filtroUnidade, branches]);
 
   // Colaboradores filtrados por unidade para o form (se branch linkado)
   const colaboradoresFiltrados = useMemo(() => {
@@ -259,6 +281,17 @@ const FolhaAdm = () => {
                   {filtered.length === 0 && (
                     <tr><td colSpan={8} className="text-center text-muted-foreground py-8">Nenhum colaborador na folha</td></tr>
                   )}
+                  {filtered.length > 0 && (
+                    <tr className="border-t-2 border-border bg-muted/30 font-bold">
+                      <td className="py-2.5 px-4 font-bold text-foreground" colSpan={2}>Total ({filtered.length})</td>
+                      <td className="py-2.5 px-4 text-right">{formatCurrency(filtered.reduce((s, c) => s + Number(c.salario_base), 0))}</td>
+                      <td className="py-2.5 px-4 text-right text-[hsl(var(--status-positive))]">{formatCurrency(filtered.reduce((s, c) => s + c.comissaoMes, 0))}</td>
+                      <td className="py-2.5 px-4 text-right text-[hsl(var(--status-warning))]">{formatCurrency(filtered.reduce((s, c) => s + c.adiantamentos, 0))}</td>
+                      <td className="py-2.5 px-4 text-right text-[hsl(var(--status-danger))]">{formatCurrency(filtered.reduce((s, c) => s + c.descontos, 0))}</td>
+                      <td className="py-2.5 px-4 text-right font-bold text-foreground">{formatCurrency(filtered.reduce((s, c) => s + c.total, 0))}</td>
+                      <td></td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -283,7 +316,7 @@ const FolhaAdm = () => {
             <form onSubmit={handleSalvarFolha} className="space-y-4">
               <div>
                 <Label>Unidade</Label>
-                <Select value={filtroUnidade !== "todas" ? filtroUnidade : formUnidade} onValueChange={setFormUnidade}>
+                <Select value={formUnidade} onValueChange={setFormUnidade}>
                   <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Sem unidade</SelectItem>

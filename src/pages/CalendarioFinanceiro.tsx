@@ -27,7 +27,6 @@ import {
 
 const tt = { backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" };
 
-const DEFAULT_CATEGORIAS = ["Folha", "Aluguel", "Energia", "Água", "Internet", "Seguros", "Manutenção", "Marketing", "Impostos", "Fornecedores", "Sinistro", "Outro"];
 
 const stMap: Record<string, { l: string; c: string }> = {
   a_vencer: { l: "Pendente", c: "bg-muted text-muted-foreground" },
@@ -114,6 +113,16 @@ const CalendarioFinanceiro = () => {
     enabled: !!companyId,
   });
 
+  // Expense categories
+  const { data: expenseCategories } = useQuery({
+    queryKey: ["expense-categories", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("expense_categories").select("*").eq("company_id", companyId!).order("name");
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
   // Filters
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroCategoria, setFiltroCategoria] = useState("todas");
@@ -124,8 +133,12 @@ const CalendarioFinanceiro = () => {
   const [dataFinal, setDataFinal] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Custom categories state
-  const [categorias, setCategorias] = useState<string[]>(DEFAULT_CATEGORIAS);
+  // Custom categories state (extra inline additions beyond DB)
+  const [extraCategorias, setExtraCategorias] = useState<string[]>([]);
+  const categorias = useMemo(() => {
+    const fromDB = (expenseCategories || []).map((c: { name: string }) => c.name);
+    return [...new Set([...fromDB, ...extraCategorias])];
+  }, [expenseCategories, extraCategorias]);
   const [novaCategoriaInput, setNovaCategoriaInput] = useState("");
   const [showNovaCat, setShowNovaCat] = useState(false);
   const [formCategoria, setFormCategoria] = useState("");
@@ -253,7 +266,9 @@ const CalendarioFinanceiro = () => {
   const handleAddCategoria = () => {
     const cat = novaCategoriaInput.trim();
     if (cat && !categorias.includes(cat)) {
-      setCategorias(prev => [...prev, cat]);
+      setExtraCategorias(prev => [...prev, cat]);
+      setFormCategoria(cat);
+    } else if (cat) {
       setFormCategoria(cat);
     }
     setNovaCategoriaInput("");

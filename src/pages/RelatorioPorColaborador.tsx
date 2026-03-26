@@ -86,10 +86,23 @@ const RelatorioPorColaborador = () => {
       if (dataFim) descontosFiltrados = descontosFiltrados.filter(d => d.created_at <= dataFim + "T23:59:59");
 
       // Folha pagamento records for this collaborator
-      const folhaRecords = (folhaPagamento || []).filter((f: any) => f.colaborador_id === c.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let folhaRecords = (folhaPagamento || []).filter((f: any) => f.colaborador_id === c.id);
+      if (dataInicio) folhaRecords = folhaRecords.filter((f: any) => (f.data_pagamento || f.created_at || "") >= dataInicio);
+      if (dataFim) folhaRecords = folhaRecords.filter((f: any) => (f.data_pagamento || f.created_at || "") <= dataFim + "T23:59:59");
+
       const folhaBeneficios = folhaRecords.reduce((s: number, f: any) => s + Number(f.beneficios || 0), 0);
       const folhaDescontos = folhaRecords.reduce((s: number, f: any) => s + Number(f.descontos || 0), 0);
       const folhaPago = folhaRecords.reduce((s: number, f: any) => s + Number(f.valor_liquido || 0), 0);
+
+      // Derive unidade from most recent folha record
+      const allFolhaRecords = (folhaPagamento || [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((f: any) => f.colaborador_id === c.id)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const unidade = (allFolhaRecords[0] as any)?.unidade || "—";
 
       const totalComissoes = comissoesFiltradas.reduce((s, cm) => s + Number(cm.valor || 0), 0);
       const totalDescontos = descontosFiltrados.reduce((s, d) => s + Number(d.valor || 0), 0);
@@ -104,7 +117,7 @@ const RelatorioPorColaborador = () => {
         id: c.id,
         nome: c.nome,
         cargo: c.cargo,
-        unidade: c.cargo, // colaboradores don't have direct branch field
+        unidade,
         salarioBase: base,
         totalComissoes,
         beneficios,
@@ -120,8 +133,14 @@ const RelatorioPorColaborador = () => {
       const q = busca.toLowerCase();
       list = list.filter(r => r.nome.toLowerCase().includes(q));
     }
+    if (filtroUnidade !== "todas") {
+      const branchName = (branches || []).find(b => b.id === filtroUnidade)?.name;
+      if (branchName) {
+        list = list.filter(r => r.unidade === branchName);
+      }
+    }
     return list;
-  }, [relatorio, busca]);
+  }, [relatorio, busca, filtroUnidade, branches]);
 
   const totalGeral = filtered.reduce((s, r) => s + r.totalRecebido, 0);
   const totalBeneficios = filtered.reduce((s, r) => s + r.beneficios, 0);
@@ -178,6 +197,7 @@ const RelatorioPorColaborador = () => {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Cargo</TableHead>
+                  <TableHead>Unidade</TableHead>
                   <TableHead className="text-right">Salário Base</TableHead>
                   <TableHead className="text-right">Benefícios</TableHead>
                   <TableHead className="text-right">Descontos</TableHead>
@@ -191,6 +211,7 @@ const RelatorioPorColaborador = () => {
                     <TableCell>
                       <Badge variant="outline" className="text-[10px]">{r.cargo || "—"}</Badge>
                     </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.unidade}</TableCell>
                     <TableCell className="text-right text-sm">{formatCurrency(r.salarioBase)}</TableCell>
                     <TableCell className="text-right text-sm text-[hsl(var(--status-positive))]">
                       {r.beneficios > 0 ? formatCurrency(r.beneficios) : "—"}
@@ -203,12 +224,12 @@ const RelatorioPorColaborador = () => {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum colaborador encontrado</TableCell>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum colaborador encontrado</TableCell>
                   </TableRow>
                 )}
                 {filtered.length > 0 && (
                   <TableRow className="bg-muted/30 font-bold">
-                    <TableCell colSpan={2} className="font-bold">Total</TableCell>
+                    <TableCell colSpan={3} className="font-bold">Total ({filtered.length})</TableCell>
                     <TableCell className="text-right">{formatCurrency(filtered.reduce((s, r) => s + r.salarioBase, 0))}</TableCell>
                     <TableCell className="text-right text-[hsl(var(--status-positive))]">{formatCurrency(totalBeneficios)}</TableCell>
                     <TableCell className="text-right text-[hsl(var(--status-danger))]">{formatCurrency(totalDescontos)}</TableCell>
