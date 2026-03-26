@@ -10,3 +10,9 @@ export function formatCurrency(value: number): string {
 export function parseCurrency(str: string): number {
   return parseFloat(str.replace(/[R$\s.]/g, "").replace(",", ".")) || 0;
 }
+
+export function currencyMask(value: string): string {
+  const num = value.replace(/\D/g, "");
+  const float = parseInt(num || "0") / 100;
+  return formatCurrency(float);
+}

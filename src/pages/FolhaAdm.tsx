@@ -139,11 +139,46 @@ const FolhaAdm = () => {
     return list;
   }, [folha, busca, filtroUnidade, branches]);
 
-  // Colaboradores filtrados por unidade para o form (se branch linkado)
+  // Colaboradores filtrados pela unidade selecionada no modal
   const colaboradoresFiltrados = useMemo(() => {
-    if (!filtroUnidade || filtroUnidade === "todas") return colaboradores || [];
-    return colaboradores || [];
-  }, [colaboradores, filtroUnidade]);
+    if (!formUnidade) return colaboradores || [];
+    // Find colaboradores who have folha records for this branch name
+    const folhaIds = new Set(
+      (folhaPagamento || [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((f: any) => f.unidade === formUnidade)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((f: any) => f.colaborador_id as string)
+    );
+    if (folhaIds.size === 0) return colaboradores || [];
+    return (colaboradores || []).filter(c => folhaIds.has(c.id));
+  }, [colaboradores, formUnidade, folhaPagamento]);
+
+  const handleExportar = () => {
+    const headers = ["Nome", "Cargo", "Unidade", "Base R$", "Comissão R$", "Adiantamentos R$", "Descontos R$", "Total R$", "Status"];
+    const rows = filtered.map(c => [
+      c.nome,
+      c.cargo || "",
+      c.unidade || "",
+      Number(c.salario_base).toFixed(2).replace(".", ","),
+      c.comissaoMes.toFixed(2).replace(".", ","),
+      c.adiantamentos.toFixed(2).replace(".", ","),
+      c.descontos.toFixed(2).replace(".", ","),
+      c.total.toFixed(2).replace(".", ","),
+      c.statusPagamento,
+    ]);
+    const csv = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(";"))
+      .join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `folha-pagamento-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV exportado!");
+  };
 
   const custoTotal = folha.reduce((s, c) => s + c.total, 0);
   const totalComissoes = folha.reduce((s, c) => s + c.comissaoMes, 0);
@@ -240,7 +275,7 @@ const FolhaAdm = () => {
               </SelectContent>
             </Select>
           </div>
-          <Button variant="outline" size="sm" className="gap-2"><Download className="w-4 h-4" /> Exportar</Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExportar}><Download className="w-4 h-4" /> Exportar CSV</Button>
           <Button size="sm" className="gap-2" onClick={() => setModalOpen(true)}><Plus className="w-4 h-4" />Novo registro</Button>
         </div>
 

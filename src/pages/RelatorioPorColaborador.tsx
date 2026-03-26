@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/formatCurrency";
-import { Search, Loader2, Users, DollarSign, TrendingUp, TrendingDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { Search, Loader2, Users, DollarSign, TrendingUp, TrendingDown, Download } from "lucide-react";
 
 const RelatorioPorColaborador = () => {
   const { companyId } = useParams();
@@ -148,6 +150,30 @@ const RelatorioPorColaborador = () => {
 
   const isLoading = loadingColabs;
 
+  const exportarCSV = () => {
+    const headers = ["Nome", "Cargo", "Unidade", "Salário Base", "Benefícios", "Descontos", "Total Recebido"];
+    const rows = filtered.map(r => [
+      r.nome,
+      r.cargo || "",
+      r.unidade,
+      r.salarioBase.toFixed(2).replace(".", ","),
+      r.beneficios.toFixed(2).replace(".", ","),
+      r.descontos.toFixed(2).replace(".", ","),
+      r.totalRecebido.toFixed(2).replace(".", ","),
+    ]);
+    const csv = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(";"))
+      .join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `relatorio-colaboradores-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV exportado!");
+  };
+
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -161,7 +187,7 @@ const RelatorioPorColaborador = () => {
           <SC label="Total Descontos" value={formatCurrency(totalDescontos)} icon={<TrendingDown className="w-4 h-4" />} color="danger" />
         </div>
 
-        {/* Filters */}
+        {/* Filters + Export */}
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -185,6 +211,9 @@ const RelatorioPorColaborador = () => {
             <Label className="text-xs text-muted-foreground">Data Fim</Label>
             <Input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} className="w-40" />
           </div>
+          <Button variant="outline" size="sm" className="gap-2 ml-auto" onClick={exportarCSV}>
+            <Download className="w-4 h-4" />Exportar CSV
+          </Button>
         </div>
 
         {/* Table */}

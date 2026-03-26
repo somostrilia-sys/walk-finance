@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useCompanies, useFinancialTransactions } from "@/hooks/useFinancialData";
+import { useCompanies } from "@/hooks/useFinancialData";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { Download, Loader2, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
 import ModuleStatCard from "@/components/ModuleStatCard";
@@ -85,11 +85,16 @@ const DREModule = () => {
   const { companyId } = useParams();
   const { data: companies } = useCompanies();
   const company = companies?.find(c => c.id === companyId);
-  const { data: transactions, isLoading } = useFinancialTransactions(companyId);
 
-  const [filtroMes, setFiltroMes] = useState("todos");
-  const [filtroAno, setFiltroAno] = useState(String(currentYear));
-  const [filtroUnidade, setFiltroUnidade] = useState("todas");
+  // UI filter state (controlled by user, applied on button click)
+  const [mes, setMes] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
+  const [ano, setAno] = useState(String(currentYear));
+  const [unidade, setUnidade] = useState("todas");
+
+  // Applied state (what's actually used to query)
+  const [appliedMes, setAppliedMes] = useState(mes);
+  const [appliedAno, setAppliedAno] = useState(ano);
+  const [appliedUnidade, setAppliedUnidade] = useState(unidade);
 
   const { data: branches } = useQuery({
     queryKey: ["branches", companyId],
@@ -100,22 +105,34 @@ const DREModule = () => {
     enabled: !!companyId,
   });
 
-  const filteredTransactions = useMemo(() => {
-    let list = transactions || [];
+  // Server-side filtered transactions
+  const { data: transactions, isLoading } = useQuery({
+    queryKey: ["dre-transactions", companyId, appliedAno, appliedMes, appliedUnidade],
+    queryFn: async () => {
+      let q = supabase
+        .from("financial_transactions")
+        .select("*, expense_categories(name)")
+        .eq("company_id", companyId!);
 
-    if (filtroAno !== "todos") {
-      list = list.filter(t => t.date?.startsWith(filtroAno));
-    }
-    if (filtroMes !== "todos" && filtroAno !== "todos") {
-      list = list.filter(t => t.date?.startsWith(`${filtroAno}-${filtroMes}`));
-    }
-    // Unit filter: transactions may have branch_id - filter if available
-    if (filtroUnidade !== "todas") {
-      list = list.filter(t => (t as any).branch_id === filtroUnidade || (t as any).unidade === filtroUnidade);
-    }
+      if (appliedMes !== "todos" && appliedAno !== "todos") {
+        const firstDay = `${appliedAno}-${appliedMes}-01`;
+        const daysInMonth = new Date(parseInt(appliedAno), parseInt(appliedMes), 0).getDate();
+        const lastDay = `${appliedAno}-${appliedMes}-${String(daysInMonth).padStart(2, "0")}`;
+        q = q.gte("date", firstDay).lte("date", lastDay);
+      } else if (appliedAno !== "todos") {
+        q = q.gte("date", `${appliedAno}-01-01`).lte("date", `${appliedAno}-12-31`);
+      }
 
-    return list;
-  }, [transactions, filtroMes, filtroAno, filtroUnidade]);
+      if (appliedUnidade !== "todas") {
+        q = (q as any).eq("branch_id", appliedUnidade);
+      }
+
+      const { data, error } = await q.order("date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
 
   const dreValues = useMemo(() => {
     const values: Record<string, number> = {
@@ -124,7 +141,7 @@ const DREModule = () => {
       despesas_pessoal: 0, ebitda: 0, depreciacao: 0, ebit: 0, resultado_financeiro: 0, lucro_liquido: 0,
     };
 
-    filteredTransactions.forEach(t => {
+    (transactions || []).forEach(t => {
       const catName = (t as any).expense_categories?.name || "";
       if (t.type === "entrada") {
         values.receita_bruta += Number(t.amount);
@@ -141,16 +158,38 @@ const DREModule = () => {
     });
 
     return values;
-  }, [filteredTransactions]);
+  }, [transactions]);
 
   const periodoLabel = useMemo(() => {
-    if (filtroMes !== "todos" && filtroAno !== "todos") {
-      const mes = MESES.find(m => m.value === filtroMes)?.label || filtroMes;
-      return `${mes} / ${filtroAno}`;
+    if (appliedMes !== "todos" && appliedAno !== "todos") {
+      const mesLabel = MESES.find(m => m.value === appliedMes)?.label || appliedMes;
+      return `${mesLabel} / ${appliedAno}`;
     }
-    if (filtroAno !== "todos") return `Ano ${filtroAno}`;
+    if (appliedAno !== "todos") return `Ano ${appliedAno}`;
     return "Todo o período";
-  }, [filtroMes, filtroAno]);
+  }, [appliedMes, appliedAno]);
+
+  const handleAplicar = () => {
+    setAppliedMes(mes);
+    setAppliedAno(ano);
+    setAppliedUnidade(unidade);
+  };
+
+  const handleExportar = () => {
+    const rows = dreStructure.map(line => {
+      const value = dreValues[line.key] || 0;
+      return `"${line.label}";"${formatCurrency(value)}"`;
+    });
+    const csv = `"Descrição";"Valor"\n` + rows.join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `DRE-${periodoLabel.replace(/\s*\/\s*/g, "-")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("DRE exportado!");
+  };
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
@@ -161,7 +200,7 @@ const DREModule = () => {
         <div className="flex flex-wrap items-end gap-3 mb-6">
           <div>
             <Label className="text-xs text-muted-foreground">Mês</Label>
-            <Select value={filtroMes} onValueChange={setFiltroMes}>
+            <Select value={mes} onValueChange={setMes}>
               <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos os meses</SelectItem>
@@ -171,7 +210,7 @@ const DREModule = () => {
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">Ano</Label>
-            <Select value={filtroAno} onValueChange={setFiltroAno}>
+            <Select value={ano} onValueChange={setAno}>
               <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
@@ -181,7 +220,7 @@ const DREModule = () => {
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">Unidade</Label>
-            <Select value={filtroUnidade} onValueChange={setFiltroUnidade}>
+            <Select value={unidade} onValueChange={setUnidade}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todas as unidades</SelectItem>
@@ -189,8 +228,12 @@ const DREModule = () => {
               </SelectContent>
             </Select>
           </div>
+          <Button onClick={handleAplicar} disabled={isLoading}>
+            {isLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+            Aplicar
+          </Button>
           <div className="flex-1" />
-          <Button variant="outline" size="sm" onClick={() => toast({ title: "DRE exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
+          <Button variant="outline" size="sm" onClick={handleExportar}><Download className="w-4 h-4 mr-1" />Exportar CSV</Button>
         </div>
 
         {!isLoading && (
@@ -229,7 +272,7 @@ const DREModule = () => {
                         </TableCell>
                         <TableCell className={`text-right ${line.bold ? "font-bold" : ""} ${isSubtotal && isNegative ? "text-[hsl(var(--status-danger))]" : ""} ${isSubtotal && !isNegative ? "text-[hsl(var(--status-positive))]" : ""}`}>
                           {formatCurrency(Math.abs(value))}
-                          {isNegative && !line.label.startsWith("(") ? " (-)": ""}
+                          {isNegative && !line.label.startsWith("(") ? " (-)" : ""}
                         </TableCell>
                       </TableRow>
                     );
@@ -242,7 +285,7 @@ const DREModule = () => {
 
         {!isLoading && (
           <p className="text-xs text-muted-foreground mt-4 text-center">
-            Valores calculados de {filteredTransactions.length} transações — {periodoLabel}.
+            Valores calculados de {(transactions || []).length} transações — {periodoLabel}.
           </p>
         )}
       </div>

@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { formatCurrency, parseCurrency } from "@/lib/formatCurrency";
 import {
   CalendarDays, TrendingUp, AlertTriangle, ShieldAlert, DollarSign,
-  Wallet, Shield, Plus, Loader2, Filter, X,
+  Wallet, Shield, Plus, Loader2, Filter, X, Pencil, Trash2,
 } from "lucide-react";
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -26,7 +26,6 @@ import {
 } from "recharts";
 
 const tt = { backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" };
-
 
 const stMap: Record<string, { l: string; c: string }> = {
   a_vencer: { l: "Pendente", c: "bg-muted text-muted-foreground" },
@@ -93,16 +92,6 @@ const CalendarioFinanceiro = () => {
     enabled: !!companyId,
   });
 
-  // Eventos (for seasonality)
-  const { data: eventos } = useQuery({
-    queryKey: ["eventos-cal", companyId],
-    queryFn: async () => {
-      const { data } = await supabase.from("eventos").select("*").eq("company_id", companyId!);
-      return data || [];
-    },
-    enabled: !!companyId,
-  });
-
   // Branches
   const { data: branches } = useQuery({
     queryKey: ["branches", companyId],
@@ -133,19 +122,29 @@ const CalendarioFinanceiro = () => {
   const [dataFinal, setDataFinal] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Custom categories state (extra inline additions beyond DB)
-  const [extraCategorias, setExtraCategorias] = useState<string[]>([]);
-  const categorias = useMemo(() => {
-    const fromDB = (expenseCategories || []).map((c: { name: string }) => c.name);
-    return [...new Set([...fromDB, ...extraCategorias])];
-  }, [expenseCategories, extraCategorias]);
-  const [novaCategoriaInput, setNovaCategoriaInput] = useState("");
-  const [showNovaCat, setShowNovaCat] = useState(false);
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Controlled form inputs
+  const [formVencimento, setFormVencimento] = useState("");
+  const [formDescricao, setFormDescricao] = useState("");
+  const [formResponsavel, setFormResponsavel] = useState("");
   const [formCategoria, setFormCategoria] = useState("");
   const [formUnidade, setFormUnidade] = useState("");
   const [formStatus, setFormStatus] = useState("a_vencer");
   const [formValor, setFormValor] = useState("");
+
+  // Category inline add
+  const [novaCategoriaInput, setNovaCategoriaInput] = useState("");
+  const [showNovaCat, setShowNovaCat] = useState(false);
+  const [loadingNewCategory, setLoadingNewCategory] = useState(false);
+
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const categorias = useMemo(() => {
+    return (expenseCategories || []).map((c: { name: string }) => c.name);
+  }, [expenseCategories]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -263,16 +262,63 @@ const CalendarioFinanceiro = () => {
   const totalEmAtraso = filteredContas.filter(c => c.status === "em_atraso" || c.status === "atrasado").reduce((s, c) => s + Number(c.valor), 0);
   const totalIndenPrev = compromissos.reduce((s, c) => s + c.valor, 0);
 
-  const handleAddCategoria = () => {
+  const resetForm = () => {
+    setEditingId(null);
+    setFormVencimento("");
+    setFormDescricao("");
+    setFormResponsavel("");
+    setFormValor("");
+    setFormCategoria("");
+    setFormUnidade("");
+    setFormStatus("a_vencer");
+    setShowNovaCat(false);
+    setNovaCategoriaInput("");
+  };
+
+  const handleOpenNew = () => {
+    resetForm();
+    setModalOpen(true);
+  };
+
+  const handleEdit = (c: typeof contasProcessed[0]) => {
+    setEditingId(c.id);
+    setFormVencimento(c.vencimento);
+    setFormDescricao(c.descricao || "");
+    setFormResponsavel(c.fornecedor);
+    setFormCategoria(c.categoria || "");
+    setFormUnidade(c.unidade || "");
+    setFormStatus(c.status === "em_atraso" ? "em_atraso" : c.status === "atrasado" ? "em_atraso" : c.status);
+    const v = Number(c.valor);
+    setFormValor(v > 0 ? v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
+    setModalOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Excluir este lançamento? Esta ação não pode ser desfeita.")) return;
+    setDeletingId(id);
+    const { error } = await supabase.from("contas_pagar").delete().eq("id", id);
+    setDeletingId(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Lançamento excluído!");
+    qc.invalidateQueries({ queryKey: ["contas-pagar"] });
+  };
+
+  const handleAddCategoria = async () => {
     const cat = novaCategoriaInput.trim();
-    if (cat && !categorias.includes(cat)) {
-      setExtraCategorias(prev => [...prev, cat]);
-      setFormCategoria(cat);
-    } else if (cat) {
-      setFormCategoria(cat);
-    }
+    if (!cat) return;
+    setLoadingNewCategory(true);
+    const { error } = await supabase.from("expense_categories").insert({
+      company_id: companyId!,
+      name: cat,
+      type: "despesa",
+    });
+    setLoadingNewCategory(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Categoria criada!");
+    setFormCategoria(cat);
     setNovaCategoriaInput("");
     setShowNovaCat(false);
+    qc.invalidateQueries({ queryKey: ["expense-categories"] });
   };
 
   const handleValorInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -281,30 +327,40 @@ const CalendarioFinanceiro = () => {
     setFormValor(num > 0 ? num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
   };
 
-  const handleAddLancamento = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveLancamento = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSaving(true);
-    const fd = new FormData(e.currentTarget);
+    if (!formVencimento) { toast.error("Informe a data de vencimento"); return; }
+    if (!formResponsavel.trim()) { toast.error("Informe o responsável"); return; }
     const valorNum = parseCurrency(formValor);
-    const { error } = await supabase.from("contas_pagar").insert({
-      company_id: companyId!,
-      fornecedor: (fd.get("responsavel") as string) || "—",
-      descricao: fd.get("descricao") as string || null,
+    if (!valorNum) { toast.error("Informe o valor"); return; }
+
+    setSaving(true);
+    const payload = {
+      fornecedor: formResponsavel,
+      descricao: formDescricao || null,
       valor: valorNum,
-      vencimento: fd.get("vencimento") as string,
+      vencimento: formVencimento,
       categoria: formCategoria || null,
       unidade: formUnidade || null,
       status: formStatus,
-      created_by: user?.id,
-    });
+    };
+
+    let error;
+    if (editingId) {
+      ({ error } = await supabase.from("contas_pagar").update(payload).eq("id", editingId));
+    } else {
+      ({ error } = await supabase.from("contas_pagar").insert({
+        ...payload,
+        company_id: companyId!,
+        created_by: user?.id,
+      }));
+    }
+
     setSaving(false);
     if (error) { toast.error(error.message); return; }
-    toast.success("Lançamento registrado!");
+    toast.success(editingId ? "Lançamento atualizado!" : "Lançamento registrado!");
     setModalOpen(false);
-    setFormValor("");
-    setFormCategoria("");
-    setFormUnidade("");
-    setFormStatus("a_vencer");
+    resetForm();
     qc.invalidateQueries({ queryKey: ["contas-pagar"] });
   };
 
@@ -376,7 +432,7 @@ const CalendarioFinanceiro = () => {
                   <div><Label className="text-xs text-muted-foreground">Data Final</Label><Input type="date" value={dataFinal} onChange={e => setDataFinal(e.target.value)} className="w-40" /></div>
                 </>
               )}
-              <Button size="sm" onClick={() => setModalOpen(true)} className="ml-auto gap-1"><Plus className="w-4 h-4" />Novo lançamento</Button>
+              <Button size="sm" onClick={handleOpenNew} className="ml-auto gap-1"><Plus className="w-4 h-4" />Novo lançamento</Button>
             </div>
 
             {loadingContas ? (
@@ -409,13 +465,34 @@ const CalendarioFinanceiro = () => {
                           <TableCell className="text-xs text-right font-semibold text-[hsl(var(--status-danger))]">{formatCurrency(Number(c.valor))}</TableCell>
                           <TableCell><span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${st.c}`}>{st.l}</span></TableCell>
                           <TableCell>
-                            {c.status !== "paga" && c.status !== "pago" && c.status !== "cancelado" && (
-                              <Button variant="ghost" size="sm" onClick={async () => {
-                                await supabase.from("contas_pagar").update({ status: "paga" }).eq("id", c.id);
-                                qc.invalidateQueries({ queryKey: ["contas-pagar"] });
-                                toast.success("Marcada como pago!");
-                              }} className="text-xs">Pagar</Button>
-                            )}
+                            <div className="flex gap-1">
+                              {c.status !== "paga" && c.status !== "pago" && c.status !== "cancelado" && (
+                                <Button variant="ghost" size="sm" onClick={async () => {
+                                  await supabase.from("contas_pagar").update({ status: "paga" }).eq("id", c.id);
+                                  qc.invalidateQueries({ queryKey: ["contas-pagar"] });
+                                  toast.success("Marcada como pago!");
+                                }} className="text-xs">Pagar</Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                onClick={() => handleEdit(c)}
+                                title="Editar"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-[hsl(var(--status-danger))]"
+                                onClick={() => handleDelete(c.id)}
+                                disabled={deletingId === c.id}
+                                title="Excluir"
+                              >
+                                {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -571,25 +648,39 @@ const CalendarioFinanceiro = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Modal Novo Lançamento */}
-        <Dialog open={modalOpen} onOpenChange={(o) => { setModalOpen(o); if (!o) { setShowNovaCat(false); setFormValor(""); setFormCategoria(""); setFormUnidade(""); setFormStatus("a_vencer"); } }}>
+        {/* Modal Novo / Editar Lançamento */}
+        <Dialog open={modalOpen} onOpenChange={(o) => { if (!o) { setModalOpen(false); resetForm(); } else setModalOpen(true); }}>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
-            <form onSubmit={handleAddLancamento} className="space-y-4">
+            <DialogHeader><DialogTitle>{editingId ? "Editar Lançamento" : "Novo Lançamento"}</DialogTitle></DialogHeader>
+            <form onSubmit={handleSaveLancamento} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Data de Vencimento</Label>
-                  <Input name="vencimento" type="date" required />
+                  <Input
+                    type="date"
+                    value={formVencimento}
+                    onChange={e => setFormVencimento(e.target.value)}
+                    required
+                  />
                 </div>
                 <div>
                   <Label>Responsável</Label>
-                  <Input name="responsavel" placeholder="Nome ou cargo" required />
+                  <Input
+                    value={formResponsavel}
+                    onChange={e => setFormResponsavel(e.target.value)}
+                    placeholder="Nome ou cargo"
+                    required
+                  />
                 </div>
               </div>
 
               <div>
                 <Label>Descrição</Label>
-                <Input name="descricao" placeholder="Descreva o lançamento" />
+                <Input
+                  value={formDescricao}
+                  onChange={e => setFormDescricao(e.target.value)}
+                  placeholder="Descreva o lançamento"
+                />
               </div>
 
               <div>
@@ -614,7 +705,9 @@ const CalendarioFinanceiro = () => {
                       className="flex-1"
                       onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddCategoria(); } }}
                     />
-                    <Button type="button" size="sm" onClick={handleAddCategoria}>Adicionar</Button>
+                    <Button type="button" size="sm" onClick={handleAddCategoria} disabled={loadingNewCategory}>
+                      {loadingNewCategory ? <Loader2 className="w-3 h-3 animate-spin" /> : "Salvar categoria"}
+                    </Button>
                     <Button type="button" variant="ghost" size="icon" onClick={() => setShowNovaCat(false)}><X className="w-4 h-4" /></Button>
                   </div>
                 )}
@@ -659,9 +752,14 @@ const CalendarioFinanceiro = () => {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={saving}>
-                {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : "Salvar lançamento"}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => { setModalOpen(false); resetForm(); }}>
+                  Cancelar
+                </Button>
+                <Button type="submit" className="flex-1" disabled={saving}>
+                  {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : (editingId ? "Atualizar" : "Salvar")}
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
