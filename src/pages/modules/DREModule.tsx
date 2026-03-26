@@ -1,21 +1,24 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useCompanies, useFinancialTransactions } from "@/hooks/useFinancialData";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { formatCurrency } from "@/data/mockData";
+import { formatCurrency } from "@/lib/formatCurrency";
 import { Download, Loader2, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
 import ModuleStatCard from "@/components/ModuleStatCard";
 
-// 14-line DRE structure auto-calculated from financial_transactions
 interface DRELine {
   label: string;
   key: string;
-  level: number; // 0 = header, 1 = detail, 2 = subtotal
+  level: number;
   bold?: boolean;
   calc?: (values: Record<string, number>) => number;
 }
@@ -37,7 +40,6 @@ const dreStructure: DRELine[] = [
   { label: "= Lucro Líquido", key: "lucro_liquido", level: 2, bold: true, calc: v => v.ebit + v.resultado_financeiro },
 ];
 
-// Map expense categories to DRE lines
 const categoryMapping: Record<string, string> = {
   "operacional": "despesas_operacionais",
   "administrativo": "despesas_administrativas",
@@ -64,14 +66,56 @@ function mapToDREKey(description: string, categoryName?: string): string {
   for (const [keyword, key] of Object.entries(categoryMapping)) {
     if (text.includes(keyword)) return key;
   }
-  return "despesas_operacionais"; // default for unmapped expenses
+  return "despesas_operacionais";
 }
+
+const MESES = [
+  { value: "01", label: "Janeiro" }, { value: "02", label: "Fevereiro" },
+  { value: "03", label: "Março" }, { value: "04", label: "Abril" },
+  { value: "05", label: "Maio" }, { value: "06", label: "Junho" },
+  { value: "07", label: "Julho" }, { value: "08", label: "Agosto" },
+  { value: "09", label: "Setembro" }, { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" }, { value: "12", label: "Dezembro" },
+];
+
+const currentYear = new Date().getFullYear();
+const ANOS = Array.from({ length: 5 }, (_, i) => String(currentYear - 2 + i));
 
 const DREModule = () => {
   const { companyId } = useParams();
   const { data: companies } = useCompanies();
   const company = companies?.find(c => c.id === companyId);
   const { data: transactions, isLoading } = useFinancialTransactions(companyId);
+
+  const [filtroMes, setFiltroMes] = useState("todos");
+  const [filtroAno, setFiltroAno] = useState(String(currentYear));
+  const [filtroUnidade, setFiltroUnidade] = useState("todas");
+
+  const { data: branches } = useQuery({
+    queryKey: ["branches", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("branches").select("*").eq("company_id", companyId!).eq("is_active", true).order("name");
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  const filteredTransactions = useMemo(() => {
+    let list = transactions || [];
+
+    if (filtroAno !== "todos") {
+      list = list.filter(t => t.date?.startsWith(filtroAno));
+    }
+    if (filtroMes !== "todos" && filtroAno !== "todos") {
+      list = list.filter(t => t.date?.startsWith(`${filtroAno}-${filtroMes}`));
+    }
+    // Unit filter: transactions may have branch_id - filter if available
+    if (filtroUnidade !== "todas") {
+      list = list.filter(t => (t as any).branch_id === filtroUnidade || (t as any).unidade === filtroUnidade);
+    }
+
+    return list;
+  }, [transactions, filtroMes, filtroAno, filtroUnidade]);
 
   const dreValues = useMemo(() => {
     const values: Record<string, number> = {
@@ -80,7 +124,7 @@ const DREModule = () => {
       despesas_pessoal: 0, ebitda: 0, depreciacao: 0, ebit: 0, resultado_financeiro: 0, lucro_liquido: 0,
     };
 
-    (transactions || []).forEach(t => {
+    filteredTransactions.forEach(t => {
       const catName = (t as any).expense_categories?.name || "";
       if (t.type === "entrada") {
         values.receita_bruta += Number(t.amount);
@@ -90,7 +134,6 @@ const DREModule = () => {
       }
     });
 
-    // Calculate derived values in order
     dreStructure.forEach(line => {
       if (line.calc) {
         values[line.key] = line.calc(values);
@@ -98,12 +141,57 @@ const DREModule = () => {
     });
 
     return values;
-  }, [transactions]);
+  }, [filteredTransactions]);
+
+  const periodoLabel = useMemo(() => {
+    if (filtroMes !== "todos" && filtroAno !== "todos") {
+      const mes = MESES.find(m => m.value === filtroMes)?.label || filtroMes;
+      return `${mes} / ${filtroAno}`;
+    }
+    if (filtroAno !== "todos") return `Ano ${filtroAno}`;
+    return "Todo o período";
+  }, [filtroMes, filtroAno]);
 
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
-        <PageHeader title="DRE — Demonstrativo de Resultados" subtitle="Calculado automaticamente das transações financeiras" showBack companyLogo={company?.logo_url} />
+        <PageHeader title="DRE — Demonstrativo de Resultados" subtitle={periodoLabel} showBack companyLogo={company?.logo_url} />
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-end gap-3 mb-6">
+          <div>
+            <Label className="text-xs text-muted-foreground">Mês</Label>
+            <Select value={filtroMes} onValueChange={setFiltroMes}>
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os meses</SelectItem>
+                {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Ano</Label>
+            <Select value={filtroAno} onValueChange={setFiltroAno}>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {ANOS.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Unidade</Label>
+            <Select value={filtroUnidade} onValueChange={setFiltroUnidade}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as unidades</SelectItem>
+                {(branches || []).map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1" />
+          <Button variant="outline" size="sm" onClick={() => toast({ title: "DRE exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
+        </div>
 
         {!isLoading && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -114,17 +202,12 @@ const DREModule = () => {
           </div>
         )}
 
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex-1" />
-          <Button variant="outline" size="sm" onClick={() => toast({ title: "DRE exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
-        </div>
-
         {isLoading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2"><FileSpreadsheet className="w-4 h-4" />DRE do Exercício</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2"><FileSpreadsheet className="w-4 h-4" />DRE do Exercício — {periodoLabel}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -159,7 +242,7 @@ const DREModule = () => {
 
         {!isLoading && (
           <p className="text-xs text-muted-foreground mt-4 text-center">
-            Valores calculados automaticamente a partir de {(transactions || []).length} transações financeiras registradas.
+            Valores calculados de {filteredTransactions.length} transações — {periodoLabel}.
           </p>
         )}
       </div>

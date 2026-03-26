@@ -15,10 +15,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { formatCurrency } from "@/data/mockData";
+import { formatCurrency, parseCurrency } from "@/lib/formatCurrency";
 import {
   CalendarDays, TrendingUp, AlertTriangle, ShieldAlert, DollarSign,
-  Wallet, Shield, Flame, Plus, Loader2, Filter,
+  Wallet, Shield, Plus, Loader2, Filter, X,
 } from "lucide-react";
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -27,12 +27,16 @@ import {
 
 const tt = { backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" };
 
-const CATEGORIAS = ["Folha", "Aluguel", "Energia", "Água", "Internet", "Seguros", "Manutenção", "Marketing", "Impostos", "Fornecedores", "Sinistro", "Outro"];
+const DEFAULT_CATEGORIAS = ["Folha", "Aluguel", "Energia", "Água", "Internet", "Seguros", "Manutenção", "Marketing", "Impostos", "Fornecedores", "Sinistro", "Outro"];
 
 const stMap: Record<string, { l: string; c: string }> = {
-  a_vencer: { l: "A Vencer", c: "bg-muted text-muted-foreground" },
-  em_atraso: { l: "Em Atraso", c: "bg-[hsl(var(--status-danger)/0.15)] text-[hsl(var(--status-danger))]" },
-  paga: { l: "Paga", c: "bg-[hsl(var(--status-positive)/0.15)] text-[hsl(var(--status-positive))]" },
+  a_vencer: { l: "Pendente", c: "bg-muted text-muted-foreground" },
+  pendente: { l: "Pendente", c: "bg-muted text-muted-foreground" },
+  em_atraso: { l: "Atrasado", c: "bg-[hsl(var(--status-danger)/0.15)] text-[hsl(var(--status-danger))]" },
+  atrasado: { l: "Atrasado", c: "bg-[hsl(var(--status-danger)/0.15)] text-[hsl(var(--status-danger))]" },
+  paga: { l: "Pago", c: "bg-[hsl(var(--status-positive)/0.15)] text-[hsl(var(--status-positive))]" },
+  pago: { l: "Pago", c: "bg-[hsl(var(--status-positive)/0.15)] text-[hsl(var(--status-positive))]" },
+  cancelado: { l: "Cancelado", c: "bg-[hsl(var(--muted)/0.5)] text-muted-foreground line-through" },
 };
 
 const PERIODOS = [
@@ -100,24 +104,46 @@ const CalendarioFinanceiro = () => {
     enabled: !!companyId,
   });
 
+  // Branches
+  const { data: branches } = useQuery({
+    queryKey: ["branches", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("branches").select("*").eq("company_id", companyId!).eq("is_active", true).order("name");
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
   // Filters
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroCategoria, setFiltroCategoria] = useState("todas");
+  const [filtroUnidade, setFiltroUnidade] = useState("todas");
   const [filtroPeriodo, setFiltroPeriodo] = useState("all");
+  const [filtroVencimento, setFiltroVencimento] = useState("");
   const [dataInicial, setDataInicial] = useState("");
   const [dataFinal, setDataFinal] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
+  // Custom categories state
+  const [categorias, setCategorias] = useState<string[]>(DEFAULT_CATEGORIAS);
+  const [novaCategoriaInput, setNovaCategoriaInput] = useState("");
+  const [showNovaCat, setShowNovaCat] = useState(false);
+  const [formCategoria, setFormCategoria] = useState("");
+  const [formUnidade, setFormUnidade] = useState("");
+  const [formStatus, setFormStatus] = useState("a_vencer");
+  const [formValor, setFormValor] = useState("");
+  const [saving, setSaving] = useState(false);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Auto-update status
+  // Auto-update status based on date
   const contasProcessed = useMemo(() => {
     return (contas || []).map(c => {
       const venc = new Date(c.vencimento);
       venc.setHours(0, 0, 0, 0);
       let status = c.status;
-      if (status !== "paga" && venc < today) status = "em_atraso";
+      if (status !== "paga" && status !== "pago" && status !== "cancelado" && venc < today) status = "em_atraso";
       return { ...c, status };
     });
   }, [contas]);
@@ -126,8 +152,21 @@ const CalendarioFinanceiro = () => {
   const filteredContas = useMemo(() => {
     let items = contasProcessed;
 
-    if (filtroStatus !== "todos") items = items.filter(c => c.status === filtroStatus);
+    if (filtroStatus !== "todos") {
+      items = items.filter(c => {
+        const s = c.status;
+        if (filtroStatus === "pendente") return s === "a_vencer" || s === "pendente";
+        if (filtroStatus === "pago") return s === "paga" || s === "pago";
+        if (filtroStatus === "atrasado") return s === "em_atraso" || s === "atrasado";
+        if (filtroStatus === "cancelado") return s === "cancelado";
+        return s === filtroStatus;
+      });
+    }
     if (filtroCategoria !== "todas") items = items.filter(c => c.categoria === filtroCategoria);
+    if (filtroUnidade !== "todas") items = items.filter(c => c.unidade === filtroUnidade);
+    if (filtroVencimento) {
+      items = items.filter(c => c.vencimento?.startsWith(filtroVencimento));
+    }
 
     if (filtroPeriodo !== "all" && filtroPeriodo !== "custom") {
       const days = parseInt(filtroPeriodo);
@@ -147,7 +186,7 @@ const CalendarioFinanceiro = () => {
     }
 
     return items;
-  }, [contasProcessed, filtroStatus, filtroCategoria, filtroPeriodo, dataInicial, dataFinal]);
+  }, [contasProcessed, filtroStatus, filtroCategoria, filtroUnidade, filtroPeriodo, filtroVencimento, dataInicial, dataFinal]);
 
   // Indenizações previstas como compromissos do calendário
   const compromissos = useMemo(() => {
@@ -159,7 +198,7 @@ const CalendarioFinanceiro = () => {
     }));
   }, [indenizacoes]);
 
-  // Growth indicator (month-over-month, only after 1st complete month)
+  // Growth indicator
   const growthData = useMemo(() => {
     const monthMap: Record<string, number> = {};
     (receitas || []).forEach(r => {
@@ -167,7 +206,7 @@ const CalendarioFinanceiro = () => {
       monthMap[m] = (monthMap[m] || 0) + Number(r.valor || 0);
     });
     const months = Object.entries(monthMap).sort();
-    if (months.length < 2) return null; // Only after 1st complete month
+    if (months.length < 2) return null;
     return months.map(([mes, val], i) => ({
       mes: mes.slice(5),
       receita: val,
@@ -175,7 +214,7 @@ const CalendarioFinanceiro = () => {
     }));
   }, [receitas]);
 
-  // 12-month projection (based on last month, only after 1st month)
+  // 12-month projection
   const projecao12 = useMemo(() => {
     const recMap: Record<string, number> = {};
     const despMap: Record<string, number> = {};
@@ -197,7 +236,7 @@ const CalendarioFinanceiro = () => {
     }
 
     return months.map((mes, i) => {
-      const growth = 1 + (i * 0.01); // conservative 1% monthly growth
+      const growth = 1 + (i * 0.01);
       const receita = Math.round(lastRec * growth);
       const totalDesp = Math.round(lastDesp * growth);
       return { mes, receita, totalDesp, saldo: receita - totalDesp };
@@ -207,27 +246,50 @@ const CalendarioFinanceiro = () => {
   const reservaRecomendada = projecao12 ? Math.round(projecao12.reduce((s, m) => s + m.totalDesp, 0) / 12 * 2) : 0;
 
   // Stats
-  const totalAVencer = filteredContas.filter(c => c.status === "a_vencer").reduce((s, c) => s + Number(c.valor), 0);
-  const totalEmAtraso = filteredContas.filter(c => c.status === "em_atraso").reduce((s, c) => s + Number(c.valor), 0);
+  const totalAVencer = filteredContas.filter(c => c.status === "a_vencer" || c.status === "pendente").reduce((s, c) => s + Number(c.valor), 0);
+  const totalEmAtraso = filteredContas.filter(c => c.status === "em_atraso" || c.status === "atrasado").reduce((s, c) => s + Number(c.valor), 0);
   const totalIndenPrev = compromissos.reduce((s, c) => s + c.valor, 0);
 
-  const handleAddConta = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddCategoria = () => {
+    const cat = novaCategoriaInput.trim();
+    if (cat && !categorias.includes(cat)) {
+      setCategorias(prev => [...prev, cat]);
+      setFormCategoria(cat);
+    }
+    setNovaCategoriaInput("");
+    setShowNovaCat(false);
+  };
+
+  const handleValorInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, "");
+    const num = parseInt(raw || "0") / 100;
+    setFormValor(num > 0 ? num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
+  };
+
+  const handleAddLancamento = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setSaving(true);
     const fd = new FormData(e.currentTarget);
+    const valorNum = parseCurrency(formValor);
     const { error } = await supabase.from("contas_pagar").insert({
       company_id: companyId!,
-      fornecedor: fd.get("fornecedor") as string,
-      cpf_cnpj: fd.get("cpf_cnpj") as string || null,
+      fornecedor: (fd.get("responsavel") as string) || "—",
       descricao: fd.get("descricao") as string || null,
-      valor: Number(fd.get("valor")) || 0,
+      valor: valorNum,
       vencimento: fd.get("vencimento") as string,
-      categoria: fd.get("categoria") as string || null,
-      unidade: fd.get("unidade") as string || null,
+      categoria: formCategoria || null,
+      unidade: formUnidade || null,
+      status: formStatus,
       created_by: user?.id,
     });
+    setSaving(false);
     if (error) { toast.error(error.message); return; }
-    toast.success("Conta registrada!");
+    toast.success("Lançamento registrado!");
     setModalOpen(false);
+    setFormValor("");
+    setFormCategoria("");
+    setFormUnidade("");
+    setFormStatus("a_vencer");
     qc.invalidateQueries({ queryKey: ["contas-pagar"] });
   };
 
@@ -238,28 +300,55 @@ const CalendarioFinanceiro = () => {
 
         <Tabs defaultValue="contas" className="w-full">
           <TabsList className="w-full justify-start mb-6 bg-card border border-border overflow-x-auto">
-            <TabsTrigger value="contas" className="gap-1.5"><CalendarDays className="w-3.5 h-3.5" />Contas a Pagar</TabsTrigger>
+            <TabsTrigger value="contas" className="gap-1.5"><CalendarDays className="w-3.5 h-3.5" />Lançamentos</TabsTrigger>
             <TabsTrigger value="compromissos" className="gap-1.5"><ShieldAlert className="w-3.5 h-3.5" />Compromissos</TabsTrigger>
             <TabsTrigger value="projecao" className="gap-1.5"><TrendingUp className="w-3.5 h-3.5" />Projeção 12 Meses</TabsTrigger>
             <TabsTrigger value="crescimento" className="gap-1.5"><TrendingUp className="w-3.5 h-3.5" />Crescimento</TabsTrigger>
           </TabsList>
 
-          {/* CONTAS A PAGAR */}
+          {/* LANÇAMENTOS */}
           <TabsContent value="contas">
             {/* KPIs */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <SC label="A Vencer" value={formatCurrency(totalAVencer)} icon={<CalendarDays className="w-4 h-4" />} color="info" />
+              <SC label="Pendente" value={formatCurrency(totalAVencer)} icon={<CalendarDays className="w-4 h-4" />} color="info" />
               <SC label="Em Atraso" value={formatCurrency(totalEmAtraso)} icon={<AlertTriangle className="w-4 h-4" />} color="danger" />
               <SC label="Indenizações Previstas" value={formatCurrency(totalIndenPrev)} icon={<ShieldAlert className="w-4 h-4" />} color="warning" />
-              <SC label="Total Filtrado" value={`${filteredContas.length} contas`} icon={<Filter className="w-4 h-4" />} color="info" />
+              <SC label="Total Filtrado" value={`${filteredContas.length} lançamentos`} icon={<Filter className="w-4 h-4" />} color="info" />
             </div>
 
             {/* Filters */}
             <div className="flex flex-wrap items-end gap-3 mb-4">
               <div>
+                <Label className="text-xs text-muted-foreground">Status</Label>
+                <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+                  <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="pago">Pago</SelectItem>
+                    <SelectItem value="atrasado">Atrasado</SelectItem>
+                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Unidade</Label>
+                <Select value={filtroUnidade} onValueChange={setFiltroUnidade}>
+                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as unidades</SelectItem>
+                    {(branches || []).map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Vencimento</Label>
+                <Input type="date" value={filtroVencimento} onChange={e => setFiltroVencimento(e.target.value)} className="w-40" />
+              </div>
+              <div>
                 <Label className="text-xs text-muted-foreground">Período</Label>
                 <Select value={filtroPeriodo} onValueChange={setFiltroPeriodo}>
-                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
                     {PERIODOS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
@@ -272,29 +361,7 @@ const CalendarioFinanceiro = () => {
                   <div><Label className="text-xs text-muted-foreground">Data Final</Label><Input type="date" value={dataFinal} onChange={e => setDataFinal(e.target.value)} className="w-40" /></div>
                 </>
               )}
-              <div>
-                <Label className="text-xs text-muted-foreground">Categoria</Label>
-                <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
-                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas</SelectItem>
-                    {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Status</Label>
-                <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="a_vencer">A Vencer</SelectItem>
-                    <SelectItem value="em_atraso">Em Atraso</SelectItem>
-                    <SelectItem value="paga">Paga</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button size="sm" onClick={() => setModalOpen(true)} className="ml-auto"><Plus className="w-4 h-4 mr-1" />Nova Conta</Button>
+              <Button size="sm" onClick={() => setModalOpen(true)} className="ml-auto gap-1"><Plus className="w-4 h-4" />Novo lançamento</Button>
             </div>
 
             {loadingContas ? (
@@ -305,9 +372,10 @@ const CalendarioFinanceiro = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Vencimento</TableHead>
-                      <TableHead>Fornecedor</TableHead>
+                      <TableHead>Responsável</TableHead>
                       <TableHead>Descrição</TableHead>
                       <TableHead>Categoria</TableHead>
+                      <TableHead>Unidade</TableHead>
                       <TableHead className="text-right">Valor R$</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead></TableHead>
@@ -322,14 +390,15 @@ const CalendarioFinanceiro = () => {
                           <TableCell className="text-xs font-medium">{c.fornecedor}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">{c.descricao || "—"}</TableCell>
                           <TableCell><Badge variant="outline" className="text-[10px]">{c.categoria || "—"}</Badge></TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{c.unidade || "—"}</TableCell>
                           <TableCell className="text-xs text-right font-semibold text-[hsl(var(--status-danger))]">{formatCurrency(Number(c.valor))}</TableCell>
                           <TableCell><span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${st.c}`}>{st.l}</span></TableCell>
                           <TableCell>
-                            {c.status !== "paga" && (
+                            {c.status !== "paga" && c.status !== "pago" && c.status !== "cancelado" && (
                               <Button variant="ghost" size="sm" onClick={async () => {
                                 await supabase.from("contas_pagar").update({ status: "paga" }).eq("id", c.id);
                                 qc.invalidateQueries({ queryKey: ["contas-pagar"] });
-                                toast.success("Marcada como paga!");
+                                toast.success("Marcada como pago!");
                               }} className="text-xs">Pagar</Button>
                             )}
                           </TableCell>
@@ -337,7 +406,7 @@ const CalendarioFinanceiro = () => {
                       );
                     })}
                     {filteredContas.length === 0 && (
-                      <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhuma conta encontrada</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum lançamento encontrado</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
@@ -345,7 +414,7 @@ const CalendarioFinanceiro = () => {
             )}
           </TabsContent>
 
-          {/* COMPROMISSOS (Indenizações do CRM) */}
+          {/* COMPROMISSOS */}
           <TabsContent value="compromissos">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <SC label="Total Indenizações Previstas" value={formatCurrency(totalIndenPrev)} icon={<ShieldAlert className="w-4 h-4" />} color="danger" />
@@ -378,7 +447,6 @@ const CalendarioFinanceiro = () => {
               </Table>
             </div>
 
-            {/* Evolução indenizações */}
             {(indenizacoes || []).length > 0 && (
               <div className="hub-card-base p-5 mt-6">
                 <h3 className="text-sm font-semibold text-foreground mb-4">Evolução de Indenizações</h3>
@@ -488,28 +556,97 @@ const CalendarioFinanceiro = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Modal Nova Conta */}
-        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        {/* Modal Novo Lançamento */}
+        <Dialog open={modalOpen} onOpenChange={(o) => { setModalOpen(o); if (!o) { setShowNovaCat(false); setFormValor(""); setFormCategoria(""); setFormUnidade(""); setFormStatus("a_vencer"); } }}>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Nova Conta a Pagar</DialogTitle></DialogHeader>
-            <form onSubmit={handleAddConta} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Fornecedor</Label><Input name="fornecedor" required /></div>
-                <div><Label>CPF/CNPJ</Label><Input name="cpf_cnpj" /></div>
-              </div>
-              <div><Label>Descrição</Label><Input name="descricao" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Valor R$</Label><Input name="valor" type="number" step="0.01" required /></div>
-                <div><Label>Vencimento</Label><Input name="vencimento" type="date" required /></div>
-              </div>
+            <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
+            <form onSubmit={handleAddLancamento} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Categoria</Label>
-                  <Select name="categoria"><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select>
+                  <Label>Data de Vencimento</Label>
+                  <Input name="vencimento" type="date" required />
                 </div>
-                <div><Label>Unidade</Label><Input name="unidade" /></div>
+                <div>
+                  <Label>Responsável</Label>
+                  <Input name="responsavel" placeholder="Nome ou cargo" required />
+                </div>
               </div>
-              <Button type="submit" className="w-full">Salvar</Button>
+
+              <div>
+                <Label>Descrição</Label>
+                <Input name="descricao" placeholder="Descreva o lançamento" />
+              </div>
+
+              <div>
+                <Label>Categoria</Label>
+                <div className="flex gap-2">
+                  <Select value={formCategoria} onValueChange={setFormCategoria}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {categorias.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" size="icon" onClick={() => setShowNovaCat(v => !v)} title="Nova categoria">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                {showNovaCat && (
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      value={novaCategoriaInput}
+                      onChange={e => setNovaCategoriaInput(e.target.value)}
+                      placeholder="Nome da nova categoria"
+                      className="flex-1"
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddCategoria(); } }}
+                    />
+                    <Button type="button" size="sm" onClick={handleAddCategoria}>Adicionar</Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => setShowNovaCat(false)}><X className="w-4 h-4" /></Button>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label>Unidade</Label>
+                <Select value={formUnidade} onValueChange={setFormUnidade}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sem unidade</SelectItem>
+                    {(branches || []).map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Valor</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input
+                      value={formValor}
+                      onChange={handleValorInput}
+                      placeholder="0,00"
+                      className="pl-9"
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={formStatus} onValueChange={setFormStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="a_vencer">Pendente</SelectItem>
+                      <SelectItem value="paga">Pago</SelectItem>
+                      <SelectItem value="em_atraso">Atrasado</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={saving}>
+                {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : "Salvar lançamento"}
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
