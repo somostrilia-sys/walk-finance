@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
@@ -108,6 +109,24 @@ export default function ModalConciliacaoV2({
     fornecedor: "",
   });
   const [savingAction, setSavingAction] = useState(false);
+
+  // Botão 2 — Novo lançamento
+  const [novoLancamentoTipo, setNovoLancamentoTipo] = useState<"pagar" | "receber" | null>(null);
+  const [novoLancamentoForm, setNovoLancamentoForm] = useState({
+    descricao: "",
+    valor: "",
+    vencimento: "",
+    fornecedorCliente: "",
+    categoria: "",
+  });
+
+  // Botão 3 — Transferência
+  const [bankAccounts, setBankAccounts] = useState<Array<{ id: string; name: string; bank_name?: string }>>([]);
+  const [transferenciaForm, setTransferenciaForm] = useState({
+    contaOrigemId: "",
+    contaDestinoId: "",
+    descricao: "",
+  });
 
   // ── Init ────────────────────────────────────────────────────────────────────
 
@@ -398,6 +417,24 @@ export default function ModalConciliacaoV2({
     }
     setActiveAction(n);
     setBusca("");
+    if (selectedItem && n === 2) {
+      setNovoLancamentoTipo(null);
+      setNovoLancamentoForm({
+        descricao: selectedItem.descricao,
+        valor: Math.abs(selectedItem.valor).toFixed(2),
+        vencimento: selectedItem.data,
+        fornecedorCliente: "",
+        categoria: "",
+      });
+    }
+    if (selectedItem && n === 3) {
+      setTransferenciaForm({
+        contaOrigemId: "",
+        contaDestinoId: "",
+        descricao: `Transferência entre contas - ${selectedItem.descricao}`,
+      });
+      fetchBankAccounts();
+    }
     if (selectedItem && n === 4) {
       setNovaContaForm({
         descricao: selectedItem.descricao,
@@ -406,6 +443,106 @@ export default function ModalConciliacaoV2({
         fornecedor: "",
       });
     }
+  }
+
+  async function fetchBankAccounts() {
+    const fallback = [
+      { id: "cc_principal", name: "Conta Corrente Principal" },
+      { id: "poupanca", name: "Conta Poupança" },
+      { id: "caixa", name: "Caixa" },
+      { id: "investimento", name: "Conta Investimento" },
+    ];
+    try {
+      const { data, error } = await supabase
+        .from("bank_accounts")
+        .select("id, name, bank_name")
+        .eq("company_id", companyId);
+      if (error || !data || data.length === 0) {
+        setBankAccounts(fallback);
+      } else {
+        setBankAccounts(data);
+      }
+    } catch {
+      setBankAccounts(fallback);
+    }
+  }
+
+  async function handleCriarNovoLancamento() {
+    if (!selectedItem || !novoLancamentoTipo) return;
+    const { descricao, valor, vencimento, fornecedorCliente, categoria } = novoLancamentoForm;
+    if (!descricao || !valor) {
+      toast({ title: "Preencha descrição e valor", variant: "destructive" });
+      return;
+    }
+    setSavingAction(true);
+    try {
+      const valorNum = parseFloat(valor.replace(",", "."));
+      const dataVenc = vencimento || selectedItem.data;
+      if (novoLancamentoTipo === "pagar") {
+        const { data, error } = await supabase
+          .from("contas_pagar")
+          .insert({
+            company_id: companyId,
+            descricao,
+            valor: valorNum,
+            vencimento: dataVenc,
+            fornecedor: fornecedorCliente || null,
+            categoria: categoria || null,
+            status: "pago",
+            conciliado: true,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        updateItem(selectedId!, {
+          status: "conciliado",
+          match: { tipo: "conta_pagar", id: data.id, descricao },
+        });
+        toast({ title: "Conta a pagar criada e conciliada" });
+      } else {
+        const { data, error } = await supabase
+          .from("contas_receber")
+          .insert({
+            company_id: companyId,
+            descricao,
+            valor: valorNum,
+            vencimento: dataVenc,
+            cliente: fornecedorCliente || null,
+            categoria: categoria || null,
+            status: "recebido",
+            conciliado: true,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        updateItem(selectedId!, {
+          status: "conciliado",
+          match: { tipo: "conta_receber", id: data.id, descricao },
+        });
+        toast({ title: "Conta a receber criada e conciliada" });
+      }
+      setActiveAction(null);
+    } catch (err: any) {
+      toast({ title: "Erro ao criar lançamento", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingAction(false);
+    }
+  }
+
+  function handleConfirmarTransferencia() {
+    if (!selectedId) return;
+    const origem = bankAccounts.find((a) => a.id === transferenciaForm.contaOrigemId);
+    const destino = bankAccounts.find((a) => a.id === transferenciaForm.contaDestinoId);
+    const origemNome = origem?.name ?? transferenciaForm.contaOrigemId;
+    const destinoNome = destino?.name ?? transferenciaForm.contaDestinoId;
+    updateItem(selectedId, {
+      status: "conciliado",
+      match: {
+        tipo: "transferencia",
+        descricao: `Transferência: ${origemNome} → ${destinoNome}`,
+      },
+    });
+    setActiveAction(null);
   }
 
   return (
@@ -625,23 +762,111 @@ export default function ModalConciliacaoV2({
                           label="Adicionar como novo lançamento"
                           onToggle={() => openAction(2)}
                         >
-                          <div className="pt-1">
-                            <p className="text-xs text-muted-foreground mb-2">
-                              Cria um registro em <strong>financial_transactions</strong> e concilia.
-                            </p>
-                            <Button
-                              size="sm"
-                              className="w-full h-7 text-xs"
-                              onClick={handleAdicionarLancamento}
-                              disabled={savingAction}
-                            >
-                              {savingAction ? (
-                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                              ) : (
-                                <Plus className="h-3 w-3 mr-1" />
-                              )}
-                              Criar e Conciliar
-                            </Button>
+                          <div className="pt-1 space-y-2">
+                            {/* Escolha do tipo */}
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setNovoLancamentoTipo("pagar")}
+                                className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                                  novoLancamentoTipo === "pagar"
+                                    ? "bg-red-50 border-red-400 text-red-700 font-semibold"
+                                    : "border-gray-200 hover:bg-gray-50"
+                                }`}
+                              >
+                                Contas a Pagar
+                              </button>
+                              <button
+                                onClick={() => setNovoLancamentoTipo("receber")}
+                                className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                                  novoLancamentoTipo === "receber"
+                                    ? "bg-green-50 border-green-400 text-green-700 font-semibold"
+                                    : "border-gray-200 hover:bg-gray-50"
+                                }`}
+                              >
+                                Contas a Receber
+                              </button>
+                            </div>
+
+                            {novoLancamentoTipo && (
+                              <div className="space-y-1.5">
+                                <Input
+                                  className="h-7 text-xs"
+                                  placeholder="Descrição"
+                                  value={novoLancamentoForm.descricao}
+                                  onChange={(e) =>
+                                    setNovoLancamentoForm((p) => ({ ...p, descricao: e.target.value }))
+                                  }
+                                />
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="Valor (ex: 150,00)"
+                                    value={novoLancamentoForm.valor}
+                                    onChange={(e) =>
+                                      setNovoLancamentoForm((p) => ({ ...p, valor: e.target.value }))
+                                    }
+                                  />
+                                  <Input
+                                    className="h-7 text-xs"
+                                    type="date"
+                                    value={novoLancamentoForm.vencimento}
+                                    onChange={(e) =>
+                                      setNovoLancamentoForm((p) => ({ ...p, vencimento: e.target.value }))
+                                    }
+                                  />
+                                </div>
+                                <Input
+                                  className="h-7 text-xs"
+                                  placeholder={novoLancamentoTipo === "pagar" ? "Fornecedor (opcional)" : "Cliente (opcional)"}
+                                  value={novoLancamentoForm.fornecedorCliente}
+                                  onChange={(e) =>
+                                    setNovoLancamentoForm((p) => ({ ...p, fornecedorCliente: e.target.value }))
+                                  }
+                                />
+                                <Select
+                                  value={novoLancamentoForm.categoria}
+                                  onValueChange={(v) =>
+                                    setNovoLancamentoForm((p) => ({ ...p, categoria: v }))
+                                  }
+                                >
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue placeholder="Categoria (opcional)" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {novoLancamentoTipo === "pagar" ? (
+                                      <>
+                                        <SelectItem value="Aluguel">Aluguel</SelectItem>
+                                        <SelectItem value="Serviços">Serviços</SelectItem>
+                                        <SelectItem value="Folha">Folha</SelectItem>
+                                        <SelectItem value="Fornecedor">Fornecedor</SelectItem>
+                                        <SelectItem value="Imposto">Imposto</SelectItem>
+                                        <SelectItem value="Outro">Outro</SelectItem>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <SelectItem value="Mensalidade">Mensalidade</SelectItem>
+                                        <SelectItem value="Serviço">Serviço</SelectItem>
+                                        <SelectItem value="Venda">Venda</SelectItem>
+                                        <SelectItem value="Outro">Outro</SelectItem>
+                                      </>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  size="sm"
+                                  className="w-full h-7 text-xs"
+                                  onClick={handleCriarNovoLancamento}
+                                  disabled={savingAction}
+                                >
+                                  {savingAction ? (
+                                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                  ) : (
+                                    <Plus className="h-3 w-3 mr-1" />
+                                  )}
+                                  Criar e Conciliar
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </ActionCard>
 
@@ -653,18 +878,58 @@ export default function ModalConciliacaoV2({
                           label="Adicionar como transferência entre contas"
                           onToggle={() => openAction(3)}
                         >
-                          <div className="pt-1">
-                            <p className="text-xs text-muted-foreground mb-2">
-                              Marca como transferência interna (não vincula a conta a pagar/receber).
-                            </p>
+                          <div className="pt-1 space-y-1.5">
+                            <Select
+                              value={transferenciaForm.contaOrigemId}
+                              onValueChange={(v) =>
+                                setTransferenciaForm((p) => ({ ...p, contaOrigemId: v }))
+                              }
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder="Conta de Origem" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {bankAccounts.map((a) => (
+                                  <SelectItem key={a.id} value={a.id}>
+                                    {a.name}{a.bank_name ? ` — ${a.bank_name}` : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={transferenciaForm.contaDestinoId}
+                              onValueChange={(v) =>
+                                setTransferenciaForm((p) => ({ ...p, contaDestinoId: v }))
+                              }
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder="Conta de Destino" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {bankAccounts.map((a) => (
+                                  <SelectItem key={a.id} value={a.id}>
+                                    {a.name}{a.bank_name ? ` — ${a.bank_name}` : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              className="h-7 text-xs"
+                              placeholder="Descrição"
+                              value={transferenciaForm.descricao}
+                              onChange={(e) =>
+                                setTransferenciaForm((p) => ({ ...p, descricao: e.target.value }))
+                              }
+                            />
                             <Button
                               size="sm"
                               variant="outline"
                               className="w-full h-7 text-xs gap-1"
-                              onClick={handleMarcarTransferencia}
+                              disabled={!transferenciaForm.contaOrigemId || !transferenciaForm.contaDestinoId}
+                              onClick={handleConfirmarTransferencia}
                             >
                               <ArrowLeftRight className="h-3 w-3" />
-                              Marcar como Transferência
+                              Confirmar Transferência
                             </Button>
                           </div>
                         </ActionCard>
@@ -827,37 +1092,49 @@ function SearchContas({
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
         <Input
           className="h-7 text-xs pl-6"
-          placeholder="Buscar por nome, valor..."
+          placeholder="Buscar por descrição, valor ou fornecedor..."
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           autoFocus
         />
       </div>
-      <div className="max-h-40 overflow-y-auto space-y-0.5">
+      <div className="max-h-48 overflow-y-auto space-y-0.5">
         {resultados.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-2">Nenhum resultado</p>
+          <p className="text-xs text-muted-foreground text-center py-3">
+            Nenhum lançamento encontrado. Tente buscar por valor ou data.
+          </p>
         ) : (
           resultados.map((c) => (
-            <button
+            <div
               key={c.id}
-              onClick={() => onSelect(c)}
-              className="w-full text-left px-2 py-1.5 rounded hover:bg-blue-50 hover:border-blue-200 border border-transparent transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 rounded border border-transparent hover:bg-blue-50 hover:border-blue-200 transition-colors"
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">{c.descricao}</p>
-                  <p className="text-xs text-muted-foreground">{c.vencimento}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-xs font-semibold text-gray-700">
-                    {formatCurrency(c.valor)}
-                  </p>
-                  <Badge variant="outline" className="text-xs py-0 px-1">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium truncate">{c.descricao}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-xs text-muted-foreground">{c.vencimento}</span>
+                  <span className="text-xs font-semibold text-gray-700">{formatCurrency(c.valor)}</span>
+                  <Badge
+                    variant="outline"
+                    className={`text-xs py-0 px-1 ${
+                      c._tipo === "conta_pagar"
+                        ? "border-red-300 text-red-600 bg-red-50"
+                        : "border-green-300 text-green-600 bg-green-50"
+                    }`}
+                  >
                     {c._tipo === "conta_pagar" ? "Pagar" : "Receber"}
                   </Badge>
                 </div>
               </div>
-            </button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-xs shrink-0"
+                onClick={() => onSelect(c)}
+              >
+                Vincular
+              </Button>
+            </div>
           ))
         )}
       </div>
