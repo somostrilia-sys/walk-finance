@@ -261,6 +261,17 @@ const ImpostoFiscal = () => {
 
   const cnpjAtual = companyCNPJ?.cnpj;
 
+  // Aplica máscara para exibição — o banco armazena só dígitos
+  function maskCnpjDisplay(v: string | null | undefined): string {
+    if (!v) return "";
+    const d = v.replace(/\D/g, "").slice(0, 14);
+    return d
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
@@ -269,7 +280,7 @@ const ImpostoFiscal = () => {
           <div className="flex items-center gap-2 shrink-0">
             {cnpjAtual && (
               <Badge variant="outline" className="text-xs font-mono hidden sm:flex">
-                CNPJ: {cnpjAtual}
+                CNPJ: {maskCnpjDisplay(cnpjAtual)}
               </Badge>
             )}
             <Button variant="outline" size="sm" onClick={() => setOpenConfigCNPJ(true)}>

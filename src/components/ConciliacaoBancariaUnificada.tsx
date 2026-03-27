@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Upload, Camera, Plus, Pencil, Trash2 } from "lucide-react";
+import { Upload, Camera, Plus, Pencil, Trash2, CheckSquare } from "lucide-react";
 import { parsePixQRCode } from "@/lib/pixParser";
 import ModalConciliacaoV2 from "@/components/ModalConciliacaoV2";
 import { PluggyConnectButton } from "@/components/PluggyConnectButton";
@@ -183,6 +183,11 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   });
   const [saving, setSaving] = useState(false);
 
+  // ── Seleção múltipla ─────────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
+  const [deletingSelected, setDeletingSelected] = useState(false);
+
   // ── Queries ─────────────────────────────────────────────────────────────────
 
   const { data: extrato = [], isLoading: loadingExtrato } = useQuery({
@@ -338,6 +343,62 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     }
   }
 
+  // ── Multi-select helpers ─────────────────────────────────────────────────────
+
+  const allIds = useMemo(() => {
+    const ids: string[] = [];
+    extrato.forEach((i) => ids.push(i.id));
+    manuais.forEach((i) => ids.push(i.id));
+    return ids;
+  }, [extrato, manuais]);
+
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0;
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allIds));
+    }
+  }
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleDeleteSelected() {
+    setDeletingSelected(true);
+    try {
+      const extratoIds = extrato.filter((i) => selectedIds.has(i.id)).map((i) => i.id);
+      const manuaisIds = manuais.filter((i) => selectedIds.has(i.id)).map((i) => i.id);
+
+      if (extratoIds.length > 0) {
+        const { error } = await supabase.from("extrato_bancario").delete().in("id", extratoIds);
+        if (error) throw error;
+      }
+      if (manuaisIds.length > 0) {
+        const { error } = await supabase.from("financial_transactions").delete().in("id", manuaisIds);
+        if (error) throw error;
+      }
+
+      qc.invalidateQueries({ queryKey: ["unif_extrato", companyId] });
+      qc.invalidateQueries({ queryKey: ["unif_manuais", companyId] });
+      setSelectedIds(new Set());
+      setDeleteSelectedOpen(false);
+      toast({ title: `${extratoIds.length + manuaisIds.length} lançamento(s) removido(s)` });
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
+    } finally {
+      setDeletingSelected(false);
+    }
+  }
+
   function origemLabel(origem: string | null) {
     if (!origem) return "Manual";
     if (origem === "qrcode") return "QR Code";
@@ -374,18 +435,60 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
             </Button>
           </div>
 
+          {/* Barra de seleção múltipla */}
+          {someSelected && (
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/10 border border-primary/30 text-sm">
+              <span className="font-medium text-primary">
+                {selectedIds.size} {selectedIds.size === 1 ? "item selecionado" : "itens selecionados"}
+              </span>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setDeleteSelectedOpen(true)}
+                className="gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Excluir Selecionados
+              </Button>
+            </div>
+          )}
+
           {loadingExtrato || loadingManuais ? (
             <p className="text-sm text-muted-foreground py-8 text-center">Carregando...</p>
           ) : (
             <div className="space-y-2">
+              {/* Header selecionar todos */}
+              {allIds.length > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="h-4 w-4 rounded border-border cursor-pointer accent-primary"
+                    title="Selecionar todos"
+                  />
+                  <span className="text-xs text-muted-foreground">Selecionar todos</span>
+                </div>
+              )}
+
               {extrato.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-white text-sm"
+                  className={`flex items-center justify-between p-3 rounded-lg border text-sm transition-colors ${
+                    selectedIds.has(item.id) ? "bg-primary/5 border-primary/30" : "border-border"
+                  }`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{item.descricao}</p>
-                    <p className="text-xs text-muted-foreground">{item.data_lancamento}</p>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item.id)}
+                      onChange={() => toggleOne(item.id)}
+                      className="h-4 w-4 rounded border-border cursor-pointer accent-primary shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.descricao}</p>
+                      <p className="text-xs text-muted-foreground">{item.data_lancamento}</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <Badge variant={origemVariant(item.arquivo_origem)} className="text-xs">
@@ -416,11 +519,21 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
               {manuais.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-white text-sm"
+                  className={`flex items-center justify-between p-3 rounded-lg border text-sm transition-colors ${
+                    selectedIds.has(item.id) ? "bg-primary/5 border-primary/30" : "border-border"
+                  }`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{item.description}</p>
-                    <p className="text-xs text-muted-foreground">{item.date}</p>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item.id)}
+                      onChange={() => toggleOne(item.id)}
+                      className="h-4 w-4 rounded border-border cursor-pointer accent-primary shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.description}</p>
+                      <p className="text-xs text-muted-foreground">{item.date}</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <Badge variant="outline" className="text-xs">Manual</Badge>
@@ -582,7 +695,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Delete */}
+      {/* Confirm Delete (single) */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -598,6 +711,28 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
               onClick={() => deleteTarget && handleDeleteManual(deleteTarget)}
             >
               Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm Delete Selected */}
+      <AlertDialog open={deleteSelectedOpen} onOpenChange={(open) => !open && setDeleteSelectedOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedIds.size} lançamento(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Os lançamentos selecionados serão removidos permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingSelected}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteSelected}
+              disabled={deletingSelected}
+            >
+              {deletingSelected ? "Excluindo..." : "Excluir Selecionados"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

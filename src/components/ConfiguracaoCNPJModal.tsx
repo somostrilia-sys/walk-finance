@@ -41,8 +41,9 @@ export default function ConfiguracaoCNPJModal({
 
   useEffect(() => {
     if (open) {
-      setCnpj(currentCnpj || "");
-      setSecundarios(currentSecundarios || []);
+      // Aplica máscara ao carregar — suporta tanto dígitos puros quanto já mascarados
+      setCnpj(currentCnpj ? maskCnpj(currentCnpj) : "");
+      setSecundarios((currentSecundarios || []).map((c) => maskCnpj(c)));
       setNovoSecundario("");
     }
   }, [open, currentCnpj, currentSecundarios]);
@@ -56,20 +57,32 @@ export default function ConfiguracaoCNPJModal({
   }
 
   async function handleSave() {
+    // Remove máscara antes de salvar — o banco espera apenas dígitos
+    const cnpjDigitos = cnpj.replace(/\D/g, "") || null;
+    const secundariosDigitos = secundarios.length > 0
+      ? secundarios.map((c) => c.replace(/\D/g, ""))
+      : null;
+
+    // Validação básica: CNPJ deve ter 14 dígitos ou estar vazio
+    if (cnpjDigitos && cnpjDigitos.length !== 14) {
+      toast({ title: "CNPJ inválido", description: "O CNPJ deve ter 14 dígitos.", variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
     const { error } = await supabase
       .from("companies")
       .update({
-        cnpj: cnpj || null,
-        cnpj_secundarios: secundarios.length > 0 ? secundarios : null,
+        cnpj: cnpjDigitos,
+        cnpj_secundarios: secundariosDigitos,
       } as never)
       .eq("id", companyId);
     setSaving(false);
     if (error) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao salvar CNPJ", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "CNPJ atualizado com sucesso" });
+    toast({ title: "✅ CNPJ atualizado com sucesso!" });
     onSaved();
     onOpenChange(false);
   }
