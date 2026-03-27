@@ -132,7 +132,7 @@ const CadastroPessoas = () => {
       nome_fantasia: form.nome_fantasia || null,
     };
     if (editPessoa) {
-      const { error } = await supabase.from("pessoas").update(payload).eq("id", editPessoa.id);
+      const { error } = await supabase.from("pessoas").update(payload as any).eq("id", editPessoa.id);
       setSaving(false);
       if (error) return toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
       queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
@@ -141,7 +141,7 @@ const CadastroPessoas = () => {
       setForm(emptyForm);
       toast({ title: "Cadastro atualizado!" });
     } else {
-      const { error } = await supabase.from("pessoas").insert({ company_id: companyId!, ...payload });
+      const { error } = await supabase.from("pessoas").insert({ company_id: companyId!, ...payload, nome_fantasia: form.nome_fantasia || null } as any);
       setSaving(false);
       if (error) return toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
       queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
