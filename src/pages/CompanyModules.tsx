@@ -32,8 +32,14 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
 const CompanyModules = () => {
   const { companyId } = useParams();
   const { data: companies } = useCompanies();
-  const { data: modules, isLoading } = useCompanyModules(companyId);
+  const { data: modulesRaw, isLoading } = useCompanyModules(companyId);
   const company = companies?.find((c) => c.id === companyId);
+
+  const modules = modulesRaw
+    ? modulesRaw.some((m) => m.module_name === "conciliacao")
+      ? modulesRaw
+      : [...modulesRaw, { id: "conciliacao-fallback", module_name: "conciliacao", company_id: companyId, is_enabled: true }]
+    : modulesRaw;
 
   if (!company && !isLoading) {
     return (
