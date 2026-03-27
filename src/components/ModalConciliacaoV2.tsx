@@ -360,9 +360,19 @@ export default function ModalConciliacaoV2({
         }
         if (item.match?.id) {
           if (item.match.tipo === "conta_pagar") {
-            await supabase.from("contas_pagar").update({ conciliado: true }).eq("id", item.match.id);
+            // Conciliar + dar baixa na despesa
+            await supabase.from("contas_pagar").update({
+              conciliado: true,
+              status: "pago",
+              data_pagamento: item.data,
+            }).eq("id", item.match.id);
           } else if (item.match.tipo === "conta_receber") {
-            await supabase.from("contas_receber").update({ conciliado: true }).eq("id", item.match.id);
+            // Conciliar + dar baixa na receita
+            await supabase.from("contas_receber").update({
+              conciliado: true,
+              status: "recebido",
+              data_recebimento: item.data,
+            }).eq("id", item.match.id);
           }
         }
       }
