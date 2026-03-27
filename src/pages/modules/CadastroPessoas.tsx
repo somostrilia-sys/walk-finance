@@ -129,6 +129,7 @@ const CadastroPessoas = () => {
       agencia: form.agencia || null,
       conta: form.conta || null,
       forma_pagamento: form.forma_pagamento || null,
+      nome_fantasia: form.nome_fantasia || null,
     };
     if (editPessoa) {
       const { error } = await supabase.from("pessoas").update(payload).eq("id", editPessoa.id);
@@ -286,7 +287,7 @@ const CadastroPessoas = () => {
                   </div>
                 </div>
                 <div><label className="text-sm font-medium">Razão Social / Nome</label><Input className="mt-1" value={form.razao_social} onChange={e => setForm(f => ({ ...f, razao_social: e.target.value }))} /></div>
-                {form.nome_fantasia && <div><label className="text-sm font-medium">Nome Fantasia</label><Input className="mt-1" value={form.nome_fantasia} onChange={e => setForm(f => ({ ...f, nome_fantasia: e.target.value }))} /></div>}
+                <div><label className="text-sm font-medium">Nome Fantasia</label><Input className="mt-1" placeholder="Nome fantasia (opcional)" value={form.nome_fantasia} onChange={e => setForm(f => ({ ...f, nome_fantasia: e.target.value }))} /></div>
                 {form.situacao && <div className="flex items-center gap-2"><Badge variant="outline">{form.situacao}</Badge>{form.cnae && <span className="text-xs text-muted-foreground">CNAE: {form.cnae}</span>}</div>}
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Telefone</label><Input className="mt-1" value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} /></div>
