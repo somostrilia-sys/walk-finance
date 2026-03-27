@@ -28,6 +28,7 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   "programacao-pagamentos": { icon: "CalendarCheck", description: "Banking integrado e fluxo de aprovação", label: "Programação de Pagamentos" },
   "contratacoes-demissoes": { icon: "UserPlus", description: "Gestão de colaboradores MEI e ciclo de vida", label: "Colaboradores" },
   "usuarios": { icon: "UserCog", description: "Gestão de acesso e usuários", label: "Usuários" },
+  "relatorio-colaborador": { icon: "FileText", description: "Relatório individual por colaborador", label: "Relatório por Colaborador" },
 };
 
 const CompanyModules = () => {
