@@ -65,7 +65,7 @@ const CadastroPessoas = () => {
   const [saving, setSaving] = useState(false);
   const [selectedPessoa, setSelectedPessoa] = useState<any>(null);
   const [modalContaReceber, setModalContaReceber] = useState(false);
-  const [formCR, setFormCR] = useState({ valor: "", descricao: "", vencimento: "", consultor: "", comissao_percent: "" });
+  const [formCR, setFormCR] = useState({ valor: "", descricao: "", vencimento: "", consultor: "", comissao_percent: "", parcelas: "1" });
   const [filtroTag, setFiltroTag] = useState<"todos" | PessoaTipo>("todos");
   const [editPessoa, setEditPessoa] = useState<any>(null);
 
@@ -147,7 +147,7 @@ const CadastroPessoas = () => {
       setModalOpen(false);
       // If cliente, ask about conta a receber
       if (form.tipo === "cliente" || form.tipo === "ambos") {
-        setFormCR({ valor: "", descricao: "", vencimento: "", consultor: "", comissao_percent: "" });
+        setFormCR({ valor: "", descricao: "", vencimento: "", consultor: "", comissao_percent: "", parcelas: "1" });
         setModalContaReceber(true);
       } else {
         setForm(emptyForm);
@@ -159,15 +159,30 @@ const CadastroPessoas = () => {
   const handleCreateContaReceber = async () => {
     if (!formCR.valor) return toast({ title: "Preencha o valor", variant: "destructive" });
     setSaving(true);
-    const { error } = await supabase.from("financial_transactions").insert({
-      company_id: companyId!,
-      type: "entrada",
-      description: formCR.descricao || `Receita — ${form.razao_social}`,
-      amount: parseFloat(formCR.valor),
-      date: formCR.vencimento || new Date().toISOString().slice(0, 10),
-      entity_name: form.razao_social,
-      status: "pendente",
+    const totalParcelas = Math.max(1, parseInt(formCR.parcelas) || 1);
+    const valorTotal = parseFloat(formCR.valor);
+    const valorParcela = parseFloat((valorTotal / totalParcelas).toFixed(2));
+    const baseDate = formCR.vencimento ? new Date(formCR.vencimento + "T12:00:00") : new Date();
+    const groupId = crypto.randomUUID();
+    const records = Array.from({ length: totalParcelas }, (_, i) => {
+      const d = new Date(baseDate);
+      d.setMonth(d.getMonth() + i);
+      return {
+        company_id: companyId!,
+        type: "entrada",
+        description: totalParcelas > 1
+          ? `${formCR.descricao || `Receita — ${form.razao_social}`} (${i + 1}/${totalParcelas})`
+          : formCR.descricao || `Receita — ${form.razao_social}`,
+        amount: i === totalParcelas - 1 ? parseFloat((valorTotal - valorParcela * (totalParcelas - 1)).toFixed(2)) : valorParcela,
+        date: d.toISOString().slice(0, 10),
+        entity_name: form.razao_social,
+        status: "pendente",
+        parcela_atual: i + 1,
+        total_parcelas: totalParcelas,
+        grupo_parcela: totalParcelas > 1 ? groupId : null,
+      };
     });
+    const { error } = await supabase.from("financial_transactions").insert(records as any);
     // If consultor set, create commission for next month
     if (!error && formCR.consultor && formCR.comissao_percent) {
       const comissaoValor = parseFloat(formCR.valor) * parseFloat(formCR.comissao_percent) / 100;
@@ -336,8 +351,14 @@ const CadastroPessoas = () => {
             <DialogHeader><DialogTitle>Cadastrar conta a receber para {form.razao_social}?</DialogTitle></DialogHeader>
             <div className="space-y-3 pt-2">
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-sm font-medium">Valor (R$)</label><Input type="number" value={formCR.valor} onChange={e => setFormCR(f => ({ ...f, valor: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Vencimento</label><Input type="date" value={formCR.vencimento} onChange={e => setFormCR(f => ({ ...f, vencimento: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Valor Total (R$)</label><Input type="number" value={formCR.valor} onChange={e => setFormCR(f => ({ ...f, valor: e.target.value }))} /></div>
+                <div><label className="text-sm font-medium">Parcelas</label><Input type="number" min="1" max="60" value={formCR.parcelas} onChange={e => setFormCR(f => ({ ...f, parcelas: e.target.value }))} placeholder="1" /></div>
+                <div><label className="text-sm font-medium">1º Vencimento</label><Input type="date" value={formCR.vencimento} onChange={e => setFormCR(f => ({ ...f, vencimento: e.target.value }))} /></div>
+                {parseInt(formCR.parcelas) > 1 && formCR.valor && (
+                  <div className="col-span-2 text-xs text-muted-foreground bg-muted/30 rounded p-2">
+                    {formCR.parcelas}x de R$ {(parseFloat(formCR.valor) / parseInt(formCR.parcelas)).toFixed(2).replace(".", ",")} — Total: R$ {parseFloat(formCR.valor).toFixed(2).replace(".", ",")}
+                  </div>
+                )}
               </div>
               <div><label className="text-sm font-medium">Descrição</label><Input value={formCR.descricao} onChange={e => setFormCR(f => ({ ...f, descricao: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-3">
