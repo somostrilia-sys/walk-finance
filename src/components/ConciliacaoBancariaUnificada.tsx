@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,9 +20,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Upload, Camera, Building2, Plus, Pencil, Trash2 } from "lucide-react";
-import { parsePixQRCode, parseOpenFinanceData } from "@/lib/pixParser";
+import { Upload, Camera, Plus, Pencil, Trash2 } from "lucide-react";
+import { parsePixQRCode } from "@/lib/pixParser";
 import ModalConciliacaoV2 from "@/components/ModalConciliacaoV2";
+import { PluggyConnectButton } from "@/components/PluggyConnectButton";
 
 type ItemExtrato = {
   id: string;
@@ -162,10 +162,6 @@ interface Props {
   bankAccountId?: string;
 }
 
-const BANCOS = [
-  "Itaú", "Bradesco", "Banco do Brasil", "Santander", "Nubank",
-  "Caixa Econômica", "Inter", "Sicoob", "C6 Bank",
-];
 
 export default function ConciliacaoBancariaUnificada({ companyId, branchId, bankAccountId }: Props) {
   const qc = useQueryClient();
@@ -175,10 +171,6 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   const [origemModal, setOrigemModal] = useState<"arquivo" | "qrcode" | "open_finance">("arquivo");
   const [conciliacaoOpen, setConciliacaoOpen] = useState(false);
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
-  const [openFinanceOpen, setOpenFinanceOpen] = useState(false);
-
-  const [bancoBf, setBancoBf] = useState("");
-  const [codigoBf, setCodigoBf] = useState("");
 
   const [manualOpen, setManualOpen] = useState(false);
   const [editItem, setEditItem] = useState<TransacaoManual | null>(null);
@@ -287,36 +279,6 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     setItensExtrato([item]);
     setOrigemModal("qrcode");
     setConciliacaoOpen(true);
-  }
-
-  // ── Open Finance import ──────────────────────────────────────────────────────
-
-  function handleOpenFinanceImport() {
-    if (!codigoBf.trim()) {
-      toast({ title: "Cole o código de autorização do banco", variant: "destructive" });
-      return;
-    }
-    const resultado = parseOpenFinanceData(codigoBf.trim());
-    if (!resultado || resultado.length === 0) {
-      toast({ title: "Dados inválidos", description: "Formato não reconhecido", variant: "destructive" });
-      return;
-    }
-    const items: ItemExtrato[] = resultado.map((r: any, i: number) => {
-      const val = Number(r.amount || r.value || r.valor || 0);
-      return {
-        id: `of-${i}-${Date.now()}`,
-        data: r.date || r.data || new Date().toISOString().slice(0, 10),
-        descricao: r.description || r.descricao || `${bancoBf} - Open Finance`,
-        valor: val,
-        tipo: val >= 0 ? "credito" : "debito" as "credito" | "debito",
-      };
-    });
-    setItensExtrato(items);
-    setOrigemModal("open_finance");
-    setOpenFinanceOpen(false);
-    setConciliacaoOpen(true);
-    setBancoBf("");
-    setCodigoBf("");
   }
 
   // ── Manual CRUD ──────────────────────────────────────────────────────────────
@@ -519,16 +481,13 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
               </div>
             </button>
 
-            <button
-              onClick={() => setOpenFinanceOpen(true)}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50 transition-all text-center group"
-            >
-              <Building2 className="h-8 w-8 text-gray-400 group-hover:text-green-500 transition-colors" />
-              <div>
-                <p className="font-semibold text-sm">Open Finance</p>
-                <p className="text-xs text-muted-foreground mt-1">Integração bancária</p>
-              </div>
-            </button>
+            <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50 transition-all text-center">
+              <PluggyConnectButton
+                companyId={companyId}
+                onImported={() => qc.invalidateQueries({ queryKey: ["unif_extrato", companyId] })}
+              />
+              <p className="text-xs text-muted-foreground">Integração bancária via Open Finance</p>
+            </div>
           </div>
         </TabsContent>
       </Tabs>
@@ -546,52 +505,6 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       {qrScannerOpen && (
         <QRCodeScanner onResult={handleQRResult} onClose={() => setQrScannerOpen(false)} />
       )}
-
-      {/* Open Finance Dialog */}
-      <Dialog open={openFinanceOpen} onOpenChange={setOpenFinanceOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Open Finance — Importar Dados</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Banco</label>
-              <Select value={bancoBf} onValueChange={setBancoBf}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o banco..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {BANCOS.map((b) => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-700">
-              <p className="font-medium mb-1">Como obter o código:</p>
-              <ol className="list-decimal list-inside space-y-1 text-xs">
-                <li>Acesse o app do seu banco</li>
-                <li>Vá em Compartilhar dados / Open Finance</li>
-                <li>Autorize o compartilhamento</li>
-                <li>Copie o código de autorização ou JSON gerado</li>
-              </ol>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Código / JSON de autorização</label>
-              <Textarea
-                rows={5}
-                placeholder="Cole aqui o código ou JSON do banco..."
-                value={codigoBf}
-                onChange={(e) => setCodigoBf(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenFinanceOpen(false)}>Cancelar</Button>
-            <Button onClick={handleOpenFinanceImport}>Importar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal Conciliação V2 */}
       {conciliacaoOpen && itensExtrato.length > 0 && (
