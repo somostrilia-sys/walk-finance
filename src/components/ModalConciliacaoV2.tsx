@@ -601,10 +601,10 @@ export default function ModalConciliacaoV2({
                   const isConciliado = item.status === "conciliado";
                   const isIgnorado = item.status === "ignorado";
 
-                  let rowBg = "bg-white hover:bg-gray-50";
+                  let rowBg = "bg-[#1e2a45] hover:bg-[#243050]";
                   if (isSelected) rowBg = "bg-blue-50";
                   else if (isConciliado) rowBg = "bg-green-50";
-                  else if (isIgnorado) rowBg = "bg-gray-50 opacity-60";
+                  else if (isIgnorado) rowBg = "bg-[#1a2438] opacity-60";
 
                   return (
                     <div
@@ -770,7 +770,7 @@ export default function ModalConciliacaoV2({
                                 className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
                                   novoLancamentoTipo === "pagar"
                                     ? "bg-red-50 border-red-400 text-red-700 font-semibold"
-                                    : "border-gray-200 hover:bg-gray-50"
+                                    : "border-[#2a3a5c] hover:bg-[#243050]"
                                 }`}
                               >
                                 Contas a Pagar
@@ -780,7 +780,7 @@ export default function ModalConciliacaoV2({
                                 className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
                                   novoLancamentoTipo === "receber"
                                     ? "bg-green-50 border-green-400 text-green-700 font-semibold"
-                                    : "border-gray-200 hover:bg-gray-50"
+                                    : "border-[#2a3a5c] hover:bg-[#243050]"
                                 }`}
                               >
                                 Contas a Receber
@@ -1061,9 +1061,9 @@ function ActionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-lg border text-sm transition-colors ${active ? "border-blue-300 bg-white shadow-sm" : "border-gray-200 bg-white/60"}`}>
+    <div className={`rounded-lg border text-sm transition-colors ${active ? "border-blue-300 bg-[#1e2a45] shadow-sm" : "border-[#2a3a5c] bg-[#1e2a45]/60"}`}>
       <button
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 rounded-lg transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#243050] rounded-lg transition-colors"
         onClick={onToggle}
       >
         <span className="text-base leading-none">{icon}</span>
@@ -1113,7 +1113,7 @@ function SearchContas({
                 <p className="text-xs font-medium truncate">{c.descricao}</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="text-xs text-muted-foreground">{c.vencimento}</span>
-                  <span className="text-xs font-semibold text-gray-700">{formatCurrency(c.valor)}</span>
+                  <span className="text-xs font-semibold text-gray-200">{formatCurrency(c.valor)}</span>
                   <Badge
                     variant="outline"
                     className={`text-xs py-0 px-1 ${

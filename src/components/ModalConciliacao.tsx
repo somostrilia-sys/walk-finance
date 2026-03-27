@@ -354,7 +354,7 @@ export default function ModalConciliacao({
                           ? "bg-blue-50 border-blue-400 shadow-sm"
                           : hasAutoMatch
                           ? "bg-yellow-50 border-yellow-300 hover:border-yellow-400"
-                          : "bg-white border-gray-200 hover:border-gray-300",
+                          : "bg-[#1e2a45] border-[#2a3a5c] hover:border-gray-300",
                       ].join(" ")}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -416,7 +416,7 @@ export default function ModalConciliacao({
                           ? "bg-blue-50 border-blue-400 shadow-sm"
                           : isAutoMatchFor
                           ? "bg-yellow-50 border-yellow-300"
-                          : "bg-white border-gray-200 hover:border-gray-300",
+                          : "bg-[#1e2a45] border-[#2a3a5c] hover:border-gray-300",
                       ].join(" ")}
                     >
                       <div className="flex items-start justify-between gap-2">
