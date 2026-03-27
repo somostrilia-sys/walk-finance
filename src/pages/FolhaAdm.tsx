@@ -99,7 +99,7 @@ const FolhaAdm = () => {
       const outrosDescontos = totalDescontos - adiantamentos;
       const descontoMotivos = descontosMes.filter(d => !d.tipo.toLowerCase().includes("adiantamento")).map(d => `${d.tipo}: ${formatCurrency(Number(d.valor))}`).join(", ");
 
-      // Determine unidade from most recent folha_pagamento record
+      // Determine unidade and benefícios from most recent folha_pagamento record
       const folhaRecords = (folhaPagamento || [])
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .filter((f: any) => f.colaborador_id === c.id)
@@ -107,6 +107,8 @@ const FolhaAdm = () => {
         .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const unidade = (folhaRecords[0] as any)?.unidade || null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const beneficios = folhaRecords.reduce((s: number, f: any) => s + Number(f.beneficios || 0), 0);
 
       const base = Number(c.salario_base || 0);
       const total = base + comissaoMes - adiantamentos - outrosDescontos;
@@ -119,6 +121,7 @@ const FolhaAdm = () => {
         descontoMotivos,
         total,
         unidade,
+        beneficios,
         statusPagamento: "Pendente" as string,
       };
     });
@@ -155,12 +158,13 @@ const FolhaAdm = () => {
   }, [colaboradores, formUnidade, folhaPagamento]);
 
   const handleExportar = () => {
-    const headers = ["Nome", "Cargo", "Unidade", "Base R$", "Comissão R$", "Adiantamentos R$", "Descontos R$", "Total R$", "Status"];
+    const headers = ["Nome", "Unidade", "Cargo", "Base R$", "Benefícios R$", "Comissão R$", "Adiantamentos R$", "Descontos R$", "Valor Líquido", "Status"];
     const rows = filtered.map(c => [
       c.nome,
-      c.cargo || "",
       c.unidade || "",
+      c.cargo || "",
       Number(c.salario_base).toFixed(2).replace(".", ","),
+      c.beneficios.toFixed(2).replace(".", ","),
       c.comissaoMes.toFixed(2).replace(".", ","),
       c.adiantamentos.toFixed(2).replace(".", ","),
       c.descontos.toFixed(2).replace(".", ","),
@@ -289,12 +293,14 @@ const FolhaAdm = () => {
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
                     <th className="text-left py-3 px-4 text-muted-foreground font-medium">Nome</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium">Unidade</th>
                     <th className="text-left py-3 px-4 text-muted-foreground font-medium">Cargo</th>
-                    <th className="text-right py-3 px-4 text-muted-foreground font-medium">Base R$</th>
+                    <th className="text-right py-3 px-4 text-muted-foreground font-medium">Salário Base</th>
+                    <th className="text-right py-3 px-4 text-muted-foreground font-medium">Benefícios R$</th>
                     <th className="text-right py-3 px-4 text-muted-foreground font-medium">Comissão R$</th>
                     <th className="text-right py-3 px-4 text-muted-foreground font-medium">Adiantamentos R$</th>
                     <th className="text-right py-3 px-4 text-muted-foreground font-medium">Descontos R$</th>
-                    <th className="text-right py-3 px-4 text-muted-foreground font-medium">Total R$</th>
+                    <th className="text-right py-3 px-4 text-muted-foreground font-medium">Valor Líquido</th>
                     <th className="text-center py-3 px-4 text-muted-foreground font-medium">Status</th>
                   </tr>
                 </thead>
@@ -302,8 +308,10 @@ const FolhaAdm = () => {
                   {filtered.map((c) => (
                     <tr key={c.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                       <td className="py-2.5 px-4 font-medium text-foreground">{c.nome}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground text-xs">{c.unidade || "—"}</td>
                       <td className="py-2.5 px-4 text-muted-foreground text-xs">{c.cargo}</td>
                       <td className="py-2.5 px-4 text-right text-foreground">{formatCurrency(Number(c.salario_base))}</td>
+                      <td className="py-2.5 px-4 text-right text-[hsl(var(--status-positive))]">{c.beneficios > 0 ? formatCurrency(c.beneficios) : "—"}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-positive))]">{c.comissaoMes > 0 ? formatCurrency(c.comissaoMes) : "—"}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-warning))]">{c.adiantamentos > 0 ? formatCurrency(c.adiantamentos) : "—"}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-danger))]" title={c.descontoMotivos}>{c.descontos > 0 ? formatCurrency(c.descontos) : "—"}</td>
@@ -314,12 +322,13 @@ const FolhaAdm = () => {
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={8} className="text-center text-muted-foreground py-8">Nenhum colaborador na folha</td></tr>
+                    <tr><td colSpan={10} className="text-center text-muted-foreground py-8">Nenhum colaborador na folha</td></tr>
                   )}
                   {filtered.length > 0 && (
                     <tr className="border-t-2 border-border bg-muted/30 font-bold">
-                      <td className="py-2.5 px-4 font-bold text-foreground" colSpan={2}>Total ({filtered.length})</td>
+                      <td className="py-2.5 px-4 font-bold text-foreground" colSpan={3}>Total ({filtered.length})</td>
                       <td className="py-2.5 px-4 text-right">{formatCurrency(filtered.reduce((s, c) => s + Number(c.salario_base), 0))}</td>
+                      <td className="py-2.5 px-4 text-right text-[hsl(var(--status-positive))]">{formatCurrency(filtered.reduce((s, c) => s + c.beneficios, 0))}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-positive))]">{formatCurrency(filtered.reduce((s, c) => s + c.comissaoMes, 0))}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-warning))]">{formatCurrency(filtered.reduce((s, c) => s + c.adiantamentos, 0))}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-danger))]">{formatCurrency(filtered.reduce((s, c) => s + c.descontos, 0))}</td>

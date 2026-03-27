@@ -24,20 +24,22 @@ interface DRELine {
 }
 
 const dreStructure: DRELine[] = [
-  { label: "Receita Bruta", key: "receita_bruta", level: 0, bold: true },
+  { label: "Receita Operacional", key: "receita_operacional", level: 1 },
+  { label: "Outras Receitas", key: "outras_receitas", level: 1 },
+  { label: "= Total Receitas", key: "receita_bruta", level: 2, bold: true, calc: v => v.receita_operacional + v.outras_receitas },
   { label: "(-) Deduções da Receita", key: "deducoes", level: 1 },
   { label: "= Receita Líquida", key: "receita_liquida", level: 2, bold: true, calc: v => v.receita_bruta - v.deducoes },
   { label: "(-) Custo dos Serviços Prestados (CSP)", key: "csp", level: 1 },
   { label: "= Lucro Bruto", key: "lucro_bruto", level: 2, bold: true, calc: v => v.receita_liquida - v.csp },
   { label: "(-) Despesas Operacionais", key: "despesas_operacionais", level: 1 },
   { label: "(-) Despesas Administrativas", key: "despesas_administrativas", level: 1 },
+  { label: "(-) Despesas Financeiras", key: "despesas_financeiras", level: 1 },
   { label: "(-) Despesas Comerciais", key: "despesas_comerciais", level: 1 },
   { label: "(-) Despesas com Pessoal", key: "despesas_pessoal", level: 1 },
-  { label: "= Resultado Operacional (EBITDA)", key: "ebitda", level: 2, bold: true, calc: v => v.lucro_bruto - v.despesas_operacionais - v.despesas_administrativas - v.despesas_comerciais - v.despesas_pessoal },
+  { label: "= Resultado Operacional (EBITDA)", key: "ebitda", level: 2, bold: true, calc: v => v.lucro_bruto - v.despesas_operacionais - v.despesas_administrativas - v.despesas_financeiras - v.despesas_comerciais - v.despesas_pessoal },
   { label: "(-) Depreciação e Amortização", key: "depreciacao", level: 1 },
   { label: "= EBIT", key: "ebit", level: 2, bold: true, calc: v => v.ebitda - v.depreciacao },
-  { label: "(+/-) Resultado Financeiro", key: "resultado_financeiro", level: 1 },
-  { label: "= Lucro Líquido", key: "lucro_liquido", level: 2, bold: true, calc: v => v.ebit + v.resultado_financeiro },
+  { label: "= Resultado do Período", key: "resultado_periodo", level: 2, bold: true, calc: v => v.ebit },
 ];
 
 const categoryMapping: Record<string, string> = {
@@ -56,9 +58,9 @@ const categoryMapping: Record<string, string> = {
   "imposto": "deducoes",
   "tributo": "deducoes",
   "taxa": "deducoes",
-  "financeiro": "resultado_financeiro",
-  "juros": "resultado_financeiro",
-  "multa": "resultado_financeiro",
+  "financeiro": "despesas_financeiras",
+  "juros": "despesas_financeiras",
+  "multa": "despesas_financeiras",
 };
 
 function mapToDREKey(description: string, categoryName?: string): string {
@@ -136,15 +138,22 @@ const DREModule = () => {
 
   const dreValues = useMemo(() => {
     const values: Record<string, number> = {
+      receita_operacional: 0, outras_receitas: 0,
       receita_bruta: 0, deducoes: 0, receita_liquida: 0, csp: 0, lucro_bruto: 0,
-      despesas_operacionais: 0, despesas_administrativas: 0, despesas_comerciais: 0,
-      despesas_pessoal: 0, ebitda: 0, depreciacao: 0, ebit: 0, resultado_financeiro: 0, lucro_liquido: 0,
+      despesas_operacionais: 0, despesas_administrativas: 0, despesas_financeiras: 0,
+      despesas_comerciais: 0, despesas_pessoal: 0, ebitda: 0, depreciacao: 0,
+      ebit: 0, resultado_periodo: 0,
     };
 
     (transactions || []).forEach(t => {
       const catName = (t as any).expense_categories?.name || "";
       if (t.type === "entrada") {
-        values.receita_bruta += Number(t.amount);
+        const catLower = catName.toLowerCase();
+        if (catLower.includes("outr") || catLower.includes("extra") || catLower.includes("eventual")) {
+          values.outras_receitas += Number(t.amount);
+        } else {
+          values.receita_operacional += Number(t.amount);
+        }
       } else {
         const dreKey = mapToDREKey(t.description, catName);
         values[dreKey] = (values[dreKey] || 0) + Number(t.amount);
@@ -238,10 +247,10 @@ const DREModule = () => {
 
         {!isLoading && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <ModuleStatCard label="Receita Bruta" value={formatCurrency(dreValues.receita_bruta)} icon={<DollarSign className="w-4 h-4" />} />
+            <ModuleStatCard label="Total Receitas" value={formatCurrency(dreValues.receita_bruta)} icon={<DollarSign className="w-4 h-4" />} />
             <ModuleStatCard label="Lucro Bruto" value={formatCurrency(dreValues.lucro_bruto)} icon={<TrendingUp className="w-4 h-4" />} />
             <ModuleStatCard label="EBITDA" value={formatCurrency(dreValues.ebitda)} icon={<BarChart3 className="w-4 h-4" />} />
-            <ModuleStatCard label="Lucro Líquido" value={formatCurrency(dreValues.lucro_liquido)} icon={<TrendingDown className="w-4 h-4" />} />
+            <ModuleStatCard label="Resultado do Período" value={formatCurrency(dreValues.resultado_periodo)} icon={<TrendingDown className="w-4 h-4" />} />
           </div>
         )}
 
