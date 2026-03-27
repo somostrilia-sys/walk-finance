@@ -407,7 +407,7 @@ export default function ModalConciliacaoV2({
   // ─── Render ───────────────────────────────────────────────────────────────
 
   const panelBg = selectedItem?.status === "conciliado"
-    ? "bg-green-50 border-green-200"
+    ? "bg-[#0f3320] border-green-700"
     : "bg-yellow-50 border-yellow-200";
 
   function openAction(n: number) {
@@ -602,8 +602,8 @@ export default function ModalConciliacaoV2({
                   const isIgnorado = item.status === "ignorado";
 
                   let rowBg = "bg-[#1e2a45] hover:bg-[#243050]";
-                  if (isSelected) rowBg = "bg-blue-50";
-                  else if (isConciliado) rowBg = "bg-green-50";
+                  if (isSelected) rowBg = "bg-[#1a3a6c]";
+                  else if (isConciliado) rowBg = "bg-[#0f3320]";
                   else if (isIgnorado) rowBg = "bg-[#1a2438] opacity-60";
 
                   return (
@@ -779,7 +779,7 @@ export default function ModalConciliacaoV2({
                                 onClick={() => setNovoLancamentoTipo("receber")}
                                 className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
                                   novoLancamentoTipo === "receber"
-                                    ? "bg-green-50 border-green-400 text-green-700 font-semibold"
+                                    ? "bg-[#0f3320] border-green-500 text-green-300 font-semibold"
                                     : "border-[#2a3a5c] hover:bg-[#243050]"
                                 }`}
                               >
@@ -1107,7 +1107,7 @@ function SearchContas({
           resultados.map((c) => (
             <div
               key={c.id}
-              className="flex items-center gap-2 px-2 py-1.5 rounded border border-transparent hover:bg-blue-50 hover:border-blue-200 transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 rounded border border-transparent hover:bg-[#1a3a6c] hover:border-blue-600 transition-colors"
             >
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium truncate">{c.descricao}</p>
@@ -1119,7 +1119,7 @@ function SearchContas({
                     className={`text-xs py-0 px-1 ${
                       c._tipo === "conta_pagar"
                         ? "border-red-300 text-red-600 bg-red-50"
-                        : "border-green-300 text-green-600 bg-green-50"
+                        : "border-green-500 text-green-300 bg-[#0f3320]"
                     }`}
                   >
                     {c._tipo === "conta_pagar" ? "Pagar" : "Receber"}

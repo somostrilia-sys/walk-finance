@@ -349,9 +349,9 @@ export default function ModalConciliacao({
                       className={[
                         "p-3 rounded-lg border cursor-pointer transition-all text-sm",
                         isConfirmado
-                          ? "bg-green-50 border-green-200 opacity-60 cursor-default"
+                          ? "bg-[#0f3320] border-green-700 opacity-60 cursor-default"
                           : isSelected
-                          ? "bg-blue-50 border-blue-400 shadow-sm"
+                          ? "bg-[#1a3a6c] border-blue-400 shadow-sm"
                           : hasAutoMatch
                           ? "bg-yellow-50 border-yellow-300 hover:border-yellow-400"
                           : "bg-[#1e2a45] border-[#2a3a5c] hover:border-gray-300",
@@ -411,9 +411,9 @@ export default function ModalConciliacao({
                       className={[
                         "p-3 rounded-lg border cursor-pointer transition-all text-sm",
                         isConfirmado
-                          ? "bg-green-50 border-green-200 opacity-60 cursor-default"
+                          ? "bg-[#0f3320] border-green-700 opacity-60 cursor-default"
                           : isSelected
-                          ? "bg-blue-50 border-blue-400 shadow-sm"
+                          ? "bg-[#1a3a6c] border-blue-400 shadow-sm"
                           : isAutoMatchFor
                           ? "bg-yellow-50 border-yellow-300"
                           : "bg-[#1e2a45] border-[#2a3a5c] hover:border-gray-300",
@@ -518,7 +518,7 @@ export default function ModalConciliacao({
             )}
 
             {selectedExtrato && selectedSistema && (
-              <div className="border-t p-3 bg-blue-50">
+              <div className="border-t p-3 bg-[#1a3a6c]">
                 <Button className="w-full h-8 text-sm gap-2" onClick={handleConfirmarPar}>
                   <CheckCircle2 className="h-4 w-4" />
                   Confirmar Este Par
