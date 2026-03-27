@@ -129,10 +129,9 @@ const CadastroPessoas = () => {
       agencia: form.agencia || null,
       conta: form.conta || null,
       forma_pagamento: form.forma_pagamento || null,
-      nome_fantasia: form.nome_fantasia || null,
     };
     if (editPessoa) {
-      const { error } = await supabase.from("pessoas").update(payload as any).eq("id", editPessoa.id);
+      const { error } = await supabase.from("pessoas").update(payload).eq("id", editPessoa.id);
       setSaving(false);
       if (error) return toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
       queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
@@ -141,7 +140,7 @@ const CadastroPessoas = () => {
       setForm(emptyForm);
       toast({ title: "Cadastro atualizado!" });
     } else {
-      const { error } = await supabase.from("pessoas").insert({ company_id: companyId!, ...payload, nome_fantasia: form.nome_fantasia || null } as any);
+      const { error } = await supabase.from("pessoas").insert({ company_id: companyId!, ...payload });
       setSaving(false);
       if (error) return toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
       queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
@@ -287,7 +286,7 @@ const CadastroPessoas = () => {
                   </div>
                 </div>
                 <div><label className="text-sm font-medium">Razão Social / Nome</label><Input className="mt-1" value={form.razao_social} onChange={e => setForm(f => ({ ...f, razao_social: e.target.value }))} /></div>
-                <div><label className="text-sm font-medium">Nome Fantasia</label><Input className="mt-1" placeholder="Nome fantasia (opcional)" value={form.nome_fantasia} onChange={e => setForm(f => ({ ...f, nome_fantasia: e.target.value }))} /></div>
+                {/* Nome Fantasia: aguardando schema cache Supabase - reativar em breve */}
                 {form.situacao && <div className="flex items-center gap-2"><Badge variant="outline">{form.situacao}</Badge>{form.cnae && <span className="text-xs text-muted-foreground">CNAE: {form.cnae}</span>}</div>}
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Telefone</label><Input className="mt-1" value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} /></div>
