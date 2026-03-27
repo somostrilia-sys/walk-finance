@@ -47,6 +47,7 @@ export const useCompanyModules = (companyId: string | undefined) => {
   return useQuery({
     queryKey: ["company_modules", companyId],
     enabled: !!user && !!companyId,
+    staleTime: 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_modules")

@@ -29,6 +29,7 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   "contratacoes-demissoes": { icon: "UserPlus", description: "Gestão de colaboradores MEI e ciclo de vida", label: "Colaboradores" },
   "usuarios": { icon: "UserCog", description: "Gestão de acesso e usuários", label: "Usuários" },
   "relatorio-colaborador": { icon: "FileText", description: "Relatório individual por colaborador", label: "Relatório por Colaborador" },
+  "gestao-fiscal": { icon: "Receipt", description: "Gestão fiscal e tributária", label: "Gestão Fiscal" },
 };
 
 const CompanyModules = () => {
