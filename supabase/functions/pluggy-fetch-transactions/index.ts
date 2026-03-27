@@ -4,17 +4,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 const PLUGGY_CLIENT_ID = "477d73cb-0574-4a66-ba9e-848b6cb436f2"
 const PLUGGY_CLIENT_SECRET = "13db5240-f85e-4b02-9810-9086bdbdc9b1"
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 serve(async (req) => {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
     const { itemId, companyId } = await req.json()
 
-    // Auth
     const authRes = await fetch('https://api.pluggy.ai/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -22,7 +22,6 @@ serve(async (req) => {
     })
     const { apiKey } = await authRes.json()
 
-    // Contas
     const accountsRes = await fetch(`https://api.pluggy.ai/accounts?itemId=${itemId}`, {
       headers: { 'X-API-KEY': apiKey }
     })
@@ -41,7 +40,7 @@ serve(async (req) => {
       for (const tx of txs || []) {
         rows.push({
           company_id: companyId,
-          data_lancamento: tx.date?.split('T')[0],
+          data: tx.date?.split('T')[0],
           descricao: tx.description || tx.category || 'Transação',
           valor: Math.abs(tx.amount),
           tipo: tx.type === 'CREDIT' ? 'credito' : 'debito',

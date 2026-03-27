@@ -3,8 +3,7 @@ import { useState } from "react"
 import { PluggyConnect } from "react-pluggy-connect"
 import { Button } from "@/components/ui/button"
 import { Building2, Loader2 } from "lucide-react"
-import { supabase } from "@/integrations/supabase/client"
-import { toast } from "@/hooks/use-toast"
+import { usePluggy } from "@/hooks/usePluggy"
 
 interface Props {
   companyId: string
@@ -12,42 +11,21 @@ interface Props {
 }
 
 export function PluggyConnectButton({ companyId, onImported }: Props) {
-  const [loading, setLoading] = useState(false)
+  const { loading, getConnectToken, fetchTransactions } = usePluggy()
   const [connectToken, setConnectToken] = useState<string | null>(null)
   const [showWidget, setShowWidget] = useState(false)
 
   async function handleOpen() {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase.functions.invoke('pluggy-connect-token')
-      if (error) throw error
-      setConnectToken(data.connectToken)
-      setShowWidget(true)
-    } catch (err: any) {
-      toast({ title: "Erro ao conectar", description: err.message, variant: "destructive" })
-    } finally {
-      setLoading(false)
-    }
+    const token = await getConnectToken()
+    if (!token) return
+    setConnectToken(token)
+    setShowWidget(true)
   }
 
   async function handleSuccess(itemData: { item: { id: string } }) {
     setShowWidget(false)
-    setLoading(true)
-    try {
-      const { data, error } = await supabase.functions.invoke('pluggy-fetch-transactions', {
-        body: { itemId: itemData.item.id, companyId }
-      })
-      if (error) throw error
-      toast({
-        title: "Extrato importado!",
-        description: `${data.inserted} transações importadas via Open Finance`
-      })
-      onImported?.()
-    } catch (err: any) {
-      toast({ title: "Erro ao importar", description: err.message, variant: "destructive" })
-    } finally {
-      setLoading(false)
-    }
+    await fetchTransactions(itemData.item.id, companyId)
+    onImported?.()
   }
 
   return (
@@ -58,7 +36,11 @@ export function PluggyConnectButton({ companyId, onImported }: Props) {
         disabled={loading}
         className="gap-2"
       >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Building2 className="h-4 w-4" />
+        )}
         Conectar Banco (Open Finance)
       </Button>
 
@@ -67,11 +49,7 @@ export function PluggyConnectButton({ companyId, onImported }: Props) {
           connectToken={connectToken}
           includeSandbox={true}
           onSuccess={handleSuccess}
-          onError={(err: any) => {
-            console.error(err)
-            setShowWidget(false)
-            toast({ title: "Erro no widget", description: "Conexão cancelada", variant: "destructive" })
-          }}
+          onError={() => setShowWidget(false)}
           onClose={() => setShowWidget(false)}
         />
       )}
