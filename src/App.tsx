@@ -22,6 +22,7 @@ import ContratacoesDemissoes from "./pages/ContratacoesDemissoes";
 import CalendarioFinanceiro from "./pages/CalendarioFinanceiro";
 import DashboardSocio from "./pages/DashboardSocio";
 import RelatorioPorColaborador from "./pages/RelatorioPorColaborador";
+import GestaoUsuarios from "./pages/GestaoUsuarios";
 
 import CentroCustos from "./pages/CentroCustos";
 import ModuloEventos from "./pages/ModuloEventos";
@@ -78,6 +79,7 @@ const App = () => (
             <Route path="/empresa/:companyId/centro-custos" element={<ProtectedRoute><CentroCustos /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/eventos" element={<ProtectedRoute><ModuloEventos /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/relatorio-colaborador" element={<ProtectedRoute><RelatorioPorColaborador /></ProtectedRoute>} />
+            <Route path="/empresa/:companyId/usuarios" element={<ProtectedRoute><GestaoUsuarios /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/:moduleId" element={<ProtectedRoute><ModulePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

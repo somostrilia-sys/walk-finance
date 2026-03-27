@@ -27,6 +27,7 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   "fluxo-caixa-diario": { icon: "Wallet", description: "Entradas e saídas por conta bancária", label: "Fluxo de Caixa Diário" },
   "programacao-pagamentos": { icon: "CalendarCheck", description: "Banking integrado e fluxo de aprovação", label: "Programação de Pagamentos" },
   "contratacoes-demissoes": { icon: "UserPlus", description: "Gestão de colaboradores MEI e ciclo de vida", label: "Colaboradores" },
+  "usuarios": { icon: "UserCog", description: "Gestão de acesso e usuários", label: "Usuários" },
 };
 
 const CompanyModules = () => {

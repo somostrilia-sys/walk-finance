@@ -381,30 +381,12 @@ const FolhaAdm = () => {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Cargo</Label>
-                  <Input value={formCargo} onChange={e => setFormCargo(e.target.value)} placeholder="Auto-preenchido" />
-                </div>
-                <div>
-                  <Label>Data de Pagamento</Label>
-                  <Input name="data_pagamento" type="date" required />
-                </div>
+              <div>
+                <Label>Cargo</Label>
+                <Input value={formCargo} onChange={e => setFormCargo(e.target.value)} placeholder="Digite o cargo" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Salário Base</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                    <Input
-                      value={formSalarioBase}
-                      onChange={handleValorInput(setFormSalarioBase)}
-                      placeholder="0,00"
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
                 <div>
                   <Label>Benefícios</Label>
                   <div className="relative">
@@ -417,9 +399,6 @@ const FolhaAdm = () => {
                     />
                   </div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Descontos</Label>
                   <div className="relative">
@@ -427,6 +406,26 @@ const FolhaAdm = () => {
                     <Input
                       value={formDescontos}
                       onChange={handleValorInput(setFormDescontos)}
+                      placeholder="0,00"
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label>Data de Pagamento</Label>
+                <Input name="data_pagamento" type="date" required />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Salário Base</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input
+                      value={formSalarioBase}
+                      onChange={handleValorInput(setFormSalarioBase)}
                       placeholder="0,00"
                       className="pl-9"
                     />

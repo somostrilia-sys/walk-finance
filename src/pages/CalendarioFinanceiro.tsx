@@ -330,7 +330,6 @@ const CalendarioFinanceiro = () => {
   const handleSaveLancamento = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!formVencimento) { toast.error("Informe a data de vencimento"); return; }
-    if (!formResponsavel.trim()) { toast.error("Informe o responsável"); return; }
     const valorNum = parseCurrency(formValor);
     if (!valorNum) { toast.error("Informe o valor"); return; }
 
@@ -432,6 +431,7 @@ const CalendarioFinanceiro = () => {
                   <div><Label className="text-xs text-muted-foreground">Data Final</Label><Input type="date" value={dataFinal} onChange={e => setDataFinal(e.target.value)} className="w-40" /></div>
                 </>
               )}
+              <Button size="sm" variant="outline" onClick={() => { setFiltroStatus("todos"); setFiltroCategoria("todas"); setFiltroUnidade("todas"); setFiltroPeriodo("all"); setFiltroVencimento(""); setDataInicial(""); setDataFinal(""); }} className="gap-1"><X className="w-3.5 h-3.5" />Limpar Filtros</Button>
               <Button size="sm" onClick={handleOpenNew} className="ml-auto gap-1"><Plus className="w-4 h-4" />Novo lançamento</Button>
             </div>
 
@@ -653,25 +653,14 @@ const CalendarioFinanceiro = () => {
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>{editingId ? "Editar Lançamento" : "Novo Lançamento"}</DialogTitle></DialogHeader>
             <form onSubmit={handleSaveLancamento} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Data de Vencimento</Label>
-                  <Input
-                    type="date"
-                    value={formVencimento}
-                    onChange={e => setFormVencimento(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Responsável</Label>
-                  <Input
-                    value={formResponsavel}
-                    onChange={e => setFormResponsavel(e.target.value)}
-                    placeholder="Nome ou cargo"
-                    required
-                  />
-                </div>
+              <div>
+                <Label>Data de Vencimento</Label>
+                <Input
+                  type="date"
+                  value={formVencimento}
+                  onChange={e => setFormVencimento(e.target.value)}
+                  required
+                />
               </div>
 
               <div>
@@ -750,6 +739,15 @@ const CalendarioFinanceiro = () => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div>
+                <Label>Responsável <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+                <Input
+                  value={formResponsavel}
+                  onChange={e => setFormResponsavel(e.target.value)}
+                  placeholder="Nome ou cargo"
+                />
               </div>
 
               <div className="flex gap-2">
