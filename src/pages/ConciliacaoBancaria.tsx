@@ -79,6 +79,15 @@ const ConciliacaoBancaria = () => {
     } catch (err: any) { toast.error(err.message); }
   };
 
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+
+  const filteredEntries = entries?.filter((e) => {
+    if (filterDateFrom && e.date < filterDateFrom) return false;
+    if (filterDateTo && e.date > filterDateTo) return false;
+    return true;
+  });
+
   const isLoading = loadingAccounts || loadingEntries;
   const totalBalance = accounts?.reduce((s, a) => s + Number(a.current_balance), 0) || 0;
   const pendingCount = entries?.filter((e) => e.status === "pendente").length || 0;
@@ -163,6 +172,19 @@ const ConciliacaoBancaria = () => {
             <TabsContent value="conciliacao" className="space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground">Extrato Bancário</h3>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-muted-foreground">De:</label>
+                    <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-muted-foreground">Até:</label>
+                    <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground" />
+                  </div>
+                  {(filterDateFrom || filterDateTo) && (
+                    <button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }} className="text-xs text-muted-foreground hover:text-foreground underline">Limpar</button>
+                  )}
+                </div>
                 <Dialog open={openEntry} onOpenChange={setOpenEntry}>
                   <DialogTrigger asChild>
                     <Button size="sm" disabled={!accounts?.length}><Plus className="w-4 h-4 mr-1" /> Importar</Button>
@@ -204,7 +226,7 @@ const ConciliacaoBancaria = () => {
               </div>
 
               <div className="hub-card-base overflow-hidden">
-                {entries && entries.length > 0 ? (
+                {filteredEntries && filteredEntries.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
@@ -217,7 +239,7 @@ const ConciliacaoBancaria = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {entries.map((entry) => {
+                        {filteredEntries.map((entry) => {
                           const config = statusConfig[entry.status as keyof typeof statusConfig] || statusConfig.pendente;
                           const StatusIcon = config.icon;
                           return (
