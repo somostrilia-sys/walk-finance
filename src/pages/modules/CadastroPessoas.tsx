@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Users, UserPlus, Building2, Wrench, Search, Download, FileText, Landmark, Loader2, Trash2, Eye, Tag, Plus } from "lucide-react";
+import { Users, UserPlus, Building2, Wrench, Search, Download, FileText, Landmark, Loader2, Trash2, Eye, Tag, Plus, Pencil } from "lucide-react";
 import EmpresaTab from "@/components/EmpresaTab";
 import { formatCurrency } from "@/data/mockData";
 
@@ -67,6 +67,9 @@ const CadastroPessoas = () => {
   const [modalContaReceber, setModalContaReceber] = useState(false);
   const [formCR, setFormCR] = useState({ valor: "", descricao: "", vencimento: "", consultor: "", comissao_percent: "" });
   const [filtroTag, setFiltroTag] = useState<"todos" | PessoaTipo>("todos");
+  const [editPessoa, setEditPessoa] = useState<any>(null);
+
+  const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
 
   const all = useMemo(() => (pessoas || []), [pessoas]);
   const filtered = useMemo(() => all.filter(p => {
@@ -111,8 +114,7 @@ const CadastroPessoas = () => {
   const handleSave = async () => {
     if (!form.razao_social) return toast({ title: "Preencha a razão social", variant: "destructive" });
     setSaving(true);
-    const { error } = await supabase.from("pessoas").insert({
-      company_id: companyId!,
+    const payload = {
       tipo: form.tipo,
       razao_social: form.razao_social,
       cpf_cnpj: form.cpf_cnpj || null,
@@ -127,19 +129,31 @@ const CadastroPessoas = () => {
       agencia: form.agencia || null,
       conta: form.conta || null,
       forma_pagamento: form.forma_pagamento || null,
-    });
-    setSaving(false);
-    if (error) return toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
-    queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
-    setModalOpen(false);
-    // If cliente, ask about conta a receber
-    if (form.tipo === "cliente" || form.tipo === "ambos") {
-      setFormCR({ valor: "", descricao: "", vencimento: "", consultor: "", comissao_percent: "" });
-      setModalContaReceber(true);
-    } else {
+    };
+    if (editPessoa) {
+      const { error } = await supabase.from("pessoas").update(payload).eq("id", editPessoa.id);
+      setSaving(false);
+      if (error) return toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
+      queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
+      setModalOpen(false);
+      setEditPessoa(null);
       setForm(emptyForm);
+      toast({ title: "Cadastro atualizado!" });
+    } else {
+      const { error } = await supabase.from("pessoas").insert({ company_id: companyId!, ...payload });
+      setSaving(false);
+      if (error) return toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
+      setModalOpen(false);
+      // If cliente, ask about conta a receber
+      if (form.tipo === "cliente" || form.tipo === "ambos") {
+        setFormCR({ valor: "", descricao: "", vencimento: "", consultor: "", comissao_percent: "" });
+        setModalContaReceber(true);
+      } else {
+        setForm(emptyForm);
+      }
+      toast({ title: `Cadastro realizado com sucesso` });
     }
-    toast({ title: `Cadastro realizado com sucesso` });
   };
 
   const handleCreateContaReceber = async () => {
@@ -234,10 +248,10 @@ const CadastroPessoas = () => {
           </Select>
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Relatório exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
-          <Dialog open={modalOpen} onOpenChange={v => { setModalOpen(v); if (!v) setForm(emptyForm); }}>
+          <Dialog open={modalOpen} onOpenChange={v => { setModalOpen(v); if (!v) { setForm(emptyForm); setEditPessoa(null); } }}>
             <DialogTrigger asChild><Button size="sm"><UserPlus className="w-4 h-4 mr-1" />Novo Cadastro</Button></DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>Novo Cadastro</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{editPessoa ? "Editar Cadastro" : "Novo Cadastro"}</DialogTitle></DialogHeader>
               <div className="space-y-3 pt-2">
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Tipo</label>
@@ -309,7 +323,7 @@ const CadastroPessoas = () => {
                   </div>
                 </div>
                 <Button onClick={handleSave} className="w-full" disabled={saving}>
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}Cadastrar
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}{editPessoa ? "Salvar Alterações" : "Cadastrar"}
                 </Button>
               </div>
             </DialogContent>
@@ -417,6 +431,33 @@ const CadastroPessoas = () => {
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedPessoa(p)}><Eye className="w-3.5 h-3.5" /></Button>
+                        {!isObjetivo && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                            setEditPessoa(p);
+                            setForm({
+                              razao_social: p.razao_social || "",
+                              cpf_cnpj: p.cpf_cnpj || "",
+                              tipo: p.tipo || "cliente",
+                              tipo_pf_pj: p.cpf_cnpj?.replace(/\D/g, "").length === 14 ? "PJ" : "PF",
+                              tipo_servico: p.tipo_servico || "",
+                              condicao_pagamento: p.condicao_pagamento || "",
+                              telefone: p.telefone || "",
+                              email: p.email || "",
+                              responsavel: p.responsavel || "",
+                              municipio: p.municipio || "",
+                              uf: p.uf || "",
+                              banco: p.banco || "",
+                              agencia: p.agencia || "",
+                              conta: p.conta || "",
+                              forma_pagamento: p.forma_pagamento || "PIX",
+                              nome_fantasia: p.nome_fantasia || "",
+                              situacao: p.situacao || "",
+                              cnae: p.cnae || "",
+                              endereco: p.endereco || "",
+                            });
+                            setModalOpen(true);
+                          }}><Pencil className="w-3.5 h-3.5" /></Button>
+                        )}
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(p.id)}><Trash2 className="w-3.5 h-3.5 text-destructive" /></Button>
                       </div>
                     </TableCell>
