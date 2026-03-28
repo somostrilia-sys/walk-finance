@@ -11,7 +11,6 @@ import ModalImportarNF from "@/components/ModalImportarNF";
 import ModalBuscarNFAutomatico from "@/components/ModalBuscarNFAutomatico";
 import ModalDetalheNF from "@/components/ModalDetalheNF";
 import ConfiguracaoCNPJModal from "@/components/ConfiguracaoCNPJModal";
-import { ConciliacaoBancariaTab } from "@/components/ConciliacaoBancariaTab";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -272,7 +271,6 @@ const GestaoFiscal = () => {
             <TabsTrigger value="impostos">Cálculo Impostos</TabsTrigger>
             <TabsTrigger value="alertas">Alertas ({alertasAtivos})</TabsTrigger>
             <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
-            <TabsTrigger value="conciliacao">Conciliação Bancária</TabsTrigger>
           </TabsList>
 
           {/* NOTAS FISCAIS */}
@@ -495,10 +493,6 @@ const GestaoFiscal = () => {
                 </Table>
               </CardContent></Card>
             )}
-          </TabsContent>
-          {/* CONCILIAÇÃO BANCÁRIA */}
-          <TabsContent value="conciliacao">
-            <ConciliacaoBancariaTab companyId={companyId!} />
           </TabsContent>
         </Tabs>
       </div>
