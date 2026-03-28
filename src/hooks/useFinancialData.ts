@@ -86,11 +86,13 @@ export const useBankAccounts = (companyId: string | undefined) => {
   return useQuery({
     queryKey: ["bank_accounts", companyId],
     enabled: !!user && !!companyId,
+    staleTime: 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bank_accounts")
         .select("*")
-        .eq("company_id", companyId!);
+        .eq("company_id", companyId!)
+        .order("bank_name", { ascending: true });
 
       if (error) throw error;
       return data || [];

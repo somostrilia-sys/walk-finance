@@ -1,8 +1,8 @@
 import { useParams } from "react-router-dom";
-import { useCompanies, useBankAccounts, useBankReconciliation } from "@/hooks/useFinancialData";
+import { useCompanies, useBankAccounts, useBankReconciliation, useBankStatementItems } from "@/hooks/useFinancialData";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
-import { Loader2, Plus, CheckCircle2, AlertCircle, HelpCircle, Landmark } from "lucide-react";
+import { Loader2, Plus, CheckCircle2, AlertCircle, HelpCircle, Landmark, Wifi } from "lucide-react";
 import { formatCurrency } from "@/data/mockData";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PluggyConnectButton } from "@/components/PluggyConnectButton";
 
 const statusConfig = {
   pendente: { icon: AlertCircle, label: "Pendente", badgeClass: "status-badge-warning" },
@@ -25,6 +26,7 @@ const ConciliacaoBancaria = () => {
   const { data: companies } = useCompanies();
   const { data: accounts, isLoading: loadingAccounts } = useBankAccounts(companyId);
   const { data: entries, isLoading: loadingEntries } = useBankReconciliation(companyId);
+  const { data: statementItems, isLoading: loadingStatement } = useBankStatementItems(companyId);
   const queryClient = useQueryClient();
   const company = companies?.find((c) => c.id === companyId);
 
@@ -48,7 +50,7 @@ const ConciliacaoBancaria = () => {
       toast.success("Conta bancária adicionada!");
       setOpenAccount(false);
       setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" });
-      queryClient.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+      await queryClient.refetchQueries({ queryKey: ["bank_accounts", companyId] });
     } catch (err: any) { toast.error(err.message); } finally { setSubmitting(false); }
   };
 
@@ -66,7 +68,7 @@ const ConciliacaoBancaria = () => {
       toast.success("Extrato importado!");
       setOpenEntry(false);
       setEntryForm({ bank_account_id: "", external_description: "", amount: "", date: new Date().toISOString().split("T")[0] });
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      await queryClient.refetchQueries({ queryKey: ["bank_reconciliation", companyId] });
     } catch (err: any) { toast.error(err.message); } finally { setSubmitting(false); }
   };
 
@@ -75,8 +77,13 @@ const ConciliacaoBancaria = () => {
       const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", entryId);
       if (error) throw error;
       toast.success("Entrada conciliada!");
-      queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
+      await queryClient.refetchQueries({ queryKey: ["bank_reconciliation", companyId] });
     } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handlePluggyImported = async () => {
+    toast.success("Movimentações importadas via Open Finance!");
+    await queryClient.refetchQueries({ queryKey: ["bank_statement_items", companyId] });
   };
 
   const [filterDateFrom, setFilterDateFrom] = useState("");
@@ -93,6 +100,14 @@ const ConciliacaoBancaria = () => {
   const pendingCount = entries?.filter((e) => e.status === "pendente").length || 0;
   const reconciledCount = entries?.filter((e) => e.status === "conciliado").length || 0;
 
+  const statementStatusConfig: Record<string, { label: string; badgeClass: string }> = {
+    pending: { label: "Pendente", badgeClass: "status-badge-warning" },
+    reconciled: { label: "Conciliado", badgeClass: "status-badge-positive" },
+    ignored: { label: "Ignorado", badgeClass: "status-badge-danger" },
+    pendente: { label: "Pendente", badgeClass: "status-badge-warning" },
+    conciliado: { label: "Conciliado", badgeClass: "status-badge-positive" },
+  };
+
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -104,6 +119,7 @@ const ConciliacaoBancaria = () => {
           <Tabs defaultValue="contas" className="space-y-6">
             <TabsList>
               <TabsTrigger value="contas">Contas Bancárias</TabsTrigger>
+              <TabsTrigger value="conectados">Bancos Conectados</TabsTrigger>
               <TabsTrigger value="conciliacao">Conciliação</TabsTrigger>
             </TabsList>
 
@@ -165,6 +181,98 @@ const ConciliacaoBancaria = () => {
                 ))}
                 {(!accounts || accounts.length === 0) && (
                   <div className="hub-card-base p-8 text-center col-span-full text-muted-foreground text-sm">Nenhuma conta cadastrada.</div>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="conectados" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Bancos Conectados</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Conecte sua conta via Open Finance para importar movimentações automaticamente.</p>
+                </div>
+                {companyId && (
+                  <PluggyConnectButton companyId={companyId} onImported={handlePluggyImported} />
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {accounts?.map((account) => (
+                  <div key={account.id} className="hub-card-base p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-lg gold-gradient flex items-center justify-center">
+                        <Landmark className="w-5 h-5 text-primary-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-semibold text-foreground block truncate">{account.bank_name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {account.agency && `Ag: ${account.agency}`}{account.account_number && ` | Cc: ${account.account_number}`}
+                        </span>
+                      </div>
+                      <Wifi className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    </div>
+                    <span className={`text-xl font-bold ${Number(account.current_balance) >= 0 ? "status-positive" : "status-danger"}`}>
+                      {formatCurrency(Number(account.current_balance))}
+                    </span>
+                  </div>
+                ))}
+                {(!accounts || accounts.length === 0) && (
+                  <div className="hub-card-base p-8 text-center col-span-full text-muted-foreground text-sm">
+                    Nenhuma conta cadastrada. Cadastre uma conta na aba "Contas Bancárias" primeiro.
+                  </div>
+                )}
+              </div>
+
+              <div className="hub-card-base overflow-hidden">
+                <div className="p-4 border-b border-border">
+                  <h4 className="text-sm font-semibold text-foreground">Movimentações Importadas</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">Transações importadas via Open Finance</p>
+                </div>
+                {loadingStatement ? (
+                  <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                ) : statementItems && statementItems.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-secondary/50">
+                          <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Data</th>
+                          <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Banco</th>
+                          <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Descrição</th>
+                          <th className="text-right py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Valor</th>
+                          <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {statementItems.map((item) => {
+                          const cfg = statementStatusConfig[item.status] || statementStatusConfig.pendente;
+                          const isCredit = item.type === "credit" || Number(item.amount) >= 0;
+                          return (
+                            <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                              <td className="py-2.5 px-4 text-foreground whitespace-nowrap">
+                                {new Date(item.date).toLocaleDateString("pt-BR")}
+                              </td>
+                              <td className="py-2.5 px-4 text-foreground text-xs">
+                                {(item as any).bank_accounts?.bank_name ?? "—"}
+                              </td>
+                              <td className="py-2.5 px-4 text-foreground max-w-xs truncate">{item.description}</td>
+                              <td className={`py-2.5 px-4 text-right font-medium whitespace-nowrap ${isCredit ? "status-positive" : "status-danger"}`}>
+                                {isCredit ? "+" : ""}{formatCurrency(Math.abs(Number(item.amount)))}
+                              </td>
+                              <td className="py-2.5 px-4">
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cfg.badgeClass}`}>
+                                  {cfg.label}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-muted-foreground text-sm">
+                    Nenhuma movimentação importada. Clique em "Conectar Banco (Open Finance)" para importar.
+                  </div>
                 )}
               </div>
             </TabsContent>
