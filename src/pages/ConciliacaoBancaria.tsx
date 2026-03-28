@@ -2,7 +2,7 @@ import { useParams } from "react-router-dom";
 import { useCompanies, useBankAccounts, useBankReconciliation, useBankStatementItems } from "@/hooks/useFinancialData";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
-import { Loader2, Plus, CheckCircle2, AlertCircle, HelpCircle, Landmark, Wifi } from "lucide-react";
+import { Loader2, Plus, CheckCircle2, AlertCircle, HelpCircle, Landmark, Wifi, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { formatCurrency } from "@/data/mockData";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -88,6 +88,9 @@ const ConciliacaoBancaria = () => {
 
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [movDateFrom, setMovDateFrom] = useState("");
+  const [movDateTo, setMovDateTo] = useState("");
+  const [movAccountId, setMovAccountId] = useState("");
 
   const filteredEntries = entries?.filter((e) => {
     if (filterDateFrom && e.date < filterDateFrom) return false;
@@ -224,56 +227,96 @@ const ConciliacaoBancaria = () => {
               </div>
 
               <div className="hub-card-base overflow-hidden">
-                <div className="p-4 border-b border-border">
-                  <h4 className="text-sm font-semibold text-foreground">Movimentações Importadas</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">Transações importadas via Open Finance</p>
+                <div className="p-4 border-b border-border flex flex-wrap items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-semibold text-foreground">Movimentações Importadas</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">Transações importadas via Open Finance</p>
+                  </div>
+                  <select
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground"
+                    value={movAccountId}
+                    onChange={(e) => setMovAccountId(e.target.value)}
+                  >
+                    <option value="">Todas as contas</option>
+                    {accounts?.map((a) => (
+                      <option key={a.id} value={a.id}>{a.bank_name}{a.account_number ? ` - ${a.account_number}` : ""}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-1">
+                    <label className="text-xs text-muted-foreground">De:</label>
+                    <input type="date" value={movDateFrom} onChange={(e) => setMovDateFrom(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground" />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <label className="text-xs text-muted-foreground">Até:</label>
+                    <input type="date" value={movDateTo} onChange={(e) => setMovDateTo(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground" />
+                  </div>
+                  {(movDateFrom || movDateTo || movAccountId) && (
+                    <button onClick={() => { setMovDateFrom(""); setMovDateTo(""); setMovAccountId(""); }} className="text-xs text-muted-foreground hover:text-foreground underline">Limpar</button>
+                  )}
                 </div>
                 {loadingStatement ? (
                   <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-                ) : statementItems && statementItems.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border bg-secondary/50">
-                          <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Data</th>
-                          <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Banco</th>
-                          <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Descrição</th>
-                          <th className="text-right py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Valor</th>
-                          <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {statementItems.map((item) => {
-                          const cfg = statementStatusConfig[item.status] || statementStatusConfig.pendente;
-                          const isCredit = item.type === "credit" || Number(item.amount) >= 0;
-                          return (
-                            <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                              <td className="py-2.5 px-4 text-foreground whitespace-nowrap">
-                                {new Date(item.date).toLocaleDateString("pt-BR")}
-                              </td>
-                              <td className="py-2.5 px-4 text-foreground text-xs">
-                                {(item as any).bank_accounts?.bank_name ?? "—"}
-                              </td>
-                              <td className="py-2.5 px-4 text-foreground max-w-xs truncate">{item.description}</td>
-                              <td className={`py-2.5 px-4 text-right font-medium whitespace-nowrap ${isCredit ? "status-positive" : "status-danger"}`}>
-                                {isCredit ? "+" : ""}{formatCurrency(Math.abs(Number(item.amount)))}
-                              </td>
-                              <td className="py-2.5 px-4">
-                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cfg.badgeClass}`}>
-                                  {cfg.label}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-muted-foreground text-sm">
-                    Nenhuma movimentação importada. Clique em "Conectar Banco (Open Finance)" para importar.
-                  </div>
-                )}
+                ) : (() => {
+                  const filtered = (statementItems || []).filter((item) => {
+                    if (movAccountId && item.bank_account_id !== movAccountId) return false;
+                    if (movDateFrom && item.date < movDateFrom) return false;
+                    if (movDateTo && item.date > movDateTo) return false;
+                    return true;
+                  });
+                  return filtered.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border bg-secondary/50">
+                            <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Data</th>
+                            <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Banco</th>
+                            <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Descrição</th>
+                            <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Tipo</th>
+                            <th className="text-right py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Valor</th>
+                            <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Conciliação</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map((item) => {
+                            const cfg = statementStatusConfig[item.status] || statementStatusConfig.pendente;
+                            const isCredit = item.type === "credit" || Number(item.amount) > 0;
+                            return (
+                              <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                                <td className="py-2.5 px-4 text-foreground whitespace-nowrap">
+                                  {new Date(item.date).toLocaleDateString("pt-BR")}
+                                </td>
+                                <td className="py-2.5 px-4 text-foreground text-xs">
+                                  {(item as any).bank_accounts?.bank_name ?? "—"}
+                                </td>
+                                <td className="py-2.5 px-4 text-foreground max-w-xs truncate">{item.description}</td>
+                                <td className="py-2.5 px-4">
+                                  <span className={`inline-flex items-center gap-1 text-xs font-medium ${isCredit ? "status-positive" : "status-danger"}`}>
+                                    {isCredit ? <ArrowDownCircle className="w-3.5 h-3.5" /> : <ArrowUpCircle className="w-3.5 h-3.5" />}
+                                    {isCredit ? "Entrada" : "Saída"}
+                                  </span>
+                                </td>
+                                <td className={`py-2.5 px-4 text-right font-medium whitespace-nowrap ${isCredit ? "status-positive" : "status-danger"}`}>
+                                  {formatCurrency(Math.abs(Number(item.amount)))}
+                                </td>
+                                <td className="py-2.5 px-4">
+                                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cfg.badgeClass}`}>
+                                    {cfg.label}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground text-sm">
+                      {(statementItems?.length ?? 0) === 0
+                        ? 'Nenhuma movimentação importada. Clique em "Conectar Banco (Open Finance)" para importar.'
+                        : "Nenhuma movimentação encontrada com os filtros aplicados."}
+                    </div>
+                  );
+                })()}
               </div>
             </TabsContent>
 
