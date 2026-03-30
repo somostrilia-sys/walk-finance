@@ -38,9 +38,11 @@ serve(async (req) => {
       )
       const { results: txs } = await txRes.json()
       for (const tx of txs || []) {
+        const dateStr = tx.date?.split('T')[0]
+        if (!dateStr) continue
         rows.push({
           company_id: companyId,
-          data: tx.date?.split('T')[0],
+          data_lancamento: dateStr,
           descricao: tx.description || tx.category || 'Transação',
           valor: Math.abs(tx.amount),
           tipo: tx.type === 'CREDIT' ? 'credito' : 'debito',

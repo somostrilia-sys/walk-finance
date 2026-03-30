@@ -4,6 +4,7 @@ import { PluggyConnect } from "react-pluggy-connect"
 import { Button } from "@/components/ui/button"
 import { Building2, Loader2 } from "lucide-react"
 import { usePluggy } from "@/hooks/usePluggy"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   companyId: string
@@ -49,7 +50,7 @@ export function PluggyConnectButton({ companyId, onImported }: Props) {
           connectToken={connectToken}
           includeSandbox={true}
           onSuccess={handleSuccess}
-          onError={() => setShowWidget(false)}
+          onError={(error: any) => { setShowWidget(false); toast({ title: "Erro na conexão bancária", description: error?.message || "Falha ao conectar com o banco. Tente novamente.", variant: "destructive" }); }}
           onClose={() => setShowWidget(false)}
         />
       )}
