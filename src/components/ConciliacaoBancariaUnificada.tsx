@@ -214,7 +214,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     queryFn: async () => {
       const { data, error } = await supabase
         .from("financial_transactions")
-        .select("id, date, description, amount, type")
+        .select("id, date, description, entity_name, amount, type")
         .eq("company_id", companyId)
         .eq("status", "confirmado")
         .order("date", { ascending: false });
@@ -222,7 +222,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       return (data || []).map((t: any) => ({
         id: t.id,
         date: t.date,
-        description: t.description,
+        description: t.entity_name || t.description,
         amount: Number(t.amount),
         type: t.type,
       })) as TransacaoManual[];
