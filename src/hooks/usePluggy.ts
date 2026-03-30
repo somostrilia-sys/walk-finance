@@ -26,10 +26,16 @@ export function usePluggy() {
         body: { itemId, companyId }
       })
       if (error) throw error
+      if (data?.error) {
+        toast({ title: "Erro ao importar", description: data.error, variant: "destructive" })
+        console.error("Pluggy fetch details:", data)
+        return null
+      }
       toast({
         title: "Extrato importado!",
-        description: `${data.inserted} transações importadas via Open Finance`
+        description: `${data.inserted || 0} de ${data.total || 0} transações importadas via Open Finance`
       })
+      console.log("Pluggy fetch result:", data)
       return data
     } catch (err: any) {
       toast({ title: "Erro ao importar extrato", description: err.message, variant: "destructive" })

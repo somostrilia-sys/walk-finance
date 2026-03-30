@@ -25,8 +25,9 @@ export function PluggyConnectButton({ companyId, onImported }: Props) {
 
   async function handleSuccess(itemData: { item: { id: string } }) {
     setShowWidget(false)
-    await fetchTransactions(itemData.item.id, companyId)
-    onImported?.()
+    toast({ title: "Banco conectado!", description: `Importando transações... (item: ${itemData?.item?.id?.slice(0, 8)})` })
+    const result = await fetchTransactions(itemData.item.id, companyId)
+    if (result) onImported?.()
   }
 
   return (
