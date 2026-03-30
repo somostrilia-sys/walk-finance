@@ -61,23 +61,26 @@ serve(async (req) => {
     if (authError) throw authError
 
     const userId = authData.user.id
+    const errors: string[] = []
 
     // 2. Create profile
-    await adminClient.from('profiles').upsert({
+    const { error: profileError } = await adminClient.from('profiles').upsert({
       id: userId,
       full_name: nome,
     })
+    if (profileError) errors.push(`profile: ${profileError.message}`)
 
     // 3. Create user_company_access
-    await adminClient.from('user_company_access').insert({
+    const { error: accessError } = await adminClient.from('user_company_access').insert({
       user_id: userId,
       company_id: companyId,
       role: appRole,
       invited_by: caller.id,
     })
+    if (accessError) errors.push(`access: ${accessError.message}`)
 
     // 4. Create usuarios record (for internal management)
-    await adminClient.from('usuarios').insert({
+    const { error: usuarioError } = await adminClient.from('usuarios').insert({
       auth_id: userId,
       company_id: companyId,
       nome,
@@ -85,6 +88,19 @@ serve(async (req) => {
       perfil,
       ativo: true,
     })
+    if (usuarioError) errors.push(`usuario: ${usuarioError.message}`)
+
+    if (errors.length > 0) {
+      return new Response(JSON.stringify({
+        success: false,
+        userId,
+        error: `Usuário criado no auth mas houve erros: ${errors.join('; ')}`,
+        details: errors,
+      }), {
+        status: 207,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     return new Response(JSON.stringify({ success: true, userId }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
