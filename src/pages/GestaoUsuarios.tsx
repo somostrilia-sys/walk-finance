@@ -14,18 +14,31 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Pencil, UserX, UserCheck, Users, Shield, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Loader2, Pencil, UserX, UserCheck, Users, Shield, CheckCircle2, XCircle, Building2 } from "lucide-react";
 
 type Perfil = "Admin" | "Gestor" | "Auxiliar" | "Visualizador";
 
 interface Usuario {
   id: string;
   company_id: string;
+  auth_id: string | null;
   nome: string;
   email: string;
   perfil: Perfil;
   ativo: boolean;
   created_at: string;
+}
+
+interface CompanyAccess {
+  user_id: string;
+  company_id: string;
+  role: string;
+}
+
+interface CompanyInfo {
+  id: string;
+  name: string;
+  initials: string;
 }
 
 const PERFIS: Perfil[] = ["Admin", "Gestor", "Auxiliar", "Visualizador"];
@@ -65,6 +78,7 @@ const GestaoUsuarios = () => {
   const [formEmail, setFormEmail] = useState("");
   const [formSenha, setFormSenha] = useState("");
   const [formPerfil, setFormPerfil] = useState<Perfil>("Visualizador");
+  const [togglingAccess, setTogglingAccess] = useState<string | null>(null);
 
   const { data: usuarios, isLoading } = useQuery({
     queryKey: ["usuarios", companyId],
@@ -79,6 +93,50 @@ const GestaoUsuarios = () => {
     },
     enabled: !!companyId,
   });
+
+  // All companies for access matrix
+  const { data: allCompanies } = useQuery({
+    queryKey: ["all_companies"],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any).from("companies").select("id, name, initials").order("name");
+      return (data || []) as CompanyInfo[];
+    },
+  });
+
+  // Company access for all users with auth_id
+  const authIds = (usuarios || []).filter(u => u.auth_id).map(u => u.auth_id!);
+  const { data: accessList } = useQuery({
+    queryKey: ["user_access", companyId, authIds],
+    queryFn: async () => {
+      if (authIds.length === 0) return [];
+      const { data } = await supabase
+        .from("user_company_access")
+        .select("user_id, company_id, role")
+        .in("user_id", authIds);
+      return (data || []) as CompanyAccess[];
+    },
+    enabled: authIds.length > 0,
+  });
+
+  const hasAccess = (authId: string, cId: string) =>
+    (accessList || []).some(a => a.user_id === authId && a.company_id === cId);
+
+  const handleToggleAccess = async (authId: string, targetCompanyId: string) => {
+    const key = `${authId}-${targetCompanyId}`;
+    setTogglingAccess(key);
+    const currently = hasAccess(authId, targetCompanyId);
+    if (currently) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("user_company_access").delete().eq("user_id", authId).eq("company_id", targetCompanyId);
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("user_company_access").insert({ user_id: authId, company_id: targetCompanyId, role: "leitura" });
+    }
+    setTogglingAccess(null);
+    qc.invalidateQueries({ queryKey: ["user_access"] });
+    toast.success(currently ? "Acesso removido" : "Acesso concedido");
+  };
 
   const resetForm = () => {
     setEditingId(null);
@@ -318,6 +376,71 @@ const GestaoUsuarios = () => {
                   <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors.Visualizador}`}>Visualizador</span>
                   <p className="text-xs text-muted-foreground mt-1">Apenas visualiza dashboards, relatórios e exporta dados.</p>
                 </div>
+              </div>
+            </div>
+
+            {/* Company Access Matrix */}
+            <div className="hub-card-base p-6 mt-6">
+              <div className="flex items-center gap-2 mb-1">
+                <Building2 className="w-5 h-5 text-primary" />
+                <h2 className="text-sm font-semibold text-foreground">Acesso por Empresa</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mb-5">Gerencie quais empresas cada usuário pode acessar.</p>
+
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[150px]">Usuário</TableHead>
+                      {(allCompanies || []).map(c => (
+                        <TableHead key={c.id} className="text-center min-w-[80px]">
+                          <span className="text-[10px] font-bold">{c.initials}</span>
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(usuarios || []).filter(u => u.auth_id).map(u => (
+                      <TableRow key={u.id}>
+                        <TableCell>
+                          <div>
+                            <span className="text-sm font-medium">{u.nome}</span>
+                            <span className="text-[10px] text-muted-foreground block">{u.email}</span>
+                          </div>
+                        </TableCell>
+                        {(allCompanies || []).map(c => {
+                          const has = hasAccess(u.auth_id!, c.id);
+                          const isToggling = togglingAccess === `${u.auth_id}-${c.id}`;
+                          return (
+                            <TableCell key={c.id} className="text-center">
+                              <button
+                                onClick={() => handleToggleAccess(u.auth_id!, c.id)}
+                                disabled={isToggling}
+                                className="mx-auto block"
+                                title={`${has ? "Remover" : "Conceder"} acesso: ${u.nome} → ${c.name}`}
+                              >
+                                {isToggling ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mx-auto" />
+                                ) : has ? (
+                                  <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto cursor-pointer" />
+                                ) : (
+                                  <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto cursor-pointer hover:text-muted-foreground/60" />
+                                )}
+                              </button>
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ))}
+                    {(usuarios || []).filter(u => u.auth_id).length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={(allCompanies?.length || 0) + 1} className="text-center text-muted-foreground py-8">
+                          Nenhum usuário com conta de acesso configurada
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
             </div>
           </TabsContent>
