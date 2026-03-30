@@ -126,12 +126,17 @@ const GestaoUsuarios = () => {
     const key = `${authId}-${targetCompanyId}`;
     setTogglingAccess(key);
     const currently = hasAccess(authId, targetCompanyId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any;
     if (currently) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("user_company_access").delete().eq("user_id", authId).eq("company_id", targetCompanyId);
+      const { error } = await sb.from("user_company_access").delete().eq("user_id", authId).eq("company_id", targetCompanyId);
+      if (error) { toast.error(error.message); setTogglingAccess(null); return; }
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("user_company_access").insert({ user_id: authId, company_id: targetCompanyId, role: "leitura" });
+      const { error } = await sb.from("user_company_access").upsert(
+        { user_id: authId, company_id: targetCompanyId, role: "leitura" },
+        { onConflict: "user_id,company_id" }
+      );
+      if (error) { toast.error(error.message); setTogglingAccess(null); return; }
     }
     setTogglingAccess(null);
     qc.invalidateQueries({ queryKey: ["user_access"] });
