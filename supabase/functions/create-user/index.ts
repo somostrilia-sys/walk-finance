@@ -71,13 +71,28 @@ serve(async (req) => {
     if (profileError) errors.push(`profile: ${profileError.message}`)
 
     // 3. Create user_company_access
-    const { error: accessError } = await adminClient.from('user_company_access').insert({
-      user_id: userId,
-      company_id: companyId,
-      role: appRole,
-      invited_by: caller.id,
-    })
-    if (accessError) errors.push(`access: ${accessError.message}`)
+    // Admin gets access to ALL companies; others get only the specified company
+    if (perfil === 'Admin') {
+      const { data: allCompanies } = await adminClient.from('companies').select('id')
+      if (allCompanies && allCompanies.length > 0) {
+        const accessRows = allCompanies.map((c: { id: string }) => ({
+          user_id: userId,
+          company_id: c.id,
+          role: appRole,
+          invited_by: caller.id,
+        }))
+        const { error: accessError } = await adminClient.from('user_company_access').insert(accessRows)
+        if (accessError) errors.push(`access: ${accessError.message}`)
+      }
+    } else {
+      const { error: accessError } = await adminClient.from('user_company_access').insert({
+        user_id: userId,
+        company_id: companyId,
+        role: appRole,
+        invited_by: caller.id,
+      })
+      if (accessError) errors.push(`access: ${accessError.message}`)
+    }
 
     // 4. Create usuarios record (for internal management)
     const { error: usuarioError } = await adminClient.from('usuarios').insert({

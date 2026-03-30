@@ -405,15 +405,25 @@ const GestaoUsuarios = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(usuarios || []).filter(u => u.auth_id).map(u => (
+                    {(usuarios || []).filter(u => u.auth_id).map(u => {
+                      const isAdmin = u.perfil === "Admin";
+                      return (
                       <TableRow key={u.id}>
                         <TableCell>
                           <div>
                             <span className="text-sm font-medium">{u.nome}</span>
                             <span className="text-[10px] text-muted-foreground block">{u.email}</span>
+                            {isAdmin && <span className="text-[9px] text-[hsl(var(--accent))]">Acesso total</span>}
                           </div>
                         </TableCell>
                         {(allCompanies || []).map(c => {
+                          if (isAdmin) {
+                            return (
+                              <TableCell key={c.id} className="text-center">
+                                <CheckCircle2 className="w-4 h-4 text-[hsl(var(--accent))] mx-auto" />
+                              </TableCell>
+                            );
+                          }
                           const has = hasAccess(u.auth_id!, c.id);
                           const isToggling = togglingAccess === `${u.auth_id}-${c.id}`;
                           return (
@@ -436,7 +446,8 @@ const GestaoUsuarios = () => {
                           );
                         })}
                       </TableRow>
-                    ))}
+                      );
+                    })}
                     {(usuarios || []).filter(u => u.auth_id).length === 0 && (
                       <TableRow>
                         <TableCell colSpan={(allCompanies?.length || 0) + 1} className="text-center text-muted-foreground py-8">
