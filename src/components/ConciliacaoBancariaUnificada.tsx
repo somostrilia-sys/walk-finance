@@ -216,6 +216,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
         .from("financial_transactions")
         .select("id, date, description, amount, type")
         .eq("company_id", companyId)
+        .eq("status", "confirmado")
         .order("date", { ascending: false });
       if (error) throw error;
       return (data || []).map((t: any) => ({
