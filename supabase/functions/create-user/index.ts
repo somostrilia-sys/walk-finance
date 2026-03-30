@@ -44,7 +44,7 @@ serve(async (req) => {
 
     // Map perfil to app_role
     const roleMap: Record<string, string> = {
-      'Admin': 'franqueado',
+      'Admin': 'master',
       'Gestor': 'financeiro',
       'Auxiliar': 'financeiro',
       'Visualizador': 'leitura',
