@@ -132,19 +132,19 @@ const GestaoUsuarios = () => {
       if (error) { toast.error(error.message); return; }
       toast.success("Usuário atualizado!");
     } else {
-      const payload = {
-        company_id: companyId!,
-        nome: formNome,
-        email: formEmail,
-        senha_hash: formSenha,
-        perfil: formPerfil,
-        ativo: true,
-      };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from("usuarios").insert(payload);
+      const { data, error } = await supabase.functions.invoke("create-user", {
+        body: {
+          email: formEmail,
+          password: formSenha,
+          nome: formNome,
+          companyId: companyId!,
+          perfil: formPerfil,
+        },
+      });
       setSaving(false);
       if (error) { toast.error(error.message); return; }
-      toast.success("Usuário criado!");
+      if (data?.error) { toast.error(data.error); return; }
+      toast.success("Usuário criado! Ele já pode fazer login.");
     }
 
     setModalOpen(false);
