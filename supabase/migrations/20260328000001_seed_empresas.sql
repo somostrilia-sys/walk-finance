@@ -47,7 +47,6 @@ INSERT INTO company_modules (company_id, module_name, is_enabled) VALUES
   ('11111111-0002-0002-0002-000000000002', 'folha', true),
   ('11111111-0002-0002-0002-000000000002', 'gestao-fiscal', true),
   ('11111111-0002-0002-0002-000000000002', 'dre', true),
-  ('11111111-0002-0002-0002-000000000002', 'calendario-financeiro', true),
   ('11111111-0002-0002-0002-000000000002', 'categorizacao', true),
   ('11111111-0002-0002-0002-000000000002', 'cadastro-pessoas', true)
 ON CONFLICT (company_id, module_name) DO NOTHING;

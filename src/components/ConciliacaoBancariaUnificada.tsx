@@ -22,6 +22,8 @@ import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
 import { Upload, Camera, Plus, Pencil, Trash2, CheckSquare } from "lucide-react";
 import { parsePixQRCode } from "@/lib/pixParser";
+import { PERIOD_OPTIONS, filterByPeriod, type PeriodValue } from "@/lib/periodFilter";
+import { Calendar } from "lucide-react";
 import ModalConciliacaoV2 from "@/components/ModalConciliacaoV2";
 import { PluggyConnectButton } from "@/components/PluggyConnectButton";
 
@@ -183,6 +185,9 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   });
   const [saving, setSaving] = useState(false);
 
+  // ── Period filter ────────────────────────────────────────────────────────────
+  const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodValue>("ultimos-30");
+
   // ── Seleção múltipla ─────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
@@ -228,6 +233,10 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       })) as TransacaoManual[];
     },
   });
+
+  // ── Filtered data ───────────────────────────────────────────────────────────
+  const filteredExtrato = useMemo(() => filterByPeriod(extrato, filtroPeriodo, "data_lancamento"), [extrato, filtroPeriodo]);
+  const filteredManuais = useMemo(() => filterByPeriod(manuais, filtroPeriodo, "date"), [manuais, filtroPeriodo]);
 
   // ── File import ──────────────────────────────────────────────────────────────
 
@@ -348,10 +357,10 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
 
   const allIds = useMemo(() => {
     const ids: string[] = [];
-    extrato.forEach((i) => ids.push(i.id));
-    manuais.forEach((i) => ids.push(i.id));
+    filteredExtrato.forEach((i) => ids.push(i.id));
+    filteredManuais.forEach((i) => ids.push(i.id));
     return ids;
-  }, [extrato, manuais]);
+  }, [filteredExtrato, filteredManuais]);
 
   const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
   const someSelected = selectedIds.size > 0;
@@ -426,14 +435,22 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
 
         {/* ── ABA EXTRATO ── */}
         <TabsContent value="extrato" className="space-y-4 pt-2">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-2">
             <p className="text-sm text-muted-foreground">
-              {extrato.length + manuais.length} lançamento(s) registrados
+              {filteredExtrato.length + filteredManuais.length} lançamento(s)
             </p>
-            <Button size="sm" onClick={openManualCreate} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Novo Lançamento Manual
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select value={filtroPeriodo} onValueChange={(v) => setFiltroPeriodo(v as PeriodValue)}>
+                <SelectTrigger className="w-[180px] h-8 text-xs"><Calendar className="w-3.5 h-3.5 mr-1 text-muted-foreground" /><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={openManualCreate} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Novo Lançamento Manual
+              </Button>
+            </div>
           </div>
 
           {/* Barra de seleção múltipla */}
@@ -472,7 +489,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                 </div>
               )}
 
-              {extrato.map((item) => (
+              {filteredExtrato.map((item) => (
                 <div
                   key={item.id}
                   className={`flex items-center justify-between p-3 rounded-lg border text-sm transition-colors ${
@@ -517,7 +534,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                 </div>
               ))}
 
-              {manuais.map((item) => (
+              {filteredManuais.map((item) => (
                 <div
                   key={item.id}
                   className={`flex items-center justify-between p-3 rounded-lg border text-sm transition-colors ${

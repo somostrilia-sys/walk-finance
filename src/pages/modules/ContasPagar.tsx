@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { gerarParcelas, labelParcela } from "@/lib/utils";
+import { PERIOD_OPTIONS, filterByPeriod, type PeriodValue } from "@/lib/periodFilter";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import ModuleStatCard from "@/components/ModuleStatCard";
@@ -98,10 +99,8 @@ const ContasPagar = () => {
   // Parcelas state
   const [totalParcelas, setTotalParcelas] = useState(1);
 
-  // Month filter state
-  const mesAtual = new Date().toISOString().slice(0, 7);
-  const [filtroMes, setFiltroMes] = useState(mesAtual);
-  const [verTodas, setVerTodas] = useState(false);
+  // Period filter state
+  const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodValue>("ultimos-30");
 
   // Group expansion state
   const [grupoExpandido, setGrupoExpandido] = useState<string | null>(null);
@@ -167,10 +166,8 @@ const ContasPagar = () => {
   const filtered = useMemo(() => {
     let lista = contas;
 
-    // Month filter
-    if (!verTodas) {
-      lista = lista.filter((c: any) => c.date && c.date.startsWith(filtroMes));
-    }
+    // Period filter
+    lista = filterByPeriod(lista, filtroPeriodo, "date");
 
     // Status filter
     if (filtroStatus === "pendente") lista = lista.filter((c: any) => c.status === "pendente");
@@ -187,12 +184,7 @@ const ContasPagar = () => {
     }
 
     return lista.sort((a, b) => a.date.localeCompare(b.date));
-  }, [contas, filtroStatus, search, filtroMes, verTodas]);
-
-  const contasOutrosMeses = useMemo(() => {
-    if (verTodas) return 0;
-    return contas.filter((c: any) => !c.date?.startsWith(filtroMes)).length;
-  }, [contas, filtroMes, verTodas]);
+  }, [contas, filtroStatus, search, filtroPeriodo]);
 
   const totalPendente = contas.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount), 0);
   const totalPago = contas.filter((c: any) => c.status === "confirmado").reduce((s: number, c: any) => s + Number(c.amount), 0);
@@ -545,22 +537,13 @@ const ContasPagar = () => {
             </SelectContent>
           </Select>
 
-          {/* Month filter */}
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
-            <Input
-              type="month"
-              value={filtroMes}
-              onChange={e => { setFiltroMes(e.target.value); setVerTodas(false); }}
-              className="w-[160px]"
-            />
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setVerTodas(v => !v)}>
-            {verTodas ? "Ver mês" : "Ver todas"}
-          </Button>
-          {!verTodas && contasOutrosMeses > 0 && (
-            <span className="text-xs text-muted-foreground">{contasOutrosMeses} em outros meses</span>
-          )}
+          {/* Period filter */}
+          <Select value={filtroPeriodo} onValueChange={(v) => setFiltroPeriodo(v as PeriodValue)}>
+            <SelectTrigger className="w-[180px]"><Calendar className="w-4 h-4 mr-1 text-muted-foreground" /><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Relatório exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
