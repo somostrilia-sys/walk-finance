@@ -68,6 +68,8 @@ const GestaoUsuarios = () => {
   const { data: companies } = useCompanies();
   const company = companies?.find((c) => c.id === companyId);
   const qc = useQueryClient();
+  const isMaster = company?.role === "master";
+  const allowedPerfis = isMaster ? PERFIS : PERFIS.filter(p => p !== "Admin");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -183,6 +185,7 @@ const GestaoUsuarios = () => {
     if (!formNome.trim()) { toast.error("Informe o nome"); return; }
     if (!formEmail.trim()) { toast.error("Informe o e-mail"); return; }
     if (!editingId && !formSenha.trim()) { toast.error("Informe a senha"); return; }
+    if (!isMaster && formPerfil === "Admin") { toast.error("Apenas administradores podem criar outros administradores"); return; }
 
     setSaving(true);
 
@@ -493,7 +496,7 @@ const GestaoUsuarios = () => {
                 <Select value={formPerfil} onValueChange={(v) => setFormPerfil(v as Perfil)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {PERFIS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    {allowedPerfis.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
