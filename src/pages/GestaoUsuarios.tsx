@@ -11,11 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Pencil, UserX, UserCheck, Users } from "lucide-react";
+import { Plus, Loader2, Pencil, UserX, UserCheck, Users, Shield, CheckCircle2, XCircle } from "lucide-react";
 
-type Perfil = "Admin" | "Gestor" | "Visualizador";
+type Perfil = "Admin" | "Gestor" | "Auxiliar" | "Visualizador";
 
 interface Usuario {
   id: string;
@@ -27,13 +28,27 @@ interface Usuario {
   created_at: string;
 }
 
-const PERFIS: Perfil[] = ["Admin", "Gestor", "Visualizador"];
+const PERFIS: Perfil[] = ["Admin", "Gestor", "Auxiliar", "Visualizador"];
 
 const perfilColors: Record<Perfil, string> = {
   Admin: "bg-[hsl(var(--status-danger)/0.15)] text-[hsl(var(--status-danger))]",
   Gestor: "bg-[hsl(var(--status-warning)/0.15)] text-[hsl(var(--status-warning))]",
+  Auxiliar: "bg-[hsl(var(--accent)/0.15)] text-[hsl(var(--accent))]",
   Visualizador: "bg-[hsl(var(--status-positive)/0.15)] text-[hsl(var(--status-positive))]",
 };
+
+const PERMISSION_MATRIX: { label: string; admin: boolean; gestor: boolean; auxiliar: boolean; visualizador: boolean }[] = [
+  { label: "Ver dashboards e relatórios", admin: true, gestor: true, auxiliar: true, visualizador: true },
+  { label: "Exportar dados", admin: true, gestor: true, auxiliar: true, visualizador: true },
+  { label: "Criar e editar lançamentos", admin: true, gestor: true, auxiliar: true, visualizador: false },
+  { label: "Cadastrar clientes e prestadores", admin: true, gestor: true, auxiliar: true, visualizador: false },
+  { label: "Conciliação bancária", admin: true, gestor: true, auxiliar: false, visualizador: false },
+  { label: "Aprovar pagamentos", admin: true, gestor: true, auxiliar: false, visualizador: false },
+  { label: "Gerenciar categorias e plano de contas", admin: true, gestor: true, auxiliar: false, visualizador: false },
+  { label: "Gerenciar usuários e permissões", admin: true, gestor: false, auxiliar: false, visualizador: false },
+  { label: "Configurações da empresa", admin: true, gestor: false, auxiliar: false, visualizador: false },
+  { label: "Excluir registros", admin: true, gestor: false, auxiliar: false, visualizador: false },
+];
 
 const GestaoUsuarios = () => {
   const { companyId } = useParams();
@@ -145,6 +160,14 @@ const GestaoUsuarios = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageHeader title="Gestão de Usuários" subtitle={company?.name} showBack />
 
+        <Tabs defaultValue="usuarios" className="mt-2">
+          <TabsList className="mb-6">
+            <TabsTrigger value="usuarios" className="gap-1.5"><Users className="w-4 h-4" />Usuários</TabsTrigger>
+            <TabsTrigger value="permissoes" className="gap-1.5"><Shield className="w-4 h-4" />Permissões</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="usuarios">
+
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="hub-card-base p-5">
@@ -238,6 +261,68 @@ const GestaoUsuarios = () => {
             </Table>
           </div>
         )}
+
+          </TabsContent>
+
+          <TabsContent value="permissoes">
+            <div className="hub-card-base p-6 mb-6">
+              <div className="flex items-center gap-2 mb-1">
+                <Shield className="w-5 h-5 text-primary" />
+                <h2 className="text-sm font-semibold text-foreground">Matriz de Permissões por Perfil</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mb-5">Veja o que cada nível de acesso pode fazer no sistema.</p>
+
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[220px]">Funcionalidade</TableHead>
+                      {PERFIS.map(p => (
+                        <TableHead key={p} className="text-center w-[110px]">
+                          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors[p]}`}>{p}</span>
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {PERMISSION_MATRIX.map((row) => (
+                      <TableRow key={row.label}>
+                        <TableCell className="text-sm">{row.label}</TableCell>
+                        <TableCell className="text-center">{row.admin ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto" /> : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto" />}</TableCell>
+                        <TableCell className="text-center">{row.gestor ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto" /> : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto" />}</TableCell>
+                        <TableCell className="text-center">{row.auxiliar ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto" /> : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto" />}</TableCell>
+                        <TableCell className="text-center">{row.visualizador ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto" /> : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto" />}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <div className="hub-card-base p-5">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Descrição dos Perfis</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors.Admin}`}>Admin</span>
+                  <p className="text-xs text-muted-foreground mt-1">Acesso total. Gerencia usuários, configurações e pode excluir registros.</p>
+                </div>
+                <div className="space-y-1">
+                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors.Gestor}`}>Gestor</span>
+                  <p className="text-xs text-muted-foreground mt-1">Gerencia operações financeiras, aprova pagamentos e faz conciliação.</p>
+                </div>
+                <div className="space-y-1">
+                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors.Auxiliar}`}>Auxiliar</span>
+                  <p className="text-xs text-muted-foreground mt-1">Cria e edita lançamentos e cadastros, mas não aprova nem exclui.</p>
+                </div>
+                <div className="space-y-1">
+                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors.Visualizador}`}>Visualizador</span>
+                  <p className="text-xs text-muted-foreground mt-1">Apenas visualiza dashboards, relatórios e exporta dados.</p>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+        </Tabs>
 
         {/* Modal */}
         <Dialog open={modalOpen} onOpenChange={(o) => { if (!o) { setModalOpen(false); resetForm(); } else setModalOpen(true); }}>
