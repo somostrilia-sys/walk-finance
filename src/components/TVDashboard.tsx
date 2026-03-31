@@ -5,6 +5,8 @@ import { formatCurrency } from "@/data/mockData";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Maximize2, Minimize2 } from "lucide-react";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 
 const monthlyEvolution = [
@@ -41,8 +43,22 @@ const TVDashboard = () => {
   const [fullscreen, setFullscreen] = useState(false);
   const { data: companies } = useCompanies();
 
-  const totalRevenue = 998000;
-  const totalExpenses = 778000;
+  const { data: consolidado } = useQuery({
+    queryKey: ["tv_consolidado"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("finance-consolidado-grupo");
+        if (error || !data) return null;
+        return data as { faturamento: number; receita: number; despesas: number; lucro: number };
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  const totalRevenue = (consolidado && consolidado.receita > 0) ? consolidado.receita : 2500000;
+  const totalExpenses = (consolidado && consolidado.despesas > 0) ? consolidado.despesas : 1800000;
   const projectedBalance = totalRevenue - totalExpenses;
 
   // Generate mock revenue/balance per company

@@ -22,8 +22,9 @@ import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
 import {
   ArrowUpCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle,
-  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Calendar, ChevronDown, ChevronUp
+  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Calendar, ChevronDown, ChevronUp, HandCoins
 } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
 
 type StatusCR = "pendente" | "confirmado" | "cancelado";
 
@@ -648,7 +649,7 @@ const ContasReceber = () => {
               </TableRow></TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma conta encontrada</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9}><EmptyState icon={<HandCoins className="w-6 h-6" />} title="Nenhuma conta a receber" description="Adicione um recebimento clicando em + Nova Conta." /></TableCell></TableRow>
                 ) : filtered.map((c: any, i: number) => {
                   const vencido = isVencido(c.date, c.status);
                   const cfg = vencido

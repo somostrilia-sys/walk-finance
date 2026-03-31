@@ -22,8 +22,9 @@ import { formatCurrency } from "@/data/mockData";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowDownCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle,
-  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat, ChevronDown, ChevronUp, Calendar, Landmark
+  Paperclip, Loader2, Check, Trash2, Pencil, Upload, X, Repeat, ChevronDown, ChevronUp, Calendar, Landmark, ReceiptText
 } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
 
 type StatusCP = "pendente" | "confirmado" | "cancelado";
 
@@ -675,7 +676,7 @@ const ContasPagar = () => {
               </TableRow></TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma conta encontrada</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9}><EmptyState icon={<ReceiptText className="w-6 h-6" />} title="Nenhuma conta a pagar" description="Adicione um lançamento clicando em + Nova Conta." /></TableCell></TableRow>
                 ) : filtered.map((c: any, i: number) => {
                   const vencido = isVencido(c.date, c.status);
                   const cfg = vencido

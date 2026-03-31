@@ -16,7 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Users, UserPlus, Building2, Wrench, Search, Download, FileText, Landmark, Loader2, Trash2, Eye, Tag, Plus, Pencil } from "lucide-react";
+import { Users, UserPlus, Building2, Wrench, Search, Download, FileText, Landmark, Loader2, Trash2, Eye, Tag, Plus, Pencil, UserX, Activity } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
 import EmpresaTab from "@/components/EmpresaTab";
 import { formatCurrency } from "@/data/mockData";
 
@@ -404,7 +405,7 @@ const CadastroPessoas = () => {
                   </div>
                   <h4 className="font-semibold pt-2">Histórico de Movimentações</h4>
                   {pessoaTransactions.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-4">Nenhuma movimentação encontrada.</p>
+                    <EmptyState icon={<Activity className="w-5 h-5" />} title="Sem movimentações" description="Esta pessoa ainda não possui movimentações financeiras." className="py-6" />
                   ) : (
                     <Table>
                       <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Tipo</TableHead><TableHead className="text-right">Valor</TableHead></TableRow></TableHeader>
@@ -441,7 +442,7 @@ const CadastroPessoas = () => {
                 <TableHead className="w-24">Ações</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhum cadastro encontrado</TableCell></TableRow>}
+                {filtered.length === 0 && <TableRow><TableCell colSpan={7}><EmptyState icon={<UserX className="w-6 h-6" />} title="Nenhum cadastro encontrado" description="Adicione clientes, fornecedores ou parceiros clicando em + Novo." /></TableCell></TableRow>}
                 {filtered.map((p, i) => (
                   <TableRow key={p.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
                     <TableCell className="font-medium">{p.razao_social}</TableCell>

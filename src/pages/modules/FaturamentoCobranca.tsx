@@ -18,7 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Send, Plus, Download, Search, DollarSign, AlertTriangle, Clock, CheckCircle2, Percent, Loader2, Handshake, XCircle, Shield, BarChart3 } from "lucide-react";
+import { Send, Plus, Download, Search, DollarSign, AlertTriangle, Clock, CheckCircle2, Percent, Loader2, Handshake, XCircle, Shield, BarChart3, FileText, Bell } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
 import CobrancasTab from "@/components/CobrancasTab";
 import ConfiguracaoCobrancaTab from "@/components/ConfiguracaoCobrancaTab";
 
@@ -206,7 +207,7 @@ const FaturamentoCobranca = () => {
                 <Table>
                   <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Categoria</TableHead><TableHead>Descrição</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Data</TableHead><TableHead>Tipo</TableHead><TableHead>Consultor</TableHead><TableHead>NF</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {filteredFat.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhum faturamento</TableCell></TableRow>}
+                    {filteredFat.length === 0 && <TableRow><TableCell colSpan={8}><EmptyState icon={<FileText className="w-6 h-6" />} title="Nenhum faturamento registrado" description="Crie um novo faturamento para começar." /></TableCell></TableRow>}
                     {filteredFat.map(f => (
                       <TableRow key={f.id}>
                         <TableCell className="font-medium">{f.cliente_nome}</TableCell>
@@ -236,7 +237,7 @@ const FaturamentoCobranca = () => {
                 <Table>
                   <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Vencimento</TableHead><TableHead>Dias Atraso</TableHead><TableHead>Faixa</TableHead><TableHead>Última Cobrança</TableHead><TableHead>Acordos</TableHead><TableHead className="w-48">Ações</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {cob.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma cobrança</TableCell></TableRow>}
+                    {cob.length === 0 && <TableRow><TableCell colSpan={8}><EmptyState icon={<Bell className="w-6 h-6" />} title="Nenhuma cobrança gerada" description="As cobranças aparecerão aqui após serem geradas." /></TableCell></TableRow>}
                     {cob.map(c => (
                       <TableRow key={c.id}>
                         <TableCell className="font-medium">{c.cliente_nome}</TableCell>

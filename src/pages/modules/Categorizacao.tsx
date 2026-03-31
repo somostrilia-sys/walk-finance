@@ -18,7 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-import { FolderOpen, Plus, Pencil, Trash2, ChevronRight, TrendingUp, TrendingDown, Download, Filter, Loader2, Sparkles } from "lucide-react";
+import { FolderOpen, Plus, Pencil, Trash2, ChevronRight, TrendingUp, TrendingDown, Download, Filter, Loader2, Sparkles, Tags } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
 
 const GRUPOS = [
   "Receitas Diretas (Operacionais)", "Receitas Indiretas",
@@ -289,7 +290,7 @@ const Categorizacao = () => {
                     </Card>
                   ))}
                   {Object.keys(grouped).length === 0 && (
-                    <Card><CardContent className="p-12 text-center text-muted-foreground">Nenhuma categoria encontrada.</CardContent></Card>
+                    <Card><CardContent><EmptyState icon={<Tags className="w-6 h-6" />} title="Nenhuma categoria encontrada" description="Crie categorias para organizar suas despesas e receitas." /></CardContent></Card>
                   )}
                 </div>
               </TabsContent>
@@ -319,7 +320,7 @@ const Categorizacao = () => {
                           </TableCell>
                         </TableRow>
                       ))}
-                      {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhuma categoria.</TableCell></TableRow>}
+                      {filtered.length === 0 && <TableRow><TableCell colSpan={6}><EmptyState icon={<Tags className="w-6 h-6" />} title="Nenhuma categoria" description="Nenhuma categoria corresponde ao filtro atual." /></TableCell></TableRow>}
                     </TableBody>
                   </Table>
                 </CardContent></Card>
