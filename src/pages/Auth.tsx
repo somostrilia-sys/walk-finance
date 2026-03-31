@@ -66,13 +66,7 @@ const Auth = () => {
         />
 
         <div className="relative z-10 w-full max-w-sm flex flex-col items-center">
-          {/* Logo Walk Finance */}
-          <div className="mb-8 flex flex-col items-center select-none">
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black text-white tracking-tight">Walk</span>
-              <span className="text-xl font-light text-[#4da6ff] tracking-widest">Finance</span>
-            </div>
-          </div>
+
 
           {/* Form card */}
           <div className="w-full rounded-2xl bg-card border border-border/40 p-8"
