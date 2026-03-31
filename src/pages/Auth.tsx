@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { LogIn, UserPlus, Eye, EyeOff, Lock } from "lucide-react";
-import WalkLogo from "@/components/WalkLogo";
+
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -66,14 +66,13 @@ const Auth = () => {
         />
 
         <div className="relative z-10 w-full max-w-sm flex flex-col items-center">
-          {/* Logo */}
-          <div className="mb-4 flex flex-col items-center select-none">
-            <WalkLogo width={240} className="brightness-0 invert" />
+          {/* Logo Walk Finance */}
+          <div className="mb-8 flex flex-col items-center select-none">
+            <div className="flex items-baseline gap-1">
+              <span className="text-4xl font-black text-white tracking-tight">Walk</span>
+              <span className="text-xl font-light text-[#4da6ff] tracking-widest">Finance</span>
+            </div>
           </div>
-
-          {/* Subtitle + gold divider */}
-          <p className="text-sm text-muted-foreground mb-2 tracking-wide">Sistema Financeiro Integrado</p>
-          <div className="w-20 h-[2px] rounded-full mb-8 gold-gradient" />
 
           {/* Form card */}
           <div className="w-full rounded-2xl bg-card border border-border/40 p-8"
