@@ -58,8 +58,8 @@ const Auth = () => {
         <source src="/login-bg.mp4" type="video/mp4" />
       </video>
 
-      {/* Formulário — lado direito, canto inferior */}
-      <div className="absolute inset-0 flex items-end justify-end pb-16 pr-12">
+      {/* Formulário — centro-direita, abaixo do logo Walk Finance */}
+      <div className="absolute inset-0 flex items-center justify-end pr-12">
         <div className="w-full max-w-sm">
           <div className="w-full rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 p-8">
             {/* Title */}
@@ -99,7 +99,8 @@ const Auth = () => {
 
               <Button
                 type="submit"
-                className="w-full h-12 mt-1 text-base font-semibold rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+                className="w-full h-12 mt-1 text-base font-semibold rounded-xl text-white hover:opacity-90"
+                style={{ backgroundColor: "#2e5cc1" }}
                 disabled={loading}
               >
                 {loading ? "Processando..." : isLogin ? (<><LogIn className="w-4 h-4 mr-2" /> Entrar</>) : (<><UserPlus className="w-4 h-4 mr-2" /> Criar conta</>)}
