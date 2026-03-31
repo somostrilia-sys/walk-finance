@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import * as XLSX from "xlsx";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,10 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatCurrency } from "@/data/mockData";
 import { toast } from "sonner";
 import {
-  FileText, TrendingUp, Users, Plus, Trophy, DollarSign, BarChart3, Target, Loader2, Trash2, Link2,
+  FileText, TrendingUp, Users, Plus, Trophy, DollarSign, BarChart3, Target, Loader2, Trash2, Link2, Upload, FileSpreadsheet,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -55,6 +58,76 @@ const ModuloComercial = () => {
   const { data: companies } = useCompanies();
   const company = companies?.find((c) => c.id === companyId);
   const qc = useQueryClient();
+
+  // Import SGA states
+  const [importModal, setImportModal] = useState(false);
+  const [importData, setImportData] = useState<Record<string, string>[]>([]);
+  const [importHeaders, setImportHeaders] = useState<string[]>([]);
+  const [colConsultor, setColConsultor] = useState("");
+  const [colValor, setColValor] = useState("");
+  const [colPeriodo, setColPeriodo] = useState("");
+  const [importSaving, setImportSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+      const wb = XLSX.read(data, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
+      if (json.length === 0) { toast.error("Planilha vazia"); return; }
+      setImportHeaders(Object.keys(json[0]));
+      setImportData(json);
+      setColConsultor("");
+      setColValor("");
+      setColPeriodo("");
+      setImportModal(true);
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  };
+
+  const handleCalcularComissoes = async () => {
+    if (!colConsultor || !colValor) { toast.error("Mapeie as colunas obrigatórias"); return; }
+    setImportSaving(true);
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const periodoDefault = `${String(nextMonth.getMonth() + 1).padStart(2, "0")}/${nextMonth.getFullYear()}`;
+
+    const records = importData.map(row => {
+      const valor = parseFloat(String(row[colValor]).replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
+      return {
+        company_id: companyId!,
+        colaborador_id: null as string | null,
+        cliente: row[colConsultor] || "Importado SGA",
+        valor,
+        periodo: colPeriodo ? String(row[colPeriodo]) : periodoDefault,
+        status: "pendente",
+      };
+    }).filter(r => r.valor > 0);
+
+    // Try to match consultor names to colaborador IDs
+    for (const rec of records) {
+      const match = (colaboradores || []).find(c =>
+        c.nome.toLowerCase().includes(rec.cliente.toLowerCase()) ||
+        rec.cliente.toLowerCase().includes(c.nome.split(" ")[0].toLowerCase())
+      );
+      if (match) {
+        rec.colaborador_id = match.id;
+      }
+    }
+
+    const { error } = await supabase.from("comissoes_folha").insert(records as any);
+    setImportSaving(false);
+    if (error) { toast.error("Erro ao importar: " + error.message); return; }
+    toast.success(`${records.length} comissões importadas do relatório SGA!`);
+    setImportModal(false);
+    setImportData([]);
+    qc.invalidateQueries({ queryKey: ["comissoes-folha", companyId] });
+  };
 
   // Modal states
   const [regraModal, setRegraModal] = useState(false);
@@ -210,7 +283,15 @@ const ModuloComercial = () => {
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageHeader title="Módulo Comercial" subtitle={company?.name} showBack />
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <PageHeader title="Módulo Comercial" subtitle={company?.name} showBack />
+          <div>
+            <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileImport} />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="w-4 h-4 mr-1" /> Importar Relatório SGA
+            </Button>
+          </div>
+        </div>
 
         <Tabs defaultValue="comissionamento" className="w-full">
           <TabsList className="w-full justify-start mb-6 bg-card border border-border">
@@ -486,6 +567,80 @@ const ModuloComercial = () => {
               <Button onClick={handleCriarRegra} disabled={saving}>
                 {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
                 Criar Regra
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Importar SGA */}
+        <Dialog open={importModal} onOpenChange={setImportModal}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5" /> Importar Relatório SGA
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">{importData.length} linha(s) encontrada(s). Mapeie as colunas abaixo para calcular comissões.</p>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Coluna Consultor *</Label>
+                  <Select value={colConsultor} onValueChange={setColConsultor}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>{importHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Coluna Valor *</Label>
+                  <Select value={colValor} onValueChange={setColValor}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>{importHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Coluna Período</Label>
+                  <Select value={colPeriodo} onValueChange={setColPeriodo}>
+                    <SelectTrigger><SelectValue placeholder="Automático" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Mês seguinte (automático)</SelectItem>
+                      {importHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {importData.length > 0 && (
+                <ScrollArea className="max-h-[300px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {importHeaders.slice(0, 6).map(h => (
+                          <TableHead key={h} className="text-xs">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importData.slice(0, 20).map((row, i) => (
+                        <TableRow key={i}>
+                          {importHeaders.slice(0, 6).map(h => (
+                            <TableCell key={h} className="text-xs">{String(row[h] || "").slice(0, 40)}</TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                      {importData.length > 20 && (
+                        <TableRow><TableCell colSpan={6} className="text-center text-xs text-muted-foreground">... e mais {importData.length - 20} linhas</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setImportModal(false)}>Cancelar</Button>
+              <Button onClick={handleCalcularComissoes} disabled={importSaving || !colConsultor || !colValor}>
+                {importSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <TrendingUp className="w-4 h-4 mr-1" />}
+                Calcular Comissões
               </Button>
             </DialogFooter>
           </DialogContent>

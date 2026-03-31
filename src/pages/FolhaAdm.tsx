@@ -221,7 +221,8 @@ const FolhaAdm = () => {
     const payload = {
       company_id: companyId!,
       colaborador_id: formColaboradorId,
-      unidade: formUnidade || null,
+      nome_colaborador: formColaboradorNome,
+      unidade: formUnidade || "Sem unidade",
       cargo: formCargo,
       salario_base: salarioBaseNum,
       beneficios: beneficiosNum,

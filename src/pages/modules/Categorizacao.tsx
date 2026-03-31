@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { FolderOpen, Plus, Pencil, Trash2, ChevronRight, TrendingUp, TrendingDown, Download, Filter, Loader2, Sparkles, Tags } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import EmptyState from "@/components/EmptyState";
 
 const GRUPOS = [
@@ -259,6 +260,7 @@ const Categorizacao = () => {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-0">
+                        <ScrollArea className="max-h-[400px]">
                         <div className="divide-y divide-border/30">
                           {cats.map((cat: any) => (
                             <div key={cat.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/20 transition-colors">
@@ -286,6 +288,7 @@ const Categorizacao = () => {
                             </div>
                           ))}
                         </div>
+                        </ScrollArea>
                       </CardContent>
                     </Card>
                   ))}
@@ -296,6 +299,7 @@ const Categorizacao = () => {
               </TabsContent>
               <TabsContent value="lista">
                 <Card><CardContent className="p-0">
+                  <ScrollArea className="max-h-[500px]">
                   <Table>
                     <TableHeader><TableRow><TableHead>Ícone</TableHead><TableHead>Nome</TableHead><TableHead>Tipo</TableHead><TableHead>Classificação</TableHead><TableHead>Grupo</TableHead><TableHead className="w-20">Ações</TableHead></TableRow></TableHeader>
                     <TableBody>
@@ -323,6 +327,7 @@ const Categorizacao = () => {
                       {filtered.length === 0 && <TableRow><TableCell colSpan={6}><EmptyState icon={<Tags className="w-6 h-6" />} title="Nenhuma categoria" description="Nenhuma categoria corresponde ao filtro atual." /></TableCell></TableRow>}
                     </TableBody>
                   </Table>
+                </ScrollArea>
                 </CardContent></Card>
               </TabsContent>
             </Tabs>

@@ -15,7 +15,6 @@ import AreaSocio from "./pages/AreaSocio";
 import BranchDashboard from "./pages/BranchDashboard";
 import ModulePage from "./pages/ModulePage";
 import ModuloComercial from "./pages/ModuloComercial";
-import FluxoCaixaDiario from "./pages/FluxoCaixaDiario";
 import ProgramacaoPagamentos from "./pages/ProgramacaoPagamentos";
 import FolhaAdm from "./pages/FolhaAdm";
 import ContratacoesDemissoes from "./pages/ContratacoesDemissoes";
@@ -32,7 +31,6 @@ import NotFound from "./pages/NotFound";
 import Categorizacao from "./pages/modules/Categorizacao";
 import CadastroPessoas from "./pages/modules/CadastroPessoas";
 import ContasPagar from "./pages/modules/ContasPagar";
-import ContasReceber from "./pages/modules/ContasReceber";
 import ConciliacaoBancariaModule from "./pages/modules/ConciliacaoBancariaModule";
 import FolhaComissoes from "./pages/modules/FolhaComissoes";
 import ProjecaoPlanejamento from "./pages/modules/ProjecaoPlanejamento";
@@ -56,9 +54,7 @@ const App = () => (
             <Route path="/empresa/:companyId/categorizacao" element={<ProtectedRoute><Categorizacao /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/cadastro-pessoas" element={<ProtectedRoute><CadastroPessoas /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/contas-pagar" element={<ProtectedRoute><ContasPagar /></ProtectedRoute>} />
-            <Route path="/empresa/:companyId/contas-receber" element={<ProtectedRoute><ContasReceber /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/conciliacao" element={<ProtectedRoute><ConciliacaoBancariaModule /></ProtectedRoute>} />
-            <Route path="/empresa/:companyId/fluxo-caixa" element={<ProtectedRoute><FluxoCaixaDiario /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/folha" element={<ProtectedRoute><FolhaComissoes /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/projecao" element={<ProtectedRoute><ProjecaoPlanejamento /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/faturamento" element={<ProtectedRoute><FaturamentoCobranca /></ProtectedRoute>} />
@@ -68,7 +64,6 @@ const App = () => (
             <Route path="/empresa/:companyId/area-socio" element={<ProtectedRoute><AreaSocio /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/area-socio/:branchId" element={<ProtectedRoute><BranchDashboard /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/comercial" element={<ProtectedRoute><ModuloComercial /></ProtectedRoute>} />
-            <Route path="/empresa/:companyId/fluxo-caixa-diario" element={<ProtectedRoute><FluxoCaixaDiario /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/programacao-pagamentos" element={<ProtectedRoute><ProgramacaoPagamentos /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/folha-adm" element={<ProtectedRoute><FolhaAdm /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/contratacoes-demissoes" element={<ProtectedRoute><ContratacoesDemissoes /></ProtectedRoute>} />

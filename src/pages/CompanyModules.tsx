@@ -7,9 +7,8 @@ import { Loader2 } from "lucide-react";
 
 const moduleConfig: Record<string, { icon: string; description: string; label: string }> = {
   categorizacao: { icon: "FolderOpen", description: "Categorização de receitas e despesas", label: "Categorização" },
-  "cadastro-pessoas": { icon: "Users", description: "Clientes, prestadores e vínculos financeiros", label: "Clientes e Prestadores" },
+  "cadastro-pessoas": { icon: "Users", description: "Associados, prestadores e vínculos financeiros", label: "Associados e Prestadores" },
   "contas-pagar": { icon: "ArrowDownCircle", description: "Gestão de contas a pagar", label: "Contas a Pagar" },
-  "contas-receber": { icon: "ArrowUpCircle", description: "Gestão de contas a receber", label: "Contas a Receber" },
   conciliacao: { icon: "Landmark", description: "Extratos, conciliação e pagamentos", label: "Conciliação Bancária" },
   folha: { icon: "FileText", description: "Folha de pagamento e comissionamento", label: "Folha e Comissões" },
   projecao: { icon: "LineChart", description: "Projeção e planejamento financeiro", label: "Projeção e Planejamento" },
@@ -22,7 +21,6 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   "centro-custos": { icon: "Target", description: "Gestão de custos por evento", label: "Centro de Custos por Evento" },
   "folha-adm": { icon: "Users", description: "Folha de pagamento geral — todas unidades", label: "Folha de Pagamento Geral" },
   comercial: { icon: "TrendingUp", description: "Comissionamento, performance e ROI por consultor", label: "Módulo Comercial" },
-  "fluxo-caixa-diario": { icon: "Wallet", description: "Entradas e saídas por conta bancária", label: "Fluxo de Caixa" },
   "programacao-pagamentos": { icon: "CalendarCheck", description: "Banking integrado e fluxo de aprovação", label: "Programação de Pagamentos" },
   "contratacoes-demissoes": { icon: "UserPlus", description: "Gestão de colaboradores MEI e ciclo de vida", label: "Colaboradores" },
   "usuarios": { icon: "UserCog", description: "Gestão de acesso e usuários", label: "Usuários" },

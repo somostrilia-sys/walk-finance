@@ -198,19 +198,30 @@ const GestaoUsuarios = () => {
       if (error) { toast.error(error.message); return; }
       toast.success("Usuário atualizado!");
     } else {
-      const { data, error } = await supabase.functions.invoke("create-user", {
-        body: {
-          email: formEmail,
-          password: formSenha,
-          nome: formNome,
-          companyId: companyId!,
-          perfil: formPerfil,
-        },
-      });
-      setSaving(false);
-      if (error) { toast.error(error.message); return; }
-      if (data?.error) { toast.error(data.error); return; }
-      toast.success("Usuário criado! Ele já pode fazer login.");
+      try {
+        const { data, error } = await supabase.functions.invoke("create-user", {
+          body: {
+            email: formEmail,
+            password: formSenha,
+            nome: formNome,
+            companyId: companyId!,
+            perfil: formPerfil,
+          },
+        });
+        setSaving(false);
+        if (error) { toast.error(error.message); return; }
+        if (data?.error) { toast.error(data.error); return; }
+        // Handle 207 partial success
+        if (data?.success === false) {
+          toast.error(data.message || "Erro ao criar usuário. Verifique se você tem permissão de administrador e se o e-mail não está duplicado.");
+          return;
+        }
+        toast.success("Usuário criado! Ele já pode fazer login.");
+      } catch (err: any) {
+        setSaving(false);
+        toast.error(err?.message || "Erro de rede ao criar usuário. Verifique sua conexão.");
+        return;
+      }
     }
 
     setModalOpen(false);
