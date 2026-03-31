@@ -9,6 +9,7 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   categorizacao: { icon: "FolderOpen", description: "Categorização de receitas e despesas", label: "Categorização" },
   "cadastro-pessoas": { icon: "Users", description: "Associados, prestadores e vínculos financeiros", label: "Associados e Prestadores" },
   "contas-pagar": { icon: "ArrowDownCircle", description: "Gestão de contas a pagar", label: "Contas a Pagar" },
+  "contas-receber": { icon: "ArrowUpCircle", description: "Gestão de contas a receber", label: "Contas a Receber" },
   conciliacao: { icon: "Landmark", description: "Extratos, conciliação e pagamentos", label: "Conciliação Bancária" },
   folha: { icon: "FileText", description: "Folha de pagamento e comissionamento", label: "Folha e Comissões" },
   projecao: { icon: "LineChart", description: "Projeção e planejamento financeiro", label: "Projeção e Planejamento" },

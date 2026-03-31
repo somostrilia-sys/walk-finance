@@ -187,9 +187,9 @@ const ContasPagar = () => {
     return lista.sort((a, b) => a.date.localeCompare(b.date));
   }, [contas, filtroStatus, search, filtroPeriodo]);
 
-  const totalPendente = contas.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount), 0);
-  const totalPago = contas.filter((c: any) => c.status === "confirmado").reduce((s: number, c: any) => s + Number(c.amount), 0);
-  const totalVencido = contas.filter((c: any) => isVencido(c.date, c.status)).reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const totalPendente = filtered.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const totalPago = filtered.filter((c: any) => c.status === "confirmado").reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const totalVencido = filtered.filter((c: any) => isVencido(c.date, c.status)).reduce((s: number, c: any) => s + Number(c.amount), 0);
 
   const parcelasDoGrupo = (grupoParcela: string) => {
     if (!grupoParcela) return [];
@@ -516,7 +516,7 @@ const ContasPagar = () => {
         <PageHeader title="Contas a Pagar" subtitle="Gestão de pagamentos e obrigações" showBack companyLogo={company?.logo_url} />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
-          <ModuleStatCard label="Total Contas" value={contas.length} icon={<ArrowDownCircle className="w-4 h-4" />} />
+          <ModuleStatCard label="Total Contas" value={filtered.length} icon={<ArrowDownCircle className="w-4 h-4" />} />
           <ModuleStatCard label="Pendente" value={formatCurrency(totalPendente)} icon={<Clock className="w-4 h-4" />} />
           <ModuleStatCard label="Pago" value={formatCurrency(totalPago)} icon={<CheckCircle2 className="w-4 h-4" />} />
           <ModuleStatCard label="Vencido" value={formatCurrency(totalVencido)} icon={<AlertTriangle className="w-4 h-4" />} />

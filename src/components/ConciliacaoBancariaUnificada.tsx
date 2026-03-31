@@ -20,7 +20,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
-import { Upload, Camera, Plus, Pencil, Trash2, CheckSquare } from "lucide-react";
+import { Upload, Camera, Plus, Pencil, Trash2, CheckSquare, Landmark, CreditCard, PiggyBank, Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { parsePixQRCode } from "@/lib/pixParser";
 import { PERIOD_OPTIONS, filterByPeriod, type PeriodValue } from "@/lib/periodFilter";
 import { Calendar } from "lucide-react";
@@ -165,6 +168,30 @@ interface Props {
 }
 
 
+// ─── Bank search types ──────────────────────────────────────────────────────
+interface BancoBR { code: string; name: string; fullName?: string; }
+
+const BANCOS_POPULARES: BancoBR[] = [
+  { code: "001", name: "Banco do Brasil" },
+  { code: "033", name: "Santander" },
+  { code: "104", name: "Caixa Econômica Federal" },
+  { code: "237", name: "Bradesco" },
+  { code: "341", name: "Itaú Unibanco" },
+  { code: "260", name: "Nubank" },
+  { code: "077", name: "Inter" },
+  { code: "336", name: "C6 Bank" },
+  { code: "212", name: "Banco Original" },
+  { code: "756", name: "Sicoob" },
+  { code: "748", name: "Sicredi" },
+  { code: "422", name: "Safra" },
+  { code: "070", name: "BRB" },
+  { code: "085", name: "Ailos" },
+  { code: "290", name: "PagSeguro" },
+  { code: "380", name: "PicPay" },
+  { code: "403", name: "Cora" },
+  { code: "197", name: "Stone" },
+];
+
 export default function ConciliacaoBancariaUnificada({ companyId, branchId, bankAccountId }: Props) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -173,6 +200,136 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   const [origemModal, setOrigemModal] = useState<"arquivo" | "qrcode" | "open_finance">("arquivo");
   const [conciliacaoOpen, setConciliacaoOpen] = useState(false);
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
+
+  // ── Cadastro Contas Correntes ─────────────────────────────────────────────
+  const [contasModal, setContasModal] = useState(false);
+  const [novaContaOpen, setNovaContaOpen] = useState(false);
+  const [contaSaving, setContaSaving] = useState(false);
+  const [contaForm, setContaForm] = useState({
+    tipo_conta: "corrente" as "corrente" | "poupanca" | "cartao_credito",
+    banco_search: "",
+    banco_code: "",
+    banco_name: "",
+    nome_conta: "",
+    agencia: "",
+    conta: "",
+    digito: "",
+    saldo_inicial: "",
+    data_saldo_inicial: new Date().toISOString().slice(0, 10),
+    limite_credito: "",
+    conta_vinculada_id: "",
+  });
+  const [bancoResults, setBancoResults] = useState<BancoBR[]>([]);
+  const [bancoSearching, setBancoSearching] = useState(false);
+  const [showBancoDropdown, setShowBancoDropdown] = useState(false);
+
+  // Query contas bancárias
+  const { data: contasBancarias = [], isLoading: loadingContas } = useQuery({
+    queryKey: ["bank_accounts", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("bank_accounts")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("bank_name");
+      return (data || []) as any[];
+    },
+  });
+
+  const contasNaoCartao = contasBancarias.filter((c: any) => c.tipo_conta !== "cartao_credito");
+
+  // Buscar banco pelo nome
+  const handleBancoSearch = async (term: string) => {
+    setContaForm(f => ({ ...f, banco_search: term, banco_code: "", banco_name: "" }));
+    if (term.length < 2) { setBancoResults([]); setShowBancoDropdown(false); return; }
+    setBancoSearching(true);
+
+    // Filter from local list first
+    const local = BANCOS_POPULARES.filter(b =>
+      b.name.toLowerCase().includes(term.toLowerCase()) || b.code.includes(term)
+    );
+
+    // Try brasilapi for more results
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/banks/v1`);
+      if (res.ok) {
+        const all: { code: number; name: string; fullName: string }[] = await res.json();
+        const matches = all
+          .filter(b => b.name && (b.name.toLowerCase().includes(term.toLowerCase()) || String(b.code).padStart(3, "0").includes(term)))
+          .slice(0, 15)
+          .map(b => ({ code: String(b.code).padStart(3, "0"), name: b.name, fullName: b.fullName }));
+        setBancoResults(matches.length > 0 ? matches : local);
+      } else {
+        setBancoResults(local);
+      }
+    } catch {
+      setBancoResults(local);
+    }
+    setBancoSearching(false);
+    setShowBancoDropdown(true);
+  };
+
+  const handleSelectBanco = (b: BancoBR) => {
+    setContaForm(f => ({ ...f, banco_search: `${b.code} - ${b.name}`, banco_code: b.code, banco_name: b.name }));
+    setShowBancoDropdown(false);
+  };
+
+  const resetContaForm = () => {
+    setContaForm({
+      tipo_conta: "corrente", banco_search: "", banco_code: "", banco_name: "",
+      nome_conta: "", agencia: "", conta: "", digito: "",
+      saldo_inicial: "", data_saldo_inicial: new Date().toISOString().slice(0, 10),
+      limite_credito: "", conta_vinculada_id: "",
+    });
+  };
+
+  const handleSalvarConta = async () => {
+    if (!contaForm.banco_name) { toast({ title: "Selecione a instituição bancária", variant: "destructive" }); return; }
+    if (!contaForm.nome_conta) { toast({ title: "Informe o nome da conta", variant: "destructive" }); return; }
+    setContaSaving(true);
+    const payload: any = {
+      company_id: companyId,
+      bank_name: contaForm.banco_name,
+      account_number: contaForm.conta || null,
+      agency: contaForm.agencia || null,
+      current_balance: parseFloat(contaForm.saldo_inicial.replace(/\./g, "").replace(",", ".")) || 0,
+      tipo_conta: contaForm.tipo_conta,
+      nome_conta: contaForm.nome_conta,
+      digito: contaForm.digito || null,
+      codigo_banco: contaForm.banco_code || null,
+      saldo_inicial: parseFloat(contaForm.saldo_inicial.replace(/\./g, "").replace(",", ".")) || 0,
+      data_saldo_inicial: contaForm.data_saldo_inicial || null,
+      limite_credito: contaForm.tipo_conta === "cartao_credito" ? (parseFloat(contaForm.limite_credito.replace(/\./g, "").replace(",", ".")) || 0) : 0,
+      conta_vinculada_id: contaForm.tipo_conta === "cartao_credito" && contaForm.conta_vinculada_id ? contaForm.conta_vinculada_id : null,
+    };
+    const { error } = await supabase.from("bank_accounts").insert(payload);
+    setContaSaving(false);
+    if (error) { toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Conta cadastrada com sucesso!" });
+    qc.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+    setNovaContaOpen(false);
+    resetContaForm();
+  };
+
+  const handleDeleteConta = async (id: string) => {
+    const { error } = await supabase.from("bank_accounts").delete().eq("id", id);
+    if (error) { toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Conta removida" });
+    qc.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
+  };
+
+  const tipoContaIcon = (tipo: string) => {
+    if (tipo === "poupanca") return <PiggyBank className="w-4 h-4" />;
+    if (tipo === "cartao_credito") return <CreditCard className="w-4 h-4" />;
+    return <Landmark className="w-4 h-4" />;
+  };
+
+  const tipoContaLabel = (tipo: string) => {
+    if (tipo === "poupanca") return "Poupança";
+    if (tipo === "cartao_credito") return "Cartão de Crédito";
+    return "Conta Corrente";
+  };
 
   const [manualOpen, setManualOpen] = useState(false);
   const [editItem, setEditItem] = useState<TransacaoManual | null>(null);
@@ -427,6 +584,13 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
 
   return (
     <div className="space-y-4">
+      {/* Botões de ação principais */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button variant="outline" size="sm" onClick={() => setContasModal(true)} className="gap-1.5">
+          <Landmark className="w-4 h-4" /> Contas Correntes
+        </Button>
+      </div>
+
       <Tabs defaultValue="extrato">
         <TabsList>
           <TabsTrigger value="extrato">Extrato Bancário</TabsTrigger>
@@ -755,6 +919,164 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal Contas Correntes */}
+      <Dialog open={contasModal} onOpenChange={setContasModal}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Landmark className="w-5 h-5" /> Contas Correntes</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-muted-foreground">{contasBancarias.length} conta(s) cadastrada(s)</p>
+            <Button size="sm" onClick={() => { resetContaForm(); setNovaContaOpen(true); }}><Plus className="w-4 h-4 mr-1" />Incluir Conta</Button>
+          </div>
+
+          {loadingContas ? (
+            <p className="text-center text-sm text-muted-foreground py-6">Carregando...</p>
+          ) : contasBancarias.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-8">Nenhuma conta cadastrada. Clique em "Incluir Conta" para adicionar.</p>
+          ) : (
+            <ScrollArea className="max-h-[400px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Banco</TableHead>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Ag/Conta</TableHead>
+                    <TableHead className="text-right">Saldo</TableHead>
+                    <TableHead className="w-12"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {contasBancarias.map((c: any) => (
+                    <TableRow key={c.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          {tipoContaIcon(c.tipo_conta || "corrente")}
+                          <span className="text-xs">{tipoContaLabel(c.tipo_conta || "corrente")}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{c.codigo_banco ? `${c.codigo_banco} - ` : ""}{c.bank_name}</TableCell>
+                      <TableCell className="text-sm">{c.nome_conta || "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {c.agency || "—"} / {c.account_number || "—"}{c.digito ? `-${c.digito}` : ""}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(Number(c.current_balance || 0))}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteConta(c.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Nova Conta */}
+      <Dialog open={novaContaOpen} onOpenChange={(o) => { setNovaContaOpen(o); if (!o) resetContaForm(); }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Incluir Conta</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Tipo de Conta</Label>
+              <Select value={contaForm.tipo_conta} onValueChange={(v: any) => setContaForm(f => ({ ...f, tipo_conta: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="corrente"><div className="flex items-center gap-2"><Landmark className="w-4 h-4" />Conta Corrente</div></SelectItem>
+                  <SelectItem value="poupanca"><div className="flex items-center gap-2"><PiggyBank className="w-4 h-4" />Poupança</div></SelectItem>
+                  <SelectItem value="cartao_credito"><div className="flex items-center gap-2"><CreditCard className="w-4 h-4" />Cartão de Crédito</div></SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="relative">
+              <Label>Instituição Bancária</Label>
+              <Input
+                className="mt-1"
+                placeholder="Digite o nome ou código do banco..."
+                value={contaForm.banco_search}
+                onChange={(e) => handleBancoSearch(e.target.value)}
+                onFocus={() => { if (bancoResults.length > 0) setShowBancoDropdown(true); }}
+                onBlur={() => setTimeout(() => setShowBancoDropdown(false), 200)}
+              />
+              {bancoSearching && <Loader2 className="absolute right-3 top-9 w-4 h-4 animate-spin text-muted-foreground" />}
+              {showBancoDropdown && bancoResults.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {bancoResults.map((b) => (
+                    <button key={b.code} type="button" className="w-full text-left px-3 py-2 hover:bg-accent text-sm flex justify-between" onMouseDown={() => handleSelectBanco(b)}>
+                      <span className="font-medium">{b.name}</span>
+                      <span className="text-xs text-muted-foreground">{b.code}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label>Nome da Conta</Label>
+              <Input className="mt-1" placeholder="Ex: Conta Principal, Cartão Empresarial..." value={contaForm.nome_conta} onChange={(e) => setContaForm(f => ({ ...f, nome_conta: e.target.value }))} />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Agência</Label>
+                <Input className="mt-1" placeholder="0000" value={contaForm.agencia} onChange={(e) => setContaForm(f => ({ ...f, agencia: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Conta</Label>
+                <Input className="mt-1" placeholder="00000" value={contaForm.conta} onChange={(e) => setContaForm(f => ({ ...f, conta: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Dígito</Label>
+                <Input className="mt-1" placeholder="0" maxLength={2} value={contaForm.digito} onChange={(e) => setContaForm(f => ({ ...f, digito: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Saldo Inicial (R$)</Label>
+                <Input className="mt-1" placeholder="0,00" value={contaForm.saldo_inicial} onChange={(e) => setContaForm(f => ({ ...f, saldo_inicial: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Data do Saldo</Label>
+                <Input className="mt-1" type="date" value={contaForm.data_saldo_inicial} onChange={(e) => setContaForm(f => ({ ...f, data_saldo_inicial: e.target.value }))} />
+              </div>
+            </div>
+
+            {contaForm.tipo_conta === "cartao_credito" && (
+              <>
+                <div>
+                  <Label>Limite de Crédito (R$)</Label>
+                  <Input className="mt-1" placeholder="0,00" value={contaForm.limite_credito} onChange={(e) => setContaForm(f => ({ ...f, limite_credito: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Conta Vinculada</Label>
+                  <Select value={contaForm.conta_vinculada_id} onValueChange={(v) => setContaForm(f => ({ ...f, conta_vinculada_id: v }))}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione a conta de débito" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nenhuma</SelectItem>
+                      {contasNaoCartao.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>{c.bank_name} - {c.nome_conta || c.account_number || "Sem nome"}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground mt-1">Conta corrente onde o cartão será debitado</p>
+                </div>
+              </>
+            )}
+
+            <Button onClick={handleSalvarConta} className="w-full" disabled={contaSaving}>
+              {contaSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : "Cadastrar Conta"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
