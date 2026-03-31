@@ -58,8 +58,8 @@ const Auth = () => {
         <source src="/login-bg.mp4" type="video/mp4" />
       </video>
 
-      {/* Formulário — centro-direita, abaixo do logo Walk Finance */}
-      <div className="absolute inset-0 flex items-center justify-end pr-12">
+      {/* Formulário — alinhado com Walk Finance no vídeo (centro-direita) */}
+      <div className="absolute inset-0 flex items-center" style={{ justifyContent: "center", paddingLeft: "52%" }}>
         <div className="w-full max-w-sm">
           <div className="w-full rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 p-8">
             {/* Title */}
