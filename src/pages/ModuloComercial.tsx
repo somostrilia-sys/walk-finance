@@ -65,7 +65,7 @@ const ModuloComercial = () => {
   const [importHeaders, setImportHeaders] = useState<string[]>([]);
   const [colConsultor, setColConsultor] = useState("");
   const [colValor, setColValor] = useState("");
-  const [colPeriodo, setColPeriodo] = useState("");
+  const [colPeriodo, setColPeriodo] = useState("_automatico");
   const [importSaving, setImportSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,7 +104,7 @@ const ModuloComercial = () => {
         colaborador_id: null as string | null,
         cliente: row[colConsultor] || "Importado SGA",
         valor,
-        periodo: colPeriodo ? String(row[colPeriodo]) : periodoDefault,
+        periodo: (colPeriodo && colPeriodo !== "_automatico") ? String(row[colPeriodo]) : periodoDefault,
         status: "pendente",
       };
     }).filter(r => r.valor > 0);
@@ -603,7 +603,7 @@ const ModuloComercial = () => {
                   <Select value={colPeriodo} onValueChange={setColPeriodo}>
                     <SelectTrigger><SelectValue placeholder="Automático" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Mês seguinte (automático)</SelectItem>
+                      <SelectItem value="_automatico">Mês seguinte (automático)</SelectItem>
                       {importHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                     </SelectContent>
                   </Select>

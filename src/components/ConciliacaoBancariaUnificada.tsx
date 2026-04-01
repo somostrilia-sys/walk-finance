@@ -217,7 +217,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     saldo_inicial: "",
     data_saldo_inicial: new Date().toISOString().slice(0, 10),
     limite_credito: "",
-    conta_vinculada_id: "",
+    conta_vinculada_id: "_nenhuma",
   });
   const [bancoResults, setBancoResults] = useState<BancoBR[]>([]);
   const [bancoSearching, setBancoSearching] = useState(false);
@@ -280,7 +280,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       tipo_conta: "corrente", banco_search: "", banco_code: "", banco_name: "",
       nome_conta: "", agencia: "", conta: "", digito: "",
       saldo_inicial: "", data_saldo_inicial: new Date().toISOString().slice(0, 10),
-      limite_credito: "", conta_vinculada_id: "",
+      limite_credito: "", conta_vinculada_id: "_nenhuma",
     });
   };
 
@@ -301,7 +301,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       saldo_inicial: parseFloat(contaForm.saldo_inicial.replace(/\./g, "").replace(",", ".")) || 0,
       data_saldo_inicial: contaForm.data_saldo_inicial || null,
       limite_credito: contaForm.tipo_conta === "cartao_credito" ? (parseFloat(contaForm.limite_credito.replace(/\./g, "").replace(",", ".")) || 0) : 0,
-      conta_vinculada_id: contaForm.tipo_conta === "cartao_credito" && contaForm.conta_vinculada_id ? contaForm.conta_vinculada_id : null,
+      conta_vinculada_id: contaForm.tipo_conta === "cartao_credito" && contaForm.conta_vinculada_id && contaForm.conta_vinculada_id !== "_nenhuma" ? contaForm.conta_vinculada_id : null,
     };
     const { error } = await supabase.from("bank_accounts").insert(payload);
     setContaSaving(false);
@@ -1058,7 +1058,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                   <Select value={contaForm.conta_vinculada_id} onValueChange={(v) => setContaForm(f => ({ ...f, conta_vinculada_id: v }))}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione a conta de débito" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhuma</SelectItem>
+                      <SelectItem value="_nenhuma">Nenhuma</SelectItem>
                       {contasNaoCartao.map((c: any) => (
                         <SelectItem key={c.id} value={c.id}>{c.bank_name} - {c.nome_conta || c.account_number || "Sem nome"}</SelectItem>
                       ))}

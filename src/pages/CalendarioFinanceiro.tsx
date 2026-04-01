@@ -130,7 +130,7 @@ const CalendarioFinanceiro = () => {
   const [formDescricao, setFormDescricao] = useState("");
   const [formResponsavel, setFormResponsavel] = useState("");
   const [formCategoria, setFormCategoria] = useState("");
-  const [formUnidade, setFormUnidade] = useState("");
+  const [formUnidade, setFormUnidade] = useState("_sem_unidade");
   const [formStatus, setFormStatus] = useState("a_vencer");
   const [formValor, setFormValor] = useState("");
 
@@ -269,7 +269,7 @@ const CalendarioFinanceiro = () => {
     setFormResponsavel("");
     setFormValor("");
     setFormCategoria("");
-    setFormUnidade("");
+    setFormUnidade("_sem_unidade");
     setFormStatus("a_vencer");
     setShowNovaCat(false);
     setNovaCategoriaInput("");
@@ -286,7 +286,7 @@ const CalendarioFinanceiro = () => {
     setFormDescricao(c.descricao || "");
     setFormResponsavel(c.fornecedor);
     setFormCategoria(c.categoria || "");
-    setFormUnidade(c.unidade || "");
+    setFormUnidade(c.unidade || "_sem_unidade");
     setFormStatus(c.status === "em_atraso" ? "em_atraso" : c.status === "atrasado" ? "em_atraso" : c.status);
     const v = Number(c.valor);
     setFormValor(v > 0 ? v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
@@ -340,7 +340,7 @@ const CalendarioFinanceiro = () => {
       valor: valorNum,
       vencimento: formVencimento,
       categoria: formCategoria || null,
-      unidade: formUnidade || null,
+      unidade: (formUnidade && formUnidade !== "_sem_unidade") ? formUnidade : null,
       status: formStatus,
     };
 
@@ -707,7 +707,7 @@ const CalendarioFinanceiro = () => {
                 <Select value={formUnidade} onValueChange={setFormUnidade}>
                   <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sem unidade</SelectItem>
+                    <SelectItem value="_sem_unidade">Sem unidade</SelectItem>
                     {(branches || []).map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
                   </SelectContent>
                 </Select>

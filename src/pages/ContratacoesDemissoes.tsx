@@ -8,6 +8,7 @@ import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UnidadeCombobox } from "@/components/ui/UnidadeCombobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -366,15 +367,11 @@ const ContratacoesDemissoes = () => {
                       </div>
                       <div className="space-y-1.5">
                         <Label>Unidade</Label>
-                        <Select value={formUnidade} onValueChange={setFormUnidade}>
-                          <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="_sem_unidade">Sem unidade</SelectItem>
-                            {(branches || []).map((b: any) => (
-                              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <UnidadeCombobox
+                          branches={branches || []}
+                          value={formUnidade}
+                          onChange={setFormUnidade}
+                        />
                       </div>
                       <div className="space-y-1.5"><Label>Data de Admissão</Label><Input name="admissao" type="date" /></div>
                     </div>
@@ -583,15 +580,13 @@ const ContratacoesDemissoes = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input value={relBusca} onChange={(e) => setRelBusca(e.target.value)} placeholder="Buscar por nome..." className="pl-9" />
               </div>
-              <Select value={relFiltroUnidade} onValueChange={setRelFiltroUnidade}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="Todas as unidades" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas as unidades</SelectItem>
-                  {(branches || []).map((b: any) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <UnidadeCombobox
+                branches={branches || []}
+                value={relFiltroUnidade}
+                onChange={setRelFiltroUnidade}
+                allowAll
+                className="w-44"
+              />
               <div className="flex items-center gap-2">
                 <Label className="text-xs text-muted-foreground whitespace-nowrap">De</Label>
                 <Input type="date" value={relDataInicio} onChange={(e) => setRelDataInicio(e.target.value)} className="w-36" />
@@ -689,15 +684,11 @@ const ContratacoesDemissoes = () => {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Unidade</Label>
-                    <Select value={editUnidadeColab} onValueChange={setEditUnidadeColab}>
-                      <SelectTrigger><SelectValue placeholder="Sem unidade" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_sem_unidade">Sem unidade</SelectItem>
-                        {(branches || []).map((b: any) => (
-                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <UnidadeCombobox
+                      branches={branches || []}
+                      value={editUnidadeColab}
+                      onChange={setEditUnidadeColab}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Data de Admissão</Label>
