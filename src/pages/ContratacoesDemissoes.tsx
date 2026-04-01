@@ -472,8 +472,10 @@ const ContratacoesDemissoes = () => {
                         <th className="text-left py-3 px-4 text-muted-foreground font-medium">Nome</th>
                         <th className="text-left py-3 px-4 text-muted-foreground font-medium">CPF</th>
                         <th className="text-left py-3 px-4 text-muted-foreground font-medium">Cargo</th>
+                        <th className="text-left py-3 px-4 text-muted-foreground font-medium">Unidade</th>
                         <th className="text-left py-3 px-4 text-muted-foreground font-medium">Admissão</th>
                         <th className="text-right py-3 px-4 text-muted-foreground font-medium">Remuneração</th>
+                        <th className="text-center py-3 px-4 text-muted-foreground font-medium">Contrato</th>
                         <th className="text-center py-3 px-4 text-muted-foreground font-medium">Status</th>
                         <th className="text-center py-3 px-4 text-muted-foreground font-medium">Ações</th>
                       </tr>
@@ -484,8 +486,10 @@ const ContratacoesDemissoes = () => {
                           <td className="py-2.5 px-4 font-medium text-foreground">{c.nome}</td>
                           <td className="py-2.5 px-4 text-muted-foreground text-xs font-mono">{c.cpf || "—"}</td>
                           <td className="py-2.5 px-4 text-muted-foreground text-xs">{c.cargo}</td>
+                          <td className="py-2.5 px-4 text-muted-foreground text-xs">{c.unidade || "—"}</td>
                           <td className="py-2.5 px-4 text-muted-foreground text-xs">{c.admissao ? new Date(c.admissao).toLocaleDateString("pt-BR") : "—"}</td>
                           <td className="py-2.5 px-4 text-right font-semibold text-foreground">{formatCurrency(Number(c.salario_base))}</td>
+                          <td className="py-2.5 px-4 text-center"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{c.contrato || "MEI"}</span></td>
                           <td className="py-2.5 px-4 text-center">
                             <Badge variant="outline" className={c.status === "ativo"
                               ? "bg-[hsl(var(--status-positive)/0.15)] text-[hsl(var(--status-positive))] border-[hsl(var(--status-positive)/0.3)]"
@@ -514,7 +518,7 @@ const ContratacoesDemissoes = () => {
                         </tr>
                       ))}
                       {filtered.length === 0 && (
-                        <tr><td colSpan={7} className="text-center text-muted-foreground py-8">Nenhum colaborador encontrado</td></tr>
+                        <tr><td colSpan={9} className="text-center text-muted-foreground py-8">Nenhum colaborador encontrado</td></tr>
                       )}
                     </tbody>
                   </table>

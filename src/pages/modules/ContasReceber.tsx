@@ -72,6 +72,8 @@ const ContasReceber = () => {
   const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editModal, setEditModal] = useState<any | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -166,6 +168,24 @@ const ContasReceber = () => {
     setModalOpen(false);
     setForm({ ...emptyForm });
     toast({ title: "Conta a receber cadastrada com sucesso" });
+  };
+
+  const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editModal) return;
+    setEditSaving(true);
+    const fd = new FormData(e.currentTarget);
+    const table = editModal.source === "contas_receber" ? "contas_receber" : "financial_transactions";
+    const payload = editModal.source === "contas_receber"
+      ? { cliente: (fd.get("entity_name") as string)?.trim(), descricao: (fd.get("description") as string)?.trim(), valor: Number(fd.get("amount")), vencimento: fd.get("date") as string }
+      : { entity_name: (fd.get("entity_name") as string)?.trim(), description: (fd.get("description") as string)?.trim(), amount: Number(fd.get("amount")), date: fd.get("date") as string };
+    const { error } = await supabase.from(table as any).update(payload as any).eq("id", editModal.id);
+    setEditSaving(false);
+    if (error) return toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["contas_receber", companyId] });
+    setEditModal(null);
+    toast({ title: "Conta atualizada com sucesso" });
   };
 
   const handleBaixar = async (conta: any) => {
@@ -300,6 +320,9 @@ const ContasReceber = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditModal(c)} title="Editar">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
                           {c.status === "pendente" && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => handleBaixar(c)} title="Dar baixa">
                               <Check className="w-3.5 h-3.5" />
@@ -318,6 +341,41 @@ const ContasReceber = () => {
           </CardContent></Card>
         )}
       </div>
+
+      {/* Modal Editar */}
+      {editModal && (
+        <Dialog open={!!editModal} onOpenChange={(o) => { if (!o) setEditModal(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Editar Conta a Receber</DialogTitle></DialogHeader>
+            <form onSubmit={handleEdit} className="space-y-3 pt-2">
+              <div>
+                <label className="text-sm font-medium">Cliente *</label>
+                <Input className="mt-1" name="entity_name" defaultValue={editModal.entity_name} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Descrição</label>
+                <Input className="mt-1" name="description" defaultValue={editModal.description} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Valor (R$) *</label>
+                  <Input className="mt-1" type="number" step="0.01" name="amount" defaultValue={editModal.amount} required />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Vencimento *</label>
+                  <Input className="mt-1" type="date" name="date" defaultValue={editModal.date} required />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setEditModal(null)}>Cancelar</Button>
+                <Button type="submit" className="flex-1" disabled={editSaving}>
+                  {editSaving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : "Salvar"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </AppLayout>
   );
 };
