@@ -35,11 +35,21 @@ const CompanyModules = () => {
   const { data: modulesRaw, isLoading } = useCompanyModules(companyId);
   const company = companies?.find((c) => c.id === companyId);
 
-  const modules = modulesRaw
+  const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
+
+  // Para empresas Objetivo, o Relatório por Colaborador está integrado
+  // dentro do módulo Colaboradores — ocultar o módulo standalone
+  const HIDDEN_FOR_OBJETIVO = ["relatorio-colaborador"];
+
+  const modulesWithConciliacao = modulesRaw
     ? modulesRaw.some((m) => m.module_name === "conciliacao")
       ? modulesRaw
       : [...modulesRaw, { id: "conciliacao-fallback", module_name: "conciliacao", company_id: companyId, is_enabled: true }]
     : modulesRaw;
+
+  const modules = isObjetivo && modulesWithConciliacao
+    ? modulesWithConciliacao.filter((m) => !HIDDEN_FOR_OBJETIVO.includes(m.module_name))
+    : modulesWithConciliacao;
 
   if (!company && !isLoading) {
     return (

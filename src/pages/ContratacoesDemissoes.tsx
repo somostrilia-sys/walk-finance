@@ -16,8 +16,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatCurrency } from "@/data/mockData";
+import { formatCurrency as formatCurrencyLib } from "@/lib/formatCurrency";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Users, UserPlus, History, DollarSign, Plus, Search, Loader2, AlertTriangle, Pencil,
+  TrendingUp, TrendingDown, Download, FileText,
 } from "lucide-react";
 
 const ContratacoesDemissoes = () => {
@@ -35,11 +38,47 @@ const ContratacoesDemissoes = () => {
   const [busca, setBusca] = useState("");
   const [baseCalculo, setBaseCalculo] = useState<"manual" | "automatico">("manual");
 
+  // Relatório states
+  const [relBusca, setRelBusca] = useState("");
+  const [relFiltroUnidade, setRelFiltroUnidade] = useState("todas");
+  const [relDataInicio, setRelDataInicio] = useState("");
+  const [relDataFim, setRelDataFim] = useState("");
+
   // Fetch colaboradores from Supabase
   const { data: colaboradores, isLoading } = useQuery({
     queryKey: ["colaboradores", companyId],
     queryFn: async () => {
       const { data } = await supabase.from("colaboradores").select("*").eq("company_id", companyId!).order("nome");
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  // Comissões
+  const { data: comissoes } = useQuery({
+    queryKey: ["comissoes-folha", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("comissoes_folha").select("*").eq("company_id", companyId!);
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  // Descontos
+  const { data: descontos } = useQuery({
+    queryKey: ["descontos-folha", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("descontos_folha").select("*").eq("company_id", companyId!);
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  // Folha pagamento
+  const { data: folhaPagamento } = useQuery({
+    queryKey: ["folha-pagamento", companyId],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("folha_pagamento").select("*").eq("company_id", companyId!);
       return data || [];
     },
     enabled: !!companyId,
@@ -147,6 +186,84 @@ const ContratacoesDemissoes = () => {
 
   const colabDemissao = colaboradores?.find(c => c.id === demissaoModal);
 
+  // Relatório por colaborador
+  const relatorio = useMemo(() => {
+    return (colaboradores || []).map(c => {
+      let comissoesFiltradas = (comissoes || []).filter((cm: any) => cm.colaborador_id === c.id);
+      if (relDataInicio) comissoesFiltradas = comissoesFiltradas.filter((cm: any) => cm.created_at >= relDataInicio);
+      if (relDataFim) comissoesFiltradas = comissoesFiltradas.filter((cm: any) => cm.created_at <= relDataFim + "T23:59:59");
+
+      let descontosFiltrados = (descontos || []).filter((d: any) => d.colaborador_id === c.id);
+      if (relDataInicio) descontosFiltrados = descontosFiltrados.filter((d: any) => d.created_at >= relDataInicio);
+      if (relDataFim) descontosFiltrados = descontosFiltrados.filter((d: any) => d.created_at <= relDataFim + "T23:59:59");
+
+      let folhaRecords = (folhaPagamento || []).filter((f: any) => f.colaborador_id === c.id);
+      if (relDataInicio) folhaRecords = folhaRecords.filter((f: any) => (f.data_pagamento || f.created_at || "") >= relDataInicio);
+      if (relDataFim) folhaRecords = folhaRecords.filter((f: any) => (f.data_pagamento || f.created_at || "") <= relDataFim + "T23:59:59");
+
+      const folhaBeneficios = folhaRecords.reduce((s: number, f: any) => s + Number(f.beneficios || 0), 0);
+      const folhaDescontos = folhaRecords.reduce((s: number, f: any) => s + Number(f.descontos || 0), 0);
+      const folhaPago = folhaRecords.reduce((s: number, f: any) => s + Number(f.valor_liquido || 0), 0);
+
+      const allFolhaRecords = (folhaPagamento || [])
+        .filter((f: any) => f.colaborador_id === c.id)
+        .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""));
+      const unidade = (allFolhaRecords[0] as any)?.unidade || "—";
+
+      const totalComissoes = comissoesFiltradas.reduce((s: number, cm: any) => s + Number(cm.valor || 0), 0);
+      const totalDescontos = descontosFiltrados.reduce((s: number, d: any) => s + Number(d.valor || 0), 0);
+      const base = Number(c.salario_base || 0);
+      const totalPago = folhaPago > 0 ? folhaPago : base + totalComissoes - totalDescontos;
+
+      return {
+        id: c.id,
+        nome: c.nome,
+        cargo: c.cargo,
+        unidade,
+        salarioBase: base,
+        totalComissoes,
+        beneficios: folhaBeneficios,
+        descontos: totalDescontos + folhaDescontos,
+        totalRecebido: totalPago,
+      };
+    });
+  }, [colaboradores, comissoes, descontos, folhaPagamento, relDataInicio, relDataFim]);
+
+  const relatorioFiltrado = useMemo(() => {
+    let list = relatorio;
+    if (relBusca) {
+      const q = relBusca.toLowerCase();
+      list = list.filter(r => r.nome.toLowerCase().includes(q));
+    }
+    if (relFiltroUnidade !== "todas") {
+      const branchName = (branches || []).find((b: any) => b.id === relFiltroUnidade)?.name;
+      if (branchName) list = list.filter(r => r.unidade === branchName);
+    }
+    return list;
+  }, [relatorio, relBusca, relFiltroUnidade, branches]);
+
+  const relTotalGeral = relatorioFiltrado.reduce((s, r) => s + r.totalRecebido, 0);
+  const relTotalBeneficios = relatorioFiltrado.reduce((s, r) => s + r.beneficios, 0);
+  const relTotalDescontos = relatorioFiltrado.reduce((s, r) => s + r.descontos, 0);
+
+  const exportarRelatorioCSV = () => {
+    const headers = ["Nome", "Cargo", "Unidade", "Salário Base", "Benefícios", "Descontos", "Total Recebido"];
+    const rows = relatorioFiltrado.map(r => [
+      r.nome, r.cargo || "", r.unidade,
+      r.salarioBase.toFixed(2).replace(".", ","),
+      r.beneficios.toFixed(2).replace(".", ","),
+      r.descontos.toFixed(2).replace(".", ","),
+      r.totalRecebido.toFixed(2).replace(".", ","),
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(";")).join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `relatorio-colaboradores-${new Date().toISOString().split("T")[0]}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV exportado!");
+  };
+
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -164,6 +281,7 @@ const ContratacoesDemissoes = () => {
           <TabsList className="w-full justify-start mb-6 bg-card border border-border">
             <TabsTrigger value="todos" className="gap-1.5"><Users className="w-3.5 h-3.5" /> Todos os Colaboradores</TabsTrigger>
             <TabsTrigger value="historico" className="gap-1.5"><History className="w-3.5 h-3.5" /> Histórico</TabsTrigger>
+            <TabsTrigger value="relatorio" className="gap-1.5"><FileText className="w-3.5 h-3.5" /> Relatório por Colaborador</TabsTrigger>
           </TabsList>
 
           {/* === ABA TODOS === */}
@@ -323,6 +441,91 @@ const ContratacoesDemissoes = () => {
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* === ABA RELATÓRIO POR COLABORADOR === */}
+          <TabsContent value="relatorio">
+            {/* Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <StatCard label="Colaboradores" value={relatorioFiltrado.length} icon={<Users className="w-4 h-4" />} color="info" />
+              <StatCard label="Total Pago" value={formatCurrencyLib(relTotalGeral)} icon={<DollarSign className="w-4 h-4" />} color="positive" />
+              <StatCard label="Total Benefícios" value={formatCurrencyLib(relTotalBeneficios)} icon={<TrendingUp className="w-4 h-4" />} color="warning" />
+              <StatCard label="Total Descontos" value={formatCurrencyLib(relTotalDescontos)} icon={<TrendingDown className="w-4 h-4" />} color="danger" />
+            </div>
+
+            {/* Filtros */}
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input value={relBusca} onChange={(e) => setRelBusca(e.target.value)} placeholder="Buscar por nome..." className="pl-9" />
+              </div>
+              <Select value={relFiltroUnidade} onValueChange={setRelFiltroUnidade}>
+                <SelectTrigger className="w-44"><SelectValue placeholder="Todas as unidades" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as unidades</SelectItem>
+                  {(branches || []).map((b: any) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">De</Label>
+                <Input type="date" value={relDataInicio} onChange={(e) => setRelDataInicio(e.target.value)} className="w-36" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Até</Label>
+                <Input type="date" value={relDataFim} onChange={(e) => setRelDataFim(e.target.value)} className="w-36" />
+              </div>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={exportarRelatorioCSV}>
+                <Download className="w-4 h-4" /> Exportar CSV
+              </Button>
+            </div>
+
+            {/* Tabela */}
+            <div className="hub-card-base overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30">
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Cargo</TableHead>
+                      <TableHead>Unidade</TableHead>
+                      <TableHead className="text-right">Salário Base</TableHead>
+                      <TableHead className="text-right">Benefícios</TableHead>
+                      <TableHead className="text-right">Descontos</TableHead>
+                      <TableHead className="text-right">Total Recebido</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {relatorioFiltrado.map((r) => (
+                      <TableRow key={r.id} className="hover:bg-muted/20 transition-colors">
+                        <TableCell className="font-medium text-foreground">{r.nome}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs">{r.cargo || "—"}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs">{r.unidade}</TableCell>
+                        <TableCell className="text-right text-foreground">{formatCurrencyLib(r.salarioBase)}</TableCell>
+                        <TableCell className="text-right text-[hsl(var(--status-positive))]">{formatCurrencyLib(r.beneficios)}</TableCell>
+                        <TableCell className="text-right text-[hsl(var(--status-danger))]">{formatCurrencyLib(r.descontos)}</TableCell>
+                        <TableCell className="text-right font-bold text-foreground">{formatCurrencyLib(r.totalRecebido)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {relatorioFiltrado.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum dado encontrado</TableCell>
+                      </TableRow>
+                    )}
+                    {relatorioFiltrado.length > 0 && (
+                      <TableRow className="bg-muted/40 font-semibold border-t-2 border-border">
+                        <TableCell colSpan={3} className="font-bold text-foreground">TOTAIS</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrencyLib(relatorioFiltrado.reduce((s, r) => s + r.salarioBase, 0))}</TableCell>
+                        <TableCell className="text-right font-bold text-[hsl(var(--status-positive))]">{formatCurrencyLib(relTotalBeneficios)}</TableCell>
+                        <TableCell className="text-right font-bold text-[hsl(var(--status-danger))]">{formatCurrencyLib(relTotalDescontos)}</TableCell>
+                        <TableCell className="text-right font-bold text-foreground">{formatCurrencyLib(relTotalGeral)}</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
             </div>
           </TabsContent>
