@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { logAudit } from "@/lib/auditLog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +40,7 @@ const FluxoCaixa = () => {
       });
       if (error) throw error;
       toast.success("Lançamento adicionado!");
+      if (companyId) logAudit({ companyId, acao: "criar", modulo: "Fluxo de Caixa", descricao: `Lançamento criado: ${form.description} — R$ ${form.amount} (${form.type})` });
       setOpen(false);
       setForm({ type: "entrada", description: "", amount: "", date: new Date().toISOString().split("T")[0] });
       queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });

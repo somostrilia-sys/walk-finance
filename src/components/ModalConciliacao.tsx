@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
+import { logAudit } from "@/lib/auditLog";
 import { CheckCircle2, Plus, AlertCircle, X } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 
@@ -187,6 +188,7 @@ export default function ModalConciliacao({
       if (error) throw error;
       qc.invalidateQueries({ queryKey: ["modal_transactions", companyId] });
       toast({ title: "Lançamento criado com sucesso" });
+      logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Lançamento criado: ${novoLancamento.descricao} — R$ ${novoLancamento.valor}` });
       setShowForm(false);
       setNovoLancamento({ tipo: "saida", descricao: "", valor: "", data: new Date().toISOString().slice(0, 10) });
       if (data && selectedExtrato) {
@@ -261,6 +263,7 @@ export default function ModalConciliacao({
       qc.invalidateQueries({ queryKey: ["conc_transactions", companyId] });
       qc.invalidateQueries({ queryKey: ["conc_contas_pagar", companyId] });
       toast({ title: `${paresConfirmados.length} par(es) conciliado(s) com sucesso!` });
+      logAudit({ companyId, acao: "conciliar", modulo: "Conciliação Bancária", descricao: `${paresConfirmados.length} lançamento(s) conciliados — origem: ${origem}` });
       onClose();
     } catch (err: any) {
       toast({ title: "Erro na conciliação", description: err.message, variant: "destructive" });
@@ -286,6 +289,7 @@ export default function ModalConciliacao({
       qc.invalidateQueries({ queryKey: ["conc_transactions", companyId] });
       qc.invalidateQueries({ queryKey: ["conc_contas_pagar", companyId] });
       toast({ title: `${todos.length} par(es) conciliado(s) com sucesso!` });
+      logAudit({ companyId, acao: "conciliar", modulo: "Conciliação Bancária", descricao: `${todos.length} lançamento(s) conciliados (confirmação total) — origem: ${origem}` });
       onClose();
     } catch (err: any) {
       toast({ title: "Erro na conciliação", description: err.message, variant: "destructive" });

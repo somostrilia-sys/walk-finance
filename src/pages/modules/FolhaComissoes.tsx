@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
+import { logAudit } from "@/lib/auditLog";
 import { Users, Plus, Download, DollarSign, Percent, FileText, Calculator, Search, Pencil, Trash2, Loader2, Megaphone, Trophy, CalendarClock, UserMinus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 
@@ -166,10 +167,12 @@ const FolhaComissoes = () => {
       const { error } = await supabase.from("colaboradores").update(payload).eq("id", editColabId);
       if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); setSaving(false); return; }
       toast({ title: "Colaborador atualizado" });
+      logAudit({ companyId, acao: "editar", modulo: "Folha e Comissões", descricao: `Colaborador atualizado: ${formColab.nome}` });
     } else {
       const { error } = await supabase.from("colaboradores").insert(payload);
       if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); setSaving(false); return; }
       toast({ title: "Colaborador cadastrado" });
+      logAudit({ companyId, acao: "criar", modulo: "Folha e Comissões", descricao: `Colaborador cadastrado: ${formColab.nome} (${formColab.contrato})` });
     }
     setSaving(false); setModalColab(false); setEditColabId(null);
     setFormColab({ nome: "", cpf: "", cargo: "", admissao: "", contrato: "CLT", salario_base: 0, tipo_remuneracao: "fixo", banco: "", agencia: "", conta: "", chave_pix: "", comissao_percent: 0, comissao_tipo: "nenhum", dia_pagamento_salario: "", dia_pagamento_comissao: "", is_consultor: false, fechamento_salario: "", fechamento_comissao: "", dia_inicio_fechamento: null, dia_fim_fechamento: null, ajuda_custo: 0, dia_inicio_fechamento_ajuda: null, dia_fim_fechamento_ajuda: null });
@@ -184,6 +187,7 @@ const FolhaComissoes = () => {
   const handleDeleteColab = async (id: string) => {
     await supabase.from("colaboradores").delete().eq("id", id);
     toast({ title: "Colaborador excluído" });
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Folha e Comissões", descricao: `Colaborador excluído (id: ${id})` });
     invalidate("colaboradores", "comissoes_folha", "descontos_folha");
   };
 
@@ -194,6 +198,7 @@ const FolhaComissoes = () => {
     setSaving(false);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Comissão registrada" });
+    logAudit({ companyId, acao: "criar", modulo: "Folha e Comissões", descricao: `Comissão registrada: cliente ${formComissao.cliente}, R$ ${formComissao.valor}` });
     setModalComissao(false);
     setFormComissao({ colaborador_id: "", cliente: "", valor: 0, status: "pendente", periodo: "" });
     invalidate("comissoes_folha");
@@ -212,6 +217,7 @@ const FolhaComissoes = () => {
     setSaving(false);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Desconto registrado" });
+    logAudit({ companyId, acao: "criar", modulo: "Folha e Comissões", descricao: `Desconto registrado: tipo ${formDesconto.tipo}, R$ ${formDesconto.valor}` });
     setModalDesconto(false);
     setFormDesconto({ colaborador_id: "", tipo: "", valor: 0, referencia: "", observacao: "" });
     invalidate("descontos_folha");
@@ -227,6 +233,7 @@ const FolhaComissoes = () => {
     setSaving(false);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Campanha criada" });
+    logAudit({ companyId, acao: "criar", modulo: "Folha e Comissões", descricao: `Campanha criada: ${formCampanha.nome}` });
     setModalCampanha(false);
     setFormCampanha({ nome: "", descricao: "", meta: 0, bonus_percent: 0, data_inicio: "", data_fim: "", status: "ativa" });
     invalidate("campanhas");
@@ -235,18 +242,21 @@ const FolhaComissoes = () => {
   const handleDeleteCampanha = async (id: string) => {
     await supabase.from("campanhas").delete().eq("id", id);
     toast({ title: "Campanha excluída" });
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Folha e Comissões", descricao: `Campanha excluída (id: ${id})` });
     invalidate("campanhas");
   };
 
   const handleDeleteComissao = async (id: string) => {
     await supabase.from("comissoes_folha").delete().eq("id", id);
     toast({ title: "Comissão excluída" });
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Folha e Comissões", descricao: `Comissão excluída (id: ${id})` });
     invalidate("comissoes_folha");
   };
 
   const handleDeleteDesconto = async (id: string) => {
     await supabase.from("descontos_folha").delete().eq("id", id);
     toast({ title: "Desconto excluído" });
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Folha e Comissões", descricao: `Desconto excluído (id: ${id})` });
     invalidate("descontos_folha");
   };
 

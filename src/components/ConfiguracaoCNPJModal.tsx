@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { logAudit } from "@/lib/auditLog";
 
 interface ConfiguracaoCNPJModalProps {
   open: boolean;
@@ -83,6 +84,7 @@ export default function ConfiguracaoCNPJModal({
       return;
     }
     toast({ title: "✅ CNPJ atualizado com sucesso!" });
+    logAudit({ companyId, acao: "editar", modulo: "Configurações", descricao: `CNPJ atualizado: ${cnpjDigitos || "removido"}` });
     onSaved();
     onOpenChange(false);
   }

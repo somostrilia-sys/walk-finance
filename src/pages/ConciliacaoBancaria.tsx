@@ -8,6 +8,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { logAudit } from "@/lib/auditLog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,7 @@ const ConciliacaoBancaria = () => {
       });
       if (error) throw error;
       toast.success("Conta bancária adicionada!");
+      if (companyId) logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta bancária adicionada: ${accountForm.bank_name}` });
       setOpenAccount(false);
       setAccountForm({ bank_name: "", account_number: "", agency: "", current_balance: "" });
       await queryClient.refetchQueries({ queryKey: ["bank_accounts", companyId] });
@@ -66,6 +68,7 @@ const ConciliacaoBancaria = () => {
       });
       if (error) throw error;
       toast.success("Extrato importado!");
+      if (companyId) logAudit({ companyId, acao: "importar", modulo: "Conciliação Bancária", descricao: `Extrato importado: ${entryForm.external_description} — R$ ${entryForm.amount}` });
       setOpenEntry(false);
       setEntryForm({ bank_account_id: "", external_description: "", amount: "", date: new Date().toISOString().split("T")[0] });
       await queryClient.refetchQueries({ queryKey: ["bank_reconciliation", companyId] });
@@ -77,6 +80,7 @@ const ConciliacaoBancaria = () => {
       const { error } = await supabase.from("bank_reconciliation_entries").update({ status: "conciliado" }).eq("id", entryId);
       if (error) throw error;
       toast.success("Entrada conciliada!");
+      if (companyId) logAudit({ companyId, acao: "conciliar", modulo: "Conciliação Bancária", descricao: `Entrada conciliada (id: ${entryId})` });
       await queryClient.refetchQueries({ queryKey: ["bank_reconciliation", companyId] });
     } catch (err: any) { toast.error(err.message); }
   };

@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { logAudit } from "@/lib/auditLog";
 import {
   Plus, Loader2, Pencil, UserX, UserCheck, Users, Shield,
   CheckCircle2, XCircle, Building2, Crown, Briefcase, Eye,
@@ -213,6 +214,7 @@ const GestaoUsuariosGlobal = () => {
     setTogglingAccess(null);
     qc.invalidateQueries({ queryKey: ["user_access_global"] });
     toast.success(currently ? "Acesso removido" : "Acesso concedido");
+    logAudit({ companyId: targetCompanyId, acao: currently ? "desativar" : "ativar", modulo: "Gestão de Usuários", descricao: `Acesso ${currently ? "removido" : "concedido"} para usuário (auth_id: ${authId}) na empresa ${targetCompanyId}` });
   };
 
   const resetForm = () => {
@@ -248,6 +250,7 @@ const GestaoUsuariosGlobal = () => {
     await (supabase as any).from("usuarios").update({ ativo: !u.ativo }).eq("id", u.id);
     setTogglingId(null);
     toast.success(u.ativo ? "Usuário desativado!" : "Usuário ativado!");
+    logAudit({ companyId: u.company_id, acao: u.ativo ? "desativar" : "ativar", modulo: "Gestão de Usuários", descricao: `Usuário ${u.ativo ? "desativado" : "ativado"}: ${u.nome} (${u.email})` });
     qc.invalidateQueries({ queryKey: ["usuarios-global"] });
   };
 
@@ -271,6 +274,7 @@ const GestaoUsuariosGlobal = () => {
       setSaving(false);
       if (error) { toast.error(error.message); return; }
       toast.success("Usuário atualizado!");
+      logAudit({ companyId: formCompanyId, acao: "editar", modulo: "Gestão de Usuários", descricao: `Usuário atualizado: ${formNome} (${formEmail})` });
     } else {
       // Create mode
       const roleMap: Record<Perfil, string> = {
@@ -317,6 +321,7 @@ const GestaoUsuariosGlobal = () => {
         }
 
         toast.success("Usuário criado! Ele já pode fazer login.");
+        logAudit({ companyId: formCompanyId, acao: "criar", modulo: "Gestão de Usuários", descricao: `Usuário criado: ${formNome} (${formEmail}) — perfil: ${formPerfil}` });
       } catch (err: any) {
         setSaving(false);
         toast.error(err?.message || "Erro de rede ao criar usuário.");

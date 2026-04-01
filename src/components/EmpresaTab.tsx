@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, Pencil, Trash2, Upload, Download, AlertTriangle, FileText } from "lucide-react";
+import { logAudit } from "@/lib/auditLog";
 
 interface EmpresaTabProps {
   companyId: string;
@@ -182,6 +183,7 @@ export default function EmpresaTab({ companyId }: EmpresaTabProps) {
     if (error) return toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     qc.invalidateQueries({ queryKey: ["empresa_perfil", companyId] });
     toast({ title: "Dados salvos com sucesso" });
+    logAudit({ companyId, acao: "editar", modulo: "Configurações", descricao: `Perfil da empresa atualizado — ${perfil.razao_social || perfil.nome_fantasia}` });
   };
 
   const openAddSocio = () => {
@@ -224,6 +226,7 @@ export default function EmpresaTab({ companyId }: EmpresaTabProps) {
     qc.invalidateQueries({ queryKey: ["empresa_socios", companyId] });
     setSocioModal(false);
     toast({ title: editSocio ? "Sócio atualizado" : "Sócio adicionado" });
+    logAudit({ companyId, acao: editSocio ? "editar" : "criar", modulo: "Configurações", descricao: `${editSocio ? "Sócio atualizado" : "Sócio adicionado"}: ${socioForm.nome}` });
   };
 
   const deleteSocio = async (id: string) => {
@@ -231,6 +234,7 @@ export default function EmpresaTab({ companyId }: EmpresaTabProps) {
     if (error) return toast({ title: "Erro ao excluir", variant: "destructive" });
     qc.invalidateQueries({ queryKey: ["empresa_socios", companyId] });
     toast({ title: "Sócio excluído" });
+    logAudit({ companyId, acao: "excluir", modulo: "Configurações", descricao: `Sócio excluído (id: ${id})` });
   };
 
   const handleFileSelect = async (tipo: string, file: File) => {
@@ -274,6 +278,7 @@ export default function EmpresaTab({ companyId }: EmpresaTabProps) {
       }
       qc.invalidateQueries({ queryKey: ["empresa_documentos", companyId] });
       toast({ title: "Documento salvo" });
+      logAudit({ companyId, acao: "editar", modulo: "Configurações", descricao: `Documento salvo: ${file.name} (tipo: ${tipo})` });
     } catch (e: any) {
       toast({ title: "Erro ao salvar documento", description: e.message, variant: "destructive" });
     } finally {

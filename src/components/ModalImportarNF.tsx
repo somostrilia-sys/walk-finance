@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, X, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { parseNFe, NFeDados } from "@/lib/nfeParser";
+import { logAudit } from "@/lib/auditLog";
 
 interface FileItem {
   file: File;
@@ -223,6 +224,10 @@ export default function ModalImportarNF({ open, onOpenChange, companyId }: Modal
 
     setImporting(false);
     setResultados(results);
+    const importadas = results.filter(r => r.ok).length;
+    if (importadas > 0) {
+      logAudit({ companyId, acao: "importar", modulo: "Gestão Fiscal", descricao: `${importadas} nota(s) fiscal(is) importada(s)` });
+    }
     setFiles([]);
   }
 

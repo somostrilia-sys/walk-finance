@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
+import { logAudit } from "@/lib/auditLog";
 import {
   FileText, CheckCircle2, AlertTriangle, Search, Download, Upload,
   Eye, Trash2, Settings, Shield, Plus, Bell, Calculator, CalendarDays,
@@ -196,6 +197,7 @@ const GestaoFiscal = () => {
     if (rows.length) { const { error } = await supabase.from("regime_fiscal").insert(rows); if (error) { toast({ title: "Erro", variant: "destructive" }); return; } }
     queryClient.invalidateQueries({ queryKey: ["regime_fiscal", companyId] });
     toast({ title: `Regime ${REGIMES.find(r => r.value === regime)?.label} configurado` });
+    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Gestão Fiscal", descricao: `Regime fiscal configurado: ${REGIMES.find(r => r.value === regime)?.label || regime}` });
   };
 
   const handleAddAlerta = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -210,12 +212,14 @@ const GestaoFiscal = () => {
     queryClient.invalidateQueries({ queryKey: ["alertas_fiscais", companyId] });
     setOpenAlerta(false);
     toast({ title: "Alerta criado" });
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Gestão Fiscal", descricao: `Alerta fiscal criado: ${fd.get("titulo") as string}` });
   };
 
   const handleResolverAlerta = async (id: string) => {
     await supabase.from("alertas_fiscais").update({ resolvido: true, resolvido_por: user?.id, resolvido_em: new Date().toISOString() }).eq("id", id);
     queryClient.invalidateQueries({ queryKey: ["alertas_fiscais", companyId] });
     toast({ title: "Alerta resolvido" });
+    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Gestão Fiscal", descricao: `Alerta fiscal resolvido (id: ${id})` });
   };
 
   const filteredAuditoria = useMemo(() => {

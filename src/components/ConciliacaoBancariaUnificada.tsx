@@ -2,6 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { logAudit } from "@/lib/auditLog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -307,6 +308,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     setContaSaving(false);
     if (error) { toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Conta cadastrada com sucesso!" });
+    logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta bancária cadastrada: ${contaForm.nome_conta} — ${contaForm.banco_name}` });
     qc.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
     setNovaContaOpen(false);
     resetContaForm();
@@ -316,6 +318,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     const { error } = await supabase.from("bank_accounts").delete().eq("id", id);
     if (error) { toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Conta removida" });
+    logAudit({ companyId, acao: "excluir", modulo: "Conciliação Bancária", descricao: `Conta bancária removida (id: ${id})` });
     qc.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
   };
 
@@ -483,10 +486,12 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
         const { error } = await supabase.from("financial_transactions").update(payload).eq("id", editItem.id);
         if (error) throw error;
         toast({ title: "Lançamento atualizado" });
+        logAudit({ companyId, acao: "editar", modulo: "Conciliação Bancária", descricao: `Lançamento manual atualizado: ${manualForm.description} — R$ ${manualForm.amount}` });
       } else {
         const { error } = await supabase.from("financial_transactions").insert(payload);
         if (error) throw error;
         toast({ title: "Lançamento criado" });
+        logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Lançamento manual criado: ${manualForm.description} — R$ ${manualForm.amount}` });
       }
       qc.invalidateQueries({ queryKey: ["unif_manuais", companyId] });
       setManualOpen(false);
@@ -503,6 +508,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       if (error) throw error;
       qc.invalidateQueries({ queryKey: ["unif_manuais", companyId] });
       toast({ title: "Lançamento removido" });
+      logAudit({ companyId, acao: "excluir", modulo: "Conciliação Bancária", descricao: `Lançamento manual removido (id: ${id})` });
     } catch (err: any) {
       toast({ title: "Erro ao remover", description: err.message, variant: "destructive" });
     } finally {
@@ -556,9 +562,11 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
 
       qc.invalidateQueries({ queryKey: ["unif_extrato", companyId] });
       qc.invalidateQueries({ queryKey: ["unif_manuais", companyId] });
+      const totalRemovidos = extratoIds.length + manuaisIds.length;
       setSelectedIds(new Set());
       setDeleteSelectedOpen(false);
-      toast({ title: `${extratoIds.length + manuaisIds.length} lançamento(s) removido(s)` });
+      toast({ title: `${totalRemovidos} lançamento(s) removido(s)` });
+      logAudit({ companyId, acao: "excluir", modulo: "Conciliação Bancária", descricao: `${totalRemovidos} lançamento(s) excluídos em lote` });
     } catch (err: any) {
       toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
     } finally {

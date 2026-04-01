@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatCurrency } from "@/data/mockData";
 import { toast } from "sonner";
+import { logAudit } from "@/lib/auditLog";
 import {
   FileText, TrendingUp, Users, Plus, Trophy, DollarSign, BarChart3, Target, Loader2, Trash2, Link2, Upload, FileSpreadsheet,
 } from "lucide-react";
@@ -124,6 +125,7 @@ const ModuloComercial = () => {
     setImportSaving(false);
     if (error) { toast.error("Erro ao importar: " + error.message); return; }
     toast.success(`${records.length} comissões importadas do relatório SGA!`);
+    if (companyId) logAudit({ companyId, acao: "importar", modulo: "Módulo Comercial", descricao: `${records.length} comissões importadas do relatório SGA` });
     setImportModal(false);
     setImportData([]);
     qc.invalidateQueries({ queryKey: ["comissoes-folha", companyId] });
@@ -184,6 +186,7 @@ const ModuloComercial = () => {
       };
       setRegras(prev => [...prev, newRegra]);
       toast.success("Regra de comissão criada!");
+      if (companyId) logAudit({ companyId, acao: "criar", modulo: "Módulo Comercial", descricao: `Regra de comissão criada: ${novoTipo}` });
       setRegraModal(false);
       setFaixas([{ min: 1, max: 5, valor: 50 }, { min: 6, max: 10, valor: 80 }, { min: 11, max: null, valor: 120 }]);
       setNovoTipo("por_venda");
@@ -229,6 +232,7 @@ const ModuloComercial = () => {
       r.id === regraId ? { ...r, colaboradorId: colab.id, colaboradorNome: colab.nome } : r
     ));
     toast.success(`Regra vinculada a ${colab.nome}`);
+    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Módulo Comercial", descricao: `Regra de comissão vinculada a ${colab.nome}` });
     setVincularModal(null);
     setSelectedColaborador("");
     setSaving(false);

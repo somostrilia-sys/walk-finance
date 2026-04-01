@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
+import { logAudit } from "@/lib/auditLog";
 import { Send, Plus, Download, Search, DollarSign, AlertTriangle, Clock, CheckCircle2, Percent, Loader2, Handshake, XCircle, Shield, BarChart3, FileText, Bell } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import CobrancasTab from "@/components/CobrancasTab";
@@ -95,6 +96,7 @@ const FaturamentoCobranca = () => {
     setModalFat(false);
     setFormFat({ cliente_nome: "", categoria: "", descricao: "", valor: "", data_emissao: "", tipo: "recorrente", consultor: "", vencimento: "" });
     toast({ title: "Faturamento gerado" });
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Faturamento e Cobrança", descricao: `Faturamento gerado para ${formFat.cliente_nome}: R$ ${formFat.valor}` });
   };
 
   const handleCobrar = async (id: string) => {
@@ -106,6 +108,7 @@ const FaturamentoCobranca = () => {
     queryClient.invalidateQueries({ queryKey: ["cobrancas", companyId] });
     setModalCobrar(null);
     toast({ title: "Cobrança registrada" });
+    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Faturamento e Cobrança", descricao: `Cobrança registrada via ${formCobrar.canal} (id: ${id})` });
   };
 
   const handleAcordo = async (id: string) => {
@@ -118,6 +121,7 @@ const FaturamentoCobranca = () => {
     queryClient.invalidateQueries({ queryKey: ["cobrancas", companyId] });
     setModalAcordo(null);
     toast({ title: "Acordo registrado" });
+    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Faturamento e Cobrança", descricao: `Acordo registrado: ${formAcordo.parcelas} parcelas, ${formAcordo.desconto}% desconto (id: ${id})` });
   };
 
   const handleSerasa = async (id: string) => {
@@ -125,6 +129,7 @@ const FaturamentoCobranca = () => {
     queryClient.invalidateQueries({ queryKey: ["cobrancas", companyId] });
     setModalSerasa(null);
     toast({ title: "Cadastro Serasa registrado" });
+    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Faturamento e Cobrança", descricao: `Cobrança encaminhada ao Serasa (id: ${id})` });
   };
 
   const handleCancelar = async (id: string) => {
@@ -134,6 +139,7 @@ const FaturamentoCobranca = () => {
     setModalCancelar(null);
     setJustificativaCancelar("");
     toast({ title: "Cobrança cancelada" });
+    if (companyId) logAudit({ companyId, acao: "cancelar", modulo: "Faturamento e Cobrança", descricao: `Cobrança cancelada: ${justificativaCancelar} (id: ${id})` });
   };
 
   const faixaCores: Record<string, string> = {

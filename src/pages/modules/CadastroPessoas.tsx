@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
+import { logAudit } from "@/lib/auditLog";
 import { Users, UserPlus, Building2, Wrench, Search, Download, FileText, Landmark, Loader2, Trash2, Eye, Tag, Plus, Pencil, UserX, Activity } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import EmpresaTab from "@/components/EmpresaTab";
@@ -141,6 +142,7 @@ const CadastroPessoas = () => {
       setEditPessoa(null);
       setForm(emptyForm);
       toast({ title: "Cadastro atualizado!" });
+      if (companyId) logAudit({ companyId, acao: "editar", modulo: "Cadastro de Pessoas", descricao: `Cadastro atualizado: ${form.razao_social}` });
     } else {
       const { error } = await supabase.from("pessoas").insert({ company_id: companyId!, ...payload });
       setSaving(false);
@@ -155,6 +157,7 @@ const CadastroPessoas = () => {
         setForm(emptyForm);
       }
       toast({ title: `Cadastro realizado com sucesso` });
+      if (companyId) logAudit({ companyId, acao: "criar", modulo: "Cadastro de Pessoas", descricao: `Cadastro realizado: ${form.razao_social} — ${form.tipo}` });
     }
   };
 
@@ -207,6 +210,7 @@ const CadastroPessoas = () => {
     setModalContaReceber(false);
     setForm(emptyForm);
     toast({ title: "Conta a receber criada" + (formCR.consultor ? " + comissão registrada para próximo mês" : "") });
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Cadastro de Pessoas", descricao: `Conta a receber criada: R$ ${formCR.valor} (${totalParcelas}x)${formCR.consultor ? " + comissão" : ""}` });
   };
 
   const handleDelete = async (id: string) => {
@@ -214,6 +218,7 @@ const CadastroPessoas = () => {
     if (error) return toast({ title: "Erro ao excluir", variant: "destructive" });
     queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
     toast({ title: "Registro excluído" });
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Cadastro de Pessoas", descricao: `Cadastro excluído (id: ${id})` });
   };
 
   // Get history for selected pessoa

@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
+import { logAudit } from "@/lib/auditLog";
 import { FolderOpen, Plus, Pencil, Trash2, ChevronRight, TrendingUp, TrendingDown, Download, Filter, Loader2, Sparkles, Tags } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import EmptyState from "@/components/EmptyState";
@@ -109,6 +110,7 @@ const Categorizacao = () => {
     setSaving(false);
     if (error) { toast({ title: "Erro ao importar", description: error.message, variant: "destructive" }); return; }
     toast({ title: "15 categorias padrão importadas!" });
+    logAudit({ companyId, acao: "importar", modulo: "Categorização", descricao: "15 categorias padrão importadas" });
     invalidate();
   };
 
@@ -121,11 +123,13 @@ const Categorizacao = () => {
       setSaving(false);
       if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
       toast({ title: "Categoria atualizada" });
+      logAudit({ companyId, acao: "editar", modulo: "Categorização", descricao: `Categoria atualizada: ${form.name}` });
     } else {
       const { error } = await supabase.from("expense_categories").insert({ ...payload, company_id: companyId });
       setSaving(false);
       if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
       toast({ title: "Categoria cadastrada" });
+      logAudit({ companyId, acao: "criar", modulo: "Categorização", descricao: `Categoria cadastrada: ${form.name} — grupo: ${form.grupo}` });
     }
     setModalOpen(false);
     setEditId(null);
@@ -143,6 +147,7 @@ const Categorizacao = () => {
     const { error } = await supabase.from("expense_categories").delete().eq("id", id);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Categoria excluída" });
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Categorização", descricao: `Categoria excluída (id: ${id})` });
     invalidate();
   };
 

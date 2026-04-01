@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
+import { logAudit } from "@/lib/auditLog";
 import {
   ArrowUpCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle,
   Loader2, Check, Trash2, Pencil, Calendar
@@ -168,6 +169,7 @@ const ContasReceber = () => {
     setModalOpen(false);
     setForm({ ...emptyForm });
     toast({ title: "Conta a receber cadastrada com sucesso" });
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Contas a Receber", descricao: `Conta a receber criada: ${form.entity_name} — R$ ${form.amount}` });
   };
 
   const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -186,6 +188,7 @@ const ContasReceber = () => {
     queryClient.invalidateQueries({ queryKey: ["contas_receber", companyId] });
     setEditModal(null);
     toast({ title: "Conta atualizada com sucesso" });
+    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Contas a Receber", descricao: `Conta a receber atualizada (id: ${editModal.id})` });
   };
 
   const handleBaixar = async (conta: any) => {
@@ -196,6 +199,7 @@ const ContasReceber = () => {
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     queryClient.invalidateQueries({ queryKey: ["contas_receber", companyId] });
     toast({ title: "Receita baixada como recebida" });
+    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Receber", descricao: `Receita baixada como recebida: ${conta.entity_name || conta.description || conta.descricao} — R$ ${Number(conta.amount || conta.valor).toFixed(2)}` });
   };
 
   const handleDelete = async (conta: any) => {

@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatCurrency } from "@/data/mockData";
+import { logAudit } from "@/lib/auditLog";
 import { formatCurrency as formatCurrencyLib } from "@/lib/formatCurrency";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -167,6 +168,7 @@ const ContratacoesDemissoes = () => {
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Colaborador contratado!");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Contratações e Demissões", descricao: `Colaborador contratado: ${nome.trim()} — ${formContrato}` });
     setModalOpen(false);
     setFormContrato("MEI");
     setFormUnidade("_sem_unidade");
@@ -205,6 +207,7 @@ const ContratacoesDemissoes = () => {
     setEditSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Colaborador atualizado!");
+    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Contratações e Demissões", descricao: `Colaborador atualizado: ${editModal.nome}` });
     setEditModal(null);
     qc.invalidateQueries({ queryKey: ["colaboradores", companyId] });
   };
@@ -219,6 +222,7 @@ const ContratacoesDemissoes = () => {
     if (error) { toast.error(error.message); return; }
     // TODO: Could create a separate demissao record for acerto/motivo when backend tables exist
     toast.success("Colaborador desligado");
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Contratações e Demissões", descricao: `Colaborador desligado (id: ${demissaoModal})${demissaoForm.motivo ? " — " + demissaoForm.motivo : ""}` });
     setDemissaoModal(null);
     setDemissaoForm({ acerto: "", dataPagamento: "", motivo: "" });
     qc.invalidateQueries({ queryKey: ["colaboradores", companyId] });

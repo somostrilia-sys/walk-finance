@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { formatCurrency, parseCurrency } from "@/lib/formatCurrency";
+import { logAudit } from "@/lib/auditLog";
 import {
   DollarSign, Users, TrendingUp, Download, Search, Loader2, Plus, Pencil, Trash2,
   FileText, Megaphone, Trophy, CalendarClock,
@@ -245,6 +246,7 @@ const FolhaAdm = () => {
     }
     setSaving(false);
     toast.success("Registro atualizado!");
+    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Folha ADM", descricao: `Registro de folha atualizado: ${editItem.nome} — salário R$ ${salBase.toFixed(2)}` });
     setEditModalOpen(false); setEditItem(null);
     invalidate("colaboradores", "folha-pagamento");
   };
@@ -265,6 +267,7 @@ const FolhaAdm = () => {
     setSaving(false);
     if (error) { toast.error("Erro ao salvar: " + error.message); return; }
     toast.success("Registro de folha salvo!");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Folha ADM", descricao: `Registro de folha criado: ${formColaboradorNome} — salário R$ ${parseCurrency(formSalarioBase).toFixed(2)}` });
     setModalOpen(false);
     setFormColaboradorId(""); setFormColaboradorNome(""); setFormCargo(""); setFormSalarioBase(""); setFormBeneficios(""); setFormDescontos(""); setFormUnidade("_sem_unidade");
     invalidate("colaboradores", "folha-pagamento");
@@ -279,6 +282,7 @@ const FolhaAdm = () => {
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
     toast.success("Desconto registrado");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Folha ADM", descricao: `Desconto registrado: ${formDesconto.tipo} — R$ ${formDesconto.valor}` });
     setModalDesconto(false);
     setFormDesconto({ colaborador_id: "", tipo: "", valor: 0, referencia: "", observacao: "" });
     invalidate("descontos-folha");
@@ -287,6 +291,7 @@ const FolhaAdm = () => {
   const handleDeleteDesconto = async (id: string) => {
     await supabase.from("descontos_folha").delete().eq("id", id);
     toast.success("Desconto excluído");
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Folha ADM", descricao: `Desconto excluído (id: ${id})` });
     invalidate("descontos-folha");
   };
 
@@ -299,6 +304,7 @@ const FolhaAdm = () => {
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
     toast.success("Comissão registrada");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Folha ADM", descricao: `Comissão registrada: ${formComissao.cliente} — R$ ${formComissao.valor}` });
     setModalComissao(false);
     setFormComissao({ colaborador_id: "", cliente: "", valor: 0, status: "pendente", periodo: "" });
     invalidate("comissoes-folha");
@@ -307,6 +313,7 @@ const FolhaAdm = () => {
   const handleDeleteComissao = async (id: string) => {
     await supabase.from("comissoes_folha").delete().eq("id", id);
     toast.success("Comissão excluída");
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Folha ADM", descricao: `Comissão excluída (id: ${id})` });
     invalidate("comissoes-folha");
   };
 
@@ -322,6 +329,7 @@ const FolhaAdm = () => {
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
     toast.success("Campanha criada");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Folha ADM", descricao: `Campanha criada: ${formCampanha.nome}` });
     setModalCampanha(false);
     setFormCampanha({ nome: "", descricao: "", meta: 0, bonus_percent: 0, data_inicio: "", data_fim: "", status: "ativa" });
     invalidate("campanhas");
@@ -330,6 +338,7 @@ const FolhaAdm = () => {
   const handleDeleteCampanha = async (id: string) => {
     await supabase.from("campanhas").delete().eq("id", id);
     toast.success("Campanha excluída");
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Folha ADM", descricao: `Campanha excluída (id: ${id})` });
     invalidate("campanhas");
   };
 
@@ -361,6 +370,7 @@ const FolhaAdm = () => {
       if (error) { toast.error("Erro ao fechar folha: " + error.message); return; }
       invalidate("contas_pagar");
       toast.success(`Folha fechada! ${registros.length} lançamento(s) criado(s) em Contas a Pagar.`);
+      if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Folha ADM", descricao: `Folha fechada — ${registros.length} lançamento(s) gerado(s) em Contas a Pagar` });
     } finally {
       setSaving(false);
     }

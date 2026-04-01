@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useCobrancasAutomaticas, useCobrancaConfig, useDispararCobrancas, CobrancaAutomatica } from "@/hooks/useCobrancas";
+import { logAudit } from "@/lib/auditLog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -96,6 +97,7 @@ const CobrancasTab = ({ companyId }: Props) => {
     await disparar.mutateAsync({ ids: toSend, companyId });
     setSelectedIds(new Set());
     toast({ title: `${toSend.length} cobrança(s) enviada(s) com sucesso` });
+    logAudit({ companyId, acao: "criar", modulo: "Cobranças", descricao: `${toSend.length} cobrança(s) disparada(s)` });
   };
 
   const handleCobrarTodos = () => {

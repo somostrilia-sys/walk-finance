@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatCurrency } from "@/data/mockData";
+import { logAudit } from "@/lib/auditLog";
 import {
   Car, Plus, Loader2, FileText, Image, Receipt, Clock,
   ShieldAlert, DollarSign, Eye, Trash2,
@@ -112,6 +113,7 @@ const ModuloEventos = () => {
     });
     if (error) { toast.error(error.message); return; }
     toast.success("Evento registrado!");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Módulo de Eventos", descricao: `Evento registrado: ${fd.get("tipo") as string} — placa ${fd.get("placa") as string}` });
     setModalOpen(false);
     qc.invalidateQueries({ queryKey: ["eventos"] });
   };
@@ -130,6 +132,7 @@ const ModuloEventos = () => {
     });
     if (error) { toast.error(error.message); return; }
     toast.success("Documento adicionado!");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Módulo de Eventos", descricao: `Documento adicionado ao evento ${detailEvent?.id}: ${fd.get("nome_doc") as string}` });
     setDocModal(false);
     qc.invalidateQueries({ queryKey: ["evento-docs"] });
   };
@@ -146,6 +149,7 @@ const ModuloEventos = () => {
     });
     if (error) { toast.error(error.message); return; }
     toast.success("Indenização prevista criada!");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Módulo de Eventos", descricao: `Indenização prevista criada para evento (placa: ${detailEvent.placa}) — R$ ${Number(detailEvent.custo_estimado).toFixed(2)}` });
     qc.invalidateQueries({ queryKey: ["indenizacoes"] });
   };
 
@@ -327,10 +331,12 @@ const ModuloEventos = () => {
                   <Button size="sm" variant="outline" onClick={() => setDocModal(true)}><Plus className="w-3 h-3 mr-1" />Documento</Button>
                   <Button size="sm" variant="outline" onClick={handleCreateIndenizacao}><ShieldAlert className="w-3 h-3 mr-1" />Gerar Indenização</Button>
                   <Button size="sm" variant="outline" onClick={async () => {
-                    await supabase.from("eventos").update({ status: detailEvent.status === "aberto" ? "em_analise" : "encerrado" }).eq("id", detailEvent.id);
+                    const newStatus = detailEvent.status === "aberto" ? "em_analise" : "encerrado";
+                    await supabase.from("eventos").update({ status: newStatus }).eq("id", detailEvent.id);
                     qc.invalidateQueries({ queryKey: ["eventos"] });
-                    setDetailEvent({ ...detailEvent, status: detailEvent.status === "aberto" ? "em_analise" : "encerrado" });
+                    setDetailEvent({ ...detailEvent, status: newStatus });
                     toast.success("Status atualizado!");
+                    if (companyId) logAudit({ companyId, acao: "editar", modulo: "Módulo de Eventos", descricao: `Status do evento (placa: ${detailEvent.placa}) atualizado para: ${newStatus}` });
                   }}>
                     {detailEvent.status === "aberto" ? "Iniciar Análise" : "Encerrar"}
                   </Button>
@@ -350,6 +356,7 @@ const ModuloEventos = () => {
                         await supabase.from("evento_documentos").delete().eq("id", doc.id);
                         qc.invalidateQueries({ queryKey: ["evento-docs"] });
                         toast.success("Documento removido");
+                        if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Módulo de Eventos", descricao: `Documento removido: ${doc.nome} (evento id: ${detailEvent.id})` });
                       }}><Trash2 className="w-3 h-3" /></Button>
                     </div>
                   ))}

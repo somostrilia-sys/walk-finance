@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/data/mockData";
+import { logAudit } from "@/lib/auditLog";
 import {
   CheckCircle2,
   XCircle,
@@ -288,6 +289,7 @@ export default function ModalConciliacaoV2({
       });
       setActiveAction(null);
       toast({ title: "Lançamento criado e conciliado" });
+      logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Lançamento criado e conciliado: ${selectedItem.descricao} — R$ ${Math.abs(selectedItem.valor).toFixed(2)}` });
     } catch (err: any) {
       toast({ title: "Erro ao criar lançamento", description: err.message, variant: "destructive" });
     } finally {
@@ -333,6 +335,7 @@ export default function ModalConciliacaoV2({
       });
       setActiveAction(null);
       toast({ title: "Conta a pagar criada e conciliada" });
+      logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta a pagar criada e conciliada: ${descricao} — R$ ${parseFloat(valor.replace(",", ".")).toFixed(2)}` });
     } catch (err: any) {
       toast({ title: "Erro ao criar conta a pagar", description: err.message, variant: "destructive" });
     } finally {
@@ -396,6 +399,7 @@ export default function ModalConciliacaoV2({
         }
       }
       toast({ title: `${aConciliar.length} lançamento(s) conciliado(s) com sucesso!` });
+      logAudit({ companyId, acao: "conciliar", modulo: "Conciliação Bancária", descricao: `${aConciliar.length} lançamento(s) conciliados — origem: ${origem}` });
       onClose();
     } catch (err: any) {
       toast({ title: "Erro na conciliação", description: err.message, variant: "destructive" });
@@ -499,6 +503,7 @@ export default function ModalConciliacaoV2({
           match: { tipo: "conta_pagar", id: data.id, descricao },
         });
         toast({ title: "Conta a pagar criada e conciliada" });
+        logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta a pagar criada e conciliada via novo lançamento: ${descricao} — R$ ${valorNum.toFixed(2)}` });
       } else {
         const { data, error } = await supabase
           .from("contas_receber")
@@ -520,6 +525,7 @@ export default function ModalConciliacaoV2({
           match: { tipo: "conta_receber", id: data.id, descricao },
         });
         toast({ title: "Conta a receber criada e conciliada" });
+        logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta a receber criada e conciliada via novo lançamento: ${descricao} — R$ ${valorNum.toFixed(2)}` });
       }
       setActiveAction(null);
     } catch (err: any) {

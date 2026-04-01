@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { formatCurrency, parseCurrency } from "@/lib/formatCurrency";
+import { logAudit } from "@/lib/auditLog";
 import {
   CalendarDays, TrendingUp, AlertTriangle, ShieldAlert, DollarSign,
   Wallet, Shield, Plus, Loader2, Filter, X, Pencil, Trash2,
@@ -300,6 +301,7 @@ const CalendarioFinanceiro = () => {
     setDeletingId(null);
     if (error) { toast.error(error.message); return; }
     toast.success("Lançamento excluído!");
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Calendário Financeiro", descricao: `Lançamento excluído (id: ${id})` });
     qc.invalidateQueries({ queryKey: ["contas-pagar"] });
   };
 
@@ -315,6 +317,7 @@ const CalendarioFinanceiro = () => {
     setLoadingNewCategory(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Categoria criada!");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Calendário Financeiro", descricao: `Categoria de despesa criada: ${cat}` });
     setFormCategoria(cat);
     setNovaCategoriaInput("");
     setShowNovaCat(false);
@@ -358,6 +361,7 @@ const CalendarioFinanceiro = () => {
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success(editingId ? "Lançamento atualizado!" : "Lançamento registrado!");
+    if (companyId) logAudit({ companyId, acao: editingId ? "editar" : "criar", modulo: "Calendário Financeiro", descricao: `Lançamento ${editingId ? "atualizado" : "criado"}: ${formDescricao || formResponsavel} — R$ ${formValor} — venc. ${formVencimento}` });
     setModalOpen(false);
     resetForm();
     qc.invalidateQueries({ queryKey: ["contas-pagar"] });
@@ -471,6 +475,7 @@ const CalendarioFinanceiro = () => {
                                   await supabase.from("contas_pagar").update({ status: "paga" }).eq("id", c.id);
                                   qc.invalidateQueries({ queryKey: ["contas-pagar"] });
                                   toast.success("Marcada como pago!");
+                                  if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Calendário Financeiro", descricao: `Conta marcada como paga: ${c.fornecedor || c.descricao} — R$ ${Number(c.valor).toFixed(2)}` });
                                 }} className="text-xs">Pagar</Button>
                               )}
                               <Button

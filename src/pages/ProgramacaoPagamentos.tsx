@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatCurrency } from "@/data/mockData";
+import { logAudit } from "@/lib/auditLog";
 import {
   DollarSign, CalendarDays, AlertTriangle, Wallet, Plus, CreditCard,
   Loader2, Pause, Play, Trash2, QrCode, Send, Clock, Ban,
@@ -114,6 +115,7 @@ const ProgramacaoPagamentos = () => {
     });
     if (error) { toast.error(error.message); return; }
     toast.success("Pagamento programado!");
+    if (companyId) logAudit({ companyId, acao: "criar", modulo: "Programação de Pagamentos", descricao: `Pagamento programado: ${descricao.trim()} — R$ ${Number(fd.get("valor")).toFixed(2)} — venc. ${fd.get("vencimento") as string}` });
     setModalOpen(false);
     qc.invalidateQueries({ queryKey: ["pagamentos-programados"] });
   };
@@ -122,12 +124,14 @@ const ProgramacaoPagamentos = () => {
     await supabase.from("pagamentos_programados").update({ pausado: !pausado }).eq("id", id);
     qc.invalidateQueries({ queryKey: ["pagamentos-programados"] });
     toast.success(pausado ? "Pagamento retomado" : "Pagamento pausado");
+    if (companyId) logAudit({ companyId, acao: pausado ? "ativar" : "cancelar", modulo: "Programação de Pagamentos", descricao: `Pagamento ${pausado ? "retomado" : "pausado"} (id: ${id})` });
   };
 
   const handleDelete = async (id: string) => {
     await supabase.from("pagamentos_programados").delete().eq("id", id);
     qc.invalidateQueries({ queryKey: ["pagamentos-programados"] });
     toast.success("Pagamento excluído");
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Programação de Pagamentos", descricao: `Pagamento excluído (id: ${id})` });
     setDeleteConfirm(null);
   };
 
@@ -135,6 +139,7 @@ const ProgramacaoPagamentos = () => {
     await supabase.from("pagamentos_programados").update({ status: "reprovado" }).eq("id", id);
     qc.invalidateQueries({ queryKey: ["pagamentos-programados"] });
     toast.success("Pagamento reprovado");
+    if (companyId) logAudit({ companyId, acao: "cancelar", modulo: "Programação de Pagamentos", descricao: `Pagamento reprovado (id: ${id})` });
   };
 
   const programados = (pagamentos || []).filter(p => p.status === "programado");
