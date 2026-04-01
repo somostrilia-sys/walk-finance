@@ -49,11 +49,16 @@ const FaturamentoCobranca = () => {
   const fat = faturamentos || [];
   const cob = cobrancas || [];
 
-  const totalFaturado = fat.reduce((s, f) => s + Number(f.valor), 0);
-  const totalRecorrente = fat.filter(f => f.tipo === "recorrente").reduce((s, f) => s + Number(f.valor), 0);
+  const filteredFatForCards = useMemo(() => fat.filter(f =>
+    !search || f.cliente_nome.toLowerCase().includes(search.toLowerCase()) || (f.descricao || "").toLowerCase().includes(search.toLowerCase())
+  ), [fat, search]);
+
+  // Cards acompanham o filtro de busca
+  const totalFaturado = filteredFatForCards.reduce((s, f) => s + Number(f.valor), 0);
+  const totalRecorrente = filteredFatForCards.filter(f => f.tipo === "recorrente").reduce((s, f) => s + Number(f.valor), 0);
   const totalInadimplente = cob.reduce((s, c) => s + Number(c.valor), 0);
   const taxaInadimplencia = totalFaturado > 0 ? ((totalInadimplente / totalFaturado) * 100).toFixed(1) : "0";
-  const ticketMedio = fat.length > 0 ? totalFaturado / fat.length : 0;
+  const ticketMedio = filteredFatForCards.length > 0 ? totalFaturado / filteredFatForCards.length : 0;
 
   // Receita confirmada
   const recebido = (transactions || []).filter((t: any) => t.type === "entrada" && t.status === "confirmado").reduce((s: number, t: any) => s + Number(t.amount), 0);

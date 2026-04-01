@@ -167,10 +167,11 @@ const GestaoFiscal = () => {
     return true;
   }), [nfs, filtroStatus, search]);
 
-  const totalNFs = nfs.length;
-  const totalProcessadas = (nfs as any[]).filter((n: any) => n.status === "processada" || n.status === "conciliada").length;
+  // Cards acompanham os filtros ativos (busca + status)
+  const totalNFs = filtered.length;
+  const totalProcessadas = filtered.filter((n: any) => n.status === "processada" || n.status === "conciliada").length;
   const alertasAtivos = (alertas as any[]).filter((a: any) => !a.resolvido).length;
-  const totalValor = (nfs as any[]).reduce((s: number, n: any) => s + Number(n.valor || n.valor_total || 0), 0);
+  const totalValor = filtered.reduce((s: number, n: any) => s + Number(n.valor || n.valor_total || 0), 0);
 
   const faturamentoTotal = totalValor;
   const impostosCalculados = (regimes as any[]).filter((r: any) => r.ativo).map((r: any) => ({

@@ -193,9 +193,10 @@ const FolhaAdm = () => {
     return ativos.filter(c => folhaIds.has(c.id));
   }, [ativos, formUnidade, folhaPagamento]);
 
-  const custoTotal = folha.reduce((s, c) => s + c.total, 0);
-  const totalComissoes = folha.reduce((s, c) => s + c.comissaoMes, 0);
-  const totalDescontosGeral = folha.reduce((s, c) => s + c.descontos + c.adiantamentos, 0);
+  // Cards acompanham os filtros ativos (busca + unidade)
+  const custoTotal = filtered.reduce((s, c) => s + c.total, 0);
+  const totalComissoes = filtered.reduce((s, c) => s + c.comissaoMes, 0);
+  const totalDescontosGeral = filtered.reduce((s, c) => s + c.descontos + c.adiantamentos, 0);
 
   // ── Handlers utilitários ─────────────────────────────────────────────────────
 
@@ -380,7 +381,7 @@ const FolhaAdm = () => {
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard label="Custo Total Folha" value={formatCurrency(custoTotal)} icon={<DollarSign className="w-4 h-4" />} color="info" large />
-          <StatCard label="Colaboradores" value={folha.length} icon={<Users className="w-4 h-4" />} color="positive" />
+          <StatCard label="Colaboradores" value={filtered.length} icon={<Users className="w-4 h-4" />} color="positive" />
           <StatCard label="Total Comissões" value={formatCurrency(totalComissoes)} icon={<TrendingUp className="w-4 h-4" />} color="warning" />
           <StatCard label="Total Descontos" value={formatCurrency(totalDescontosGeral)} icon={<DollarSign className="w-4 h-4" />} color="danger" />
         </div>

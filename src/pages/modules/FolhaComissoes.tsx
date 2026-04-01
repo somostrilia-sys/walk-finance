@@ -108,9 +108,18 @@ const FolhaComissoes = () => {
   const invalidate = (...keys: string[]) => keys.forEach(k => queryClient.invalidateQueries({ queryKey: [k, companyId] }));
 
   const ativos = colaboradores.filter((c: any) => c.status === "ativo");
-  const totalFolha = ativos.reduce((s: number, c: any) => s + Number(c.salario_base), 0);
-  const totalDescontos = descontos.reduce((s: number, d: any) => s + Number(d.valor), 0);
-  const totalComissoesPendentes = comissoes.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.valor), 0);
+
+  // Cards acompanham o filtro de busca
+  const filteredAtivos = useMemo(() =>
+    !search ? ativos : ativos.filter((c: any) =>
+      c.nome.toLowerCase().includes(search.toLowerCase()) || (c.cargo || "").toLowerCase().includes(search.toLowerCase())
+    )
+  , [ativos, search]);
+
+  const totalFolha = filteredAtivos.reduce((s: number, c: any) => s + Number(c.salario_base), 0);
+  const filteredIds = useMemo(() => new Set(filteredAtivos.map((c: any) => c.id)), [filteredAtivos]);
+  const totalDescontos = descontos.filter((d: any) => filteredIds.has(d.colaborador_id)).reduce((s: number, d: any) => s + Number(d.valor), 0);
+  const totalComissoesPendentes = comissoes.filter((c: any) => c.status === "pendente" && filteredIds.has(c.colaborador_id)).reduce((s: number, c: any) => s + Number(c.valor), 0);
 
   const filteredColab = useMemo(() => colaboradores.filter((c: any) =>
     !search || c.nome.toLowerCase().includes(search.toLowerCase()) || c.cargo.toLowerCase().includes(search.toLowerCase())
@@ -253,7 +262,7 @@ const FolhaComissoes = () => {
         <PageHeader title="Folha e Comissões" subtitle="Colaboradores, comissões, descontos, cálculo e campanhas" showBack companyLogo={company?.logo_url} />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
-          <ModuleStatCard label="Colaboradores Ativos" value={ativos.length} icon={<Users className="w-4 h-4" />} />
+          <ModuleStatCard label="Colaboradores Ativos" value={filteredAtivos.length} icon={<Users className="w-4 h-4" />} />
           <ModuleStatCard label="Folha Bruta" value={fmt(totalFolha)} icon={<DollarSign className="w-4 h-4" />} />
           <ModuleStatCard label="Comissões Pendentes" value={fmt(totalComissoesPendentes)} icon={<Percent className="w-4 h-4" />} />
           <ModuleStatCard label="Líquido Folha" value={fmt(totalFolha - totalDescontos)} icon={<Calculator className="w-4 h-4" />} />
