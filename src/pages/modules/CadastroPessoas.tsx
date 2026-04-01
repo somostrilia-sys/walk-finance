@@ -225,7 +225,7 @@ const CadastroPessoas = () => {
   }, [selectedPessoa, transactions]);
 
   const tagBadge = (tipo: string) => {
-    if (tipo === "cliente") return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">Cliente</Badge>;
+    if (tipo === "cliente") return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">{isObjetivo ? "Associado" : "Cliente"}</Badge>;
     if (tipo === "prestador") return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Prestador</Badge>;
     return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Cliente e Prestador</Badge>;
   };
@@ -243,7 +243,7 @@ const CadastroPessoas = () => {
 
           <TabsContent value="pessoas">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
-          <ModuleStatCard label="Clientes" value={clientes.length} icon={<Building2 className="w-4 h-4" />} />
+          <ModuleStatCard label={isObjetivo ? "Associados" : "Clientes"} value={clientes.length} icon={<Building2 className="w-4 h-4" />} />
           <ModuleStatCard label="Prestadores" value={prestadores.length} icon={<Wrench className="w-4 h-4" />} />
           <ModuleStatCard label="Total Cadastros" value={all.length} icon={<Users className="w-4 h-4" />} />
           <ModuleStatCard label="Categorias" value={(categories || []).length} icon={<Tag className="w-4 h-4" />} />
@@ -258,9 +258,9 @@ const CadastroPessoas = () => {
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
-              <SelectItem value="cliente">Clientes</SelectItem>
+              <SelectItem value="cliente">{isObjetivo ? "Associados" : "Clientes"}</SelectItem>
               <SelectItem value="prestador">Prestadores</SelectItem>
-              <SelectItem value="ambos">Cliente e Prestador</SelectItem>
+              {!isObjetivo && <SelectItem value="ambos">Cliente e Prestador</SelectItem>}
             </SelectContent>
           </Select>
           <div className="flex-1" />
@@ -275,9 +275,9 @@ const CadastroPessoas = () => {
                     <Select value={form.tipo} onValueChange={v => setForm(f => ({ ...f, tipo: v as PessoaTipo }))}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="cliente">Cliente</SelectItem>
+                        <SelectItem value="cliente">{isObjetivo ? "Associado" : "Cliente"}</SelectItem>
                         <SelectItem value="prestador">Prestador</SelectItem>
-                        <SelectItem value="ambos">Cliente e Prestador</SelectItem>
+                        {!isObjetivo && <SelectItem value="ambos">Cliente e Prestador</SelectItem>}
                       </SelectContent>
                     </Select>
                   </div>
