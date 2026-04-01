@@ -2,10 +2,13 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCompanies, useFinancialTransactions, useBankAccounts } from "@/hooks/useFinancialData";
 import logoOAT from "@/assets/logo-objetivo-auto-truck.png";
+import logoTrilho from "@/assets/logo-trilho-solucoes.png";
 
 // Map company IDs to local logo assets (until logo_url is set in DB)
 const LOCAL_LOGOS: Record<string, string> = {
   "b1000000-0000-0000-0000-000000000001": logoOAT,
+  "b1000000-0000-0000-0000-000000000002": logoTrilho,
+  "11111111-0002-0002-0002-000000000002": logoTrilho,
 };
 import AppLayout from "@/components/AppLayout";
 import ModuleStatCard from "@/components/ModuleStatCard";
