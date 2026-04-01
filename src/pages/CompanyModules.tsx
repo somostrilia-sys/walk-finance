@@ -1,5 +1,8 @@
 import { useParams } from "react-router-dom";
 import { useCompanyModules, useCompanies } from "@/hooks/useFinancialData";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import HubCard from "@/components/HubCard";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
@@ -31,9 +34,25 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
 
 const CompanyModules = () => {
   const { companyId } = useParams();
+  const { user } = useAuth();
   const { data: companies } = useCompanies();
   const { data: modulesRaw, isLoading } = useCompanyModules(companyId);
   const company = companies?.find((c) => c.id === companyId);
+
+  // Busca o acesso do usuário atual nesta empresa (para verificar permitted_modules de Sócio)
+  const { data: myAccess } = useQuery({
+    queryKey: ["my_company_access", companyId, user?.id],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("user_company_access")
+        .select("role, permitted_modules")
+        .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
+        .maybeSingle();
+      return data as { role: string; permitted_modules: string[] | null } | null;
+    },
+    enabled: !!user && !!companyId,
+  });
 
   const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
 
@@ -51,10 +70,18 @@ const CompanyModules = () => {
       : [...modulesRaw, { id: "conciliacao-fallback", module_name: "conciliacao", company_id: companyId, is_enabled: true }]
     : modulesRaw;
 
+  // permitted_modules de Sócio: filtra módulos se o usuário for sócio com restrições
+  const permittedModules: string[] | null =
+    myAccess?.role === "leitura" && myAccess?.permitted_modules?.length
+      ? myAccess.permitted_modules
+      : null;
+
   const modules = modulesWithConciliacao
     ? modulesWithConciliacao.filter((m) => {
         if (HIDDEN_FOR_ALL.includes(m.module_name)) return false;
         if (isObjetivo && HIDDEN_FOR_OBJETIVO.includes(m.module_name)) return false;
+        // Sócio com módulos específicos: mostrar apenas os permitidos
+        if (permittedModules && !permittedModules.includes(m.module_name)) return false;
         return true;
       })
     : modulesWithConciliacao;

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -13,9 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Pencil, UserX, UserCheck, Users, Shield, CheckCircle2, XCircle, Building2 } from "lucide-react";
+import {
+  Plus, Loader2, Pencil, UserX, UserCheck, Users, Shield,
+  CheckCircle2, XCircle, Building2, Crown, Briefcase, Eye,
+  Settings2, Star,
+} from "lucide-react";
 
-type Perfil = "Admin" | "Gestor" | "Auxiliar" | "Visualizador";
+type Perfil = "Admin" | "Sócio" | "Gestor" | "Auxiliar" | "Visualizador";
 
 interface Usuario {
   id: string;
@@ -32,35 +37,74 @@ interface CompanyAccess {
   user_id: string;
   company_id: string;
   role: string;
+  permitted_modules?: string[] | null;
 }
 
-const PERFIS: Perfil[] = ["Admin", "Gestor", "Auxiliar", "Visualizador"];
+const PERFIS: Perfil[] = ["Admin", "Sócio", "Gestor", "Auxiliar", "Visualizador"];
 
 const perfilColors: Record<Perfil, string> = {
-  Admin: "bg-[hsl(var(--status-danger)/0.15)] text-[hsl(var(--status-danger))]",
-  Gestor: "bg-[hsl(var(--status-warning)/0.15)] text-[hsl(var(--status-warning))]",
-  Auxiliar: "bg-[hsl(var(--accent)/0.15)] text-[hsl(var(--accent))]",
+  Admin:        "bg-[hsl(var(--status-danger)/0.15)] text-[hsl(var(--status-danger))]",
+  Sócio:        "bg-[hsl(var(--accent)/0.15)] text-[hsl(var(--accent))]",
+  Gestor:       "bg-[hsl(var(--status-warning)/0.15)] text-[hsl(var(--status-warning))]",
+  Auxiliar:     "bg-primary/10 text-primary",
   Visualizador: "bg-[hsl(var(--status-positive)/0.15)] text-[hsl(var(--status-positive))]",
 };
 
+const perfilIcons: Record<Perfil, React.ReactNode> = {
+  Admin:        <Crown className="w-3.5 h-3.5" />,
+  Sócio:        <Star className="w-3.5 h-3.5" />,
+  Gestor:       <Briefcase className="w-3.5 h-3.5" />,
+  Auxiliar:     <Settings2 className="w-3.5 h-3.5" />,
+  Visualizador: <Eye className="w-3.5 h-3.5" />,
+};
+
+const perfilDesc: Record<Perfil, string> = {
+  Admin:        "Acesso master — todas as empresas e todos os módulos, sem restrições.",
+  Sócio:        "Acesso de sócio — uma empresa específica com módulos selecionados.",
+  Gestor:       "Gerencia operações financeiras, aprova pagamentos e faz conciliação.",
+  Auxiliar:     "Cria e edita lançamentos e cadastros, mas não aprova nem exclui.",
+  Visualizador: "Apenas visualiza dashboards, relatórios e exporta dados.",
+};
+
 const PERMISSION_MATRIX = [
-  { label: "Ver dashboards e relatórios",          admin: true,  gestor: true,  auxiliar: true,  visualizador: true },
-  { label: "Exportar dados",                        admin: true,  gestor: true,  auxiliar: true,  visualizador: true },
-  { label: "Criar e editar lançamentos",            admin: true,  gestor: true,  auxiliar: true,  visualizador: false },
-  { label: "Cadastrar clientes e prestadores",      admin: true,  gestor: true,  auxiliar: true,  visualizador: false },
-  { label: "Conciliação bancária",                  admin: true,  gestor: true,  auxiliar: false, visualizador: false },
-  { label: "Aprovar pagamentos",                    admin: true,  gestor: true,  auxiliar: false, visualizador: false },
-  { label: "Gerenciar categorias e plano de contas",admin: true,  gestor: true,  auxiliar: false, visualizador: false },
-  { label: "Gerenciar usuários e permissões",       admin: true,  gestor: false, auxiliar: false, visualizador: false },
-  { label: "Configurações da empresa",              admin: true,  gestor: false, auxiliar: false, visualizador: false },
-  { label: "Excluir registros",                     admin: true,  gestor: false, auxiliar: false, visualizador: false },
+  { label: "Ver dashboards e relatórios",           admin: true,  socio: true,  gestor: true,  auxiliar: true,  visualizador: true },
+  { label: "Exportar dados",                         admin: true,  socio: true,  gestor: true,  auxiliar: true,  visualizador: true },
+  { label: "Criar e editar lançamentos",             admin: true,  socio: false, gestor: true,  auxiliar: true,  visualizador: false },
+  { label: "Cadastrar clientes e prestadores",       admin: true,  socio: false, gestor: true,  auxiliar: true,  visualizador: false },
+  { label: "Conciliação bancária",                   admin: true,  socio: false, gestor: true,  auxiliar: false, visualizador: false },
+  { label: "Aprovar pagamentos",                     admin: true,  socio: false, gestor: true,  auxiliar: false, visualizador: false },
+  { label: "Gerenciar categorias e plano de contas", admin: true,  socio: false, gestor: true,  auxiliar: false, visualizador: false },
+  { label: "Gerenciar usuários e permissões",        admin: true,  socio: false, gestor: false, auxiliar: false, visualizador: false },
+  { label: "Configurações da empresa",               admin: true,  socio: false, gestor: false, auxiliar: false, visualizador: false },
+  { label: "Excluir registros",                      admin: true,  socio: false, gestor: false, auxiliar: false, visualizador: false },
 ];
 
+const MODULE_LABELS: Record<string, string> = {
+  "area-socio": "Área do Sócio",
+  "calendario-financeiro": "Calendário Financeiro",
+  "dashboard": "Dashboard Geral",
+  "centro-custos": "Centro de Custos por Evento",
+  "folha-adm": "Folha de Pagamento Geral",
+  "comercial": "Módulo Comercial",
+  "programacao-pagamentos": "Programação de Pagamentos",
+  "contratacoes-demissoes": "Colaboradores",
+  "gestao-fiscal": "Gestão Fiscal",
+  "conciliacao": "Conciliação Bancária",
+  "contas-pagar": "Contas a Pagar",
+  "contas-receber": "Contas a Receber",
+  "categorizacao": "Categorização",
+  "cadastro-pessoas": "Associados e Prestadores",
+  "folha": "Folha e Comissões",
+  "projecao": "Projeção e Planejamento",
+  "faturamento": "Faturamento e Cobrança",
+  "dre": "DRE",
+  "relatorio-colaborador": "Relatório por Colaborador",
+};
+
 const GestaoUsuariosGlobal = () => {
+  const { user } = useAuth();
   const { data: companies } = useCompanies();
   const qc = useQueryClient();
-  const isMaster = (companies || []).some(c => c.role === "master");
-  const allowedPerfis = isMaster ? PERFIS : PERFIS.filter(p => p !== "Admin");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,11 +112,18 @@ const GestaoUsuariosGlobal = () => {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [togglingAccess, setTogglingAccess] = useState<string | null>(null);
 
+  // Form basic fields
   const [formNome, setFormNome] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formSenha, setFormSenha] = useState("");
   const [formPerfil, setFormPerfil] = useState<Perfil>("Visualizador");
   const [formCompanyId, setFormCompanyId] = useState("");
+
+  // Acesso a múltiplas empresas (Gestor / Auxiliar / Visualizador)
+  const [formEmpresas, setFormEmpresas] = useState<string[]>([]);
+
+  // Módulos para Sócio
+  const [formModulos, setFormModulos] = useState<string[]>([]);
 
   const companyIds = (companies || []).map(c => c.id);
 
@@ -91,23 +142,60 @@ const GestaoUsuariosGlobal = () => {
     enabled: companyIds.length > 0,
   });
 
-  // Company access for all users with auth_id
+  // Company access list
   const authIds = (usuarios || []).filter(u => u.auth_id).map(u => u.auth_id!);
   const { data: accessList } = useQuery({
     queryKey: ["user_access_global", authIds],
     queryFn: async () => {
       if (authIds.length === 0) return [];
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("user_company_access")
-        .select("user_id, company_id, role")
+        .select("user_id, company_id, role, permitted_modules")
         .in("user_id", authIds);
       return (data || []) as CompanyAccess[];
     },
     enabled: authIds.length > 0,
   });
 
+  // Módulos disponíveis da empresa selecionada (para Sócio)
+  const { data: socioModules } = useQuery({
+    queryKey: ["company_modules_socio", formCompanyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("company_modules")
+        .select("module_name")
+        .eq("company_id", formCompanyId)
+        .eq("is_enabled", true);
+      return (data || []).map((m: any) => m.module_name as string);
+    },
+    enabled: formPerfil === "Sócio" && !!formCompanyId,
+  });
+
+  // Sync primary company into formEmpresas when it changes
+  useEffect(() => {
+    if (formCompanyId && !formEmpresas.includes(formCompanyId)) {
+      setFormEmpresas(prev => [formCompanyId, ...prev.filter(id => id !== formCompanyId)]);
+    }
+  }, [formCompanyId]);
+
   const hasAccess = (authId: string, cId: string) =>
     (accessList || []).some(a => a.user_id === authId && a.company_id === cId);
+
+  const toggleEmpresa = (cId: string) => {
+    if (cId === formCompanyId) return; // empresa principal não pode ser removida
+    setFormEmpresas(prev =>
+      prev.includes(cId) ? prev.filter(id => id !== cId) : [...prev, cId]
+    );
+  };
+
+  const toggleModulo = (mod: string) => {
+    setFormModulos(prev =>
+      prev.includes(mod) ? prev.filter(m => m !== mod) : [...prev, mod]
+    );
+  };
+
+  const selectAllModulos = () => setFormModulos(socioModules || []);
+  const clearModulos = () => setFormModulos([]);
 
   const handleToggleAccess = async (authId: string, targetCompanyId: string) => {
     const key = `${authId}-${targetCompanyId}`;
@@ -115,14 +203,12 @@ const GestaoUsuariosGlobal = () => {
     const currently = hasAccess(authId, targetCompanyId);
     const sb = supabase as any;
     if (currently) {
-      const { error } = await sb.from("user_company_access").delete().eq("user_id", authId).eq("company_id", targetCompanyId);
-      if (error) { toast.error(error.message); setTogglingAccess(null); return; }
+      await sb.from("user_company_access").delete().eq("user_id", authId).eq("company_id", targetCompanyId);
     } else {
-      const { error } = await sb.from("user_company_access").upsert(
+      await sb.from("user_company_access").upsert(
         { user_id: authId, company_id: targetCompanyId, role: "leitura" },
         { onConflict: "user_id,company_id" }
       );
-      if (error) { toast.error(error.message); setTogglingAccess(null); return; }
     }
     setTogglingAccess(null);
     qc.invalidateQueries({ queryKey: ["user_access_global"] });
@@ -136,11 +222,12 @@ const GestaoUsuariosGlobal = () => {
     setFormSenha("");
     setFormPerfil("Visualizador");
     setFormCompanyId(companies?.[0]?.id || "");
+    setFormEmpresas(companies?.[0]?.id ? [companies[0].id] : []);
+    setFormModulos([]);
   };
 
   const handleOpenNew = () => {
     resetForm();
-    setFormCompanyId(companies?.[0]?.id || "");
     setModalOpen(true);
   };
 
@@ -151,17 +238,15 @@ const GestaoUsuariosGlobal = () => {
     setFormSenha("");
     setFormPerfil(u.perfil);
     setFormCompanyId(u.company_id);
+    setFormEmpresas([u.company_id]);
+    setFormModulos([]);
     setModalOpen(true);
   };
 
   const handleToggleAtivo = async (u: Usuario) => {
     setTogglingId(u.id);
-    const { error } = await (supabase as any)
-      .from("usuarios")
-      .update({ ativo: !u.ativo })
-      .eq("id", u.id);
+    await (supabase as any).from("usuarios").update({ ativo: !u.ativo }).eq("id", u.id);
     setTogglingId(null);
-    if (error) { toast.error(error.message); return; }
     toast.success(u.ativo ? "Usuário desativado!" : "Usuário ativado!");
     qc.invalidateQueries({ queryKey: ["usuarios-global"] });
   };
@@ -171,11 +256,15 @@ const GestaoUsuariosGlobal = () => {
     if (!formNome.trim()) { toast.error("Informe o nome"); return; }
     if (!formEmail.trim()) { toast.error("Informe o e-mail"); return; }
     if (!editingId && !formSenha.trim()) { toast.error("Informe a senha"); return; }
-    if (!formCompanyId) { toast.error("Selecione a empresa"); return; }
+    if (!formCompanyId) { toast.error("Selecione a empresa principal"); return; }
+    if (formPerfil === "Sócio" && formModulos.length === 0) {
+      toast.error("Selecione ao menos um módulo para o sócio"); return;
+    }
 
     setSaving(true);
 
     if (editingId) {
+      // Edit mode — update basic fields only
       const payload: Record<string, unknown> = { nome: formNome, email: formEmail, perfil: formPerfil };
       if (formSenha.trim()) payload.senha_hash = formSenha;
       const { error } = await (supabase as any).from("usuarios").update(payload).eq("id", editingId);
@@ -183,6 +272,15 @@ const GestaoUsuariosGlobal = () => {
       if (error) { toast.error(error.message); return; }
       toast.success("Usuário atualizado!");
     } else {
+      // Create mode
+      const roleMap: Record<Perfil, string> = {
+        Admin: "master",
+        Sócio: "leitura",
+        Gestor: "financeiro",
+        Auxiliar: "financeiro",
+        Visualizador: "leitura",
+      };
+
       try {
         const { data, error } = await supabase.functions.invoke("create-user", {
           body: {
@@ -193,24 +291,45 @@ const GestaoUsuariosGlobal = () => {
             perfil: formPerfil,
           },
         });
-        setSaving(false);
-        if (error) { toast.error(error.message); return; }
-        if (data?.error) { toast.error(data.error); return; }
-        if (data?.success === false) {
-          toast.error(data.message || "Erro ao criar usuário.");
+
+        if (error || data?.error || data?.success === false) {
+          setSaving(false);
+          toast.error(data?.error || data?.message || error?.message || "Erro ao criar usuário");
           return;
         }
+
+        const newUserId: string = data.userId;
+
+        // Grant access to additional companies (for Gestor/Auxiliar/Visualizador)
+        const extraCompanies = formEmpresas.filter(id => id !== formCompanyId);
+        for (const cId of extraCompanies) {
+          await (supabase as any).from("user_company_access").upsert(
+            { user_id: newUserId, company_id: cId, role: roleMap[formPerfil] || "leitura" },
+            { onConflict: "user_id,company_id" }
+          );
+        }
+
+        // For Sócio, store permitted_modules in the main company access record
+        if (formPerfil === "Sócio" && formModulos.length > 0) {
+          await (supabase as any).from("user_company_access").update({
+            permitted_modules: formModulos,
+          }).eq("user_id", newUserId).eq("company_id", formCompanyId);
+        }
+
         toast.success("Usuário criado! Ele já pode fazer login.");
       } catch (err: any) {
         setSaving(false);
         toast.error(err?.message || "Erro de rede ao criar usuário.");
         return;
       }
+
+      setSaving(false);
     }
 
     setModalOpen(false);
     resetForm();
     qc.invalidateQueries({ queryKey: ["usuarios-global"] });
+    qc.invalidateQueries({ queryKey: ["user_access_global"] });
   };
 
   const ativos = (usuarios || []).filter(u => u.ativo).length;
@@ -229,7 +348,6 @@ const GestaoUsuariosGlobal = () => {
 
           {/* === ABA USUÁRIOS === */}
           <TabsContent value="usuarios">
-            {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="hub-card-base p-5">
                 <div className="flex items-center justify-between mb-2">
@@ -254,13 +372,11 @@ const GestaoUsuariosGlobal = () => {
               </div>
             </div>
 
-            {/* Header row */}
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-foreground">Usuários cadastrados</h2>
               <Button size="sm" onClick={handleOpenNew} className="gap-1"><Plus className="w-4 h-4" />Novo Usuário</Button>
             </div>
 
-            {/* Table */}
             {isLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
             ) : (
@@ -286,7 +402,8 @@ const GestaoUsuariosGlobal = () => {
                           <TableCell className="text-xs text-muted-foreground">{u.email}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">{companyName}</TableCell>
                           <TableCell>
-                            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors[u.perfil] || "bg-muted text-muted-foreground"}`}>
+                            <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors[u.perfil] || "bg-muted text-muted-foreground"}`}>
+                              {perfilIcons[u.perfil]}
                               {u.perfil}
                             </span>
                           </TableCell>
@@ -300,16 +417,14 @@ const GestaoUsuariosGlobal = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleEdit(u)} title="Editar">
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleEdit(u)}>
                                 <Pencil className="w-3.5 h-3.5" />
                               </Button>
                               <Button
-                                variant="ghost"
-                                size="icon"
+                                variant="ghost" size="icon"
                                 className={`h-7 w-7 ${u.ativo ? "text-muted-foreground hover:text-[hsl(var(--status-danger))]" : "text-muted-foreground hover:text-[hsl(var(--status-positive))]"}`}
                                 onClick={() => handleToggleAtivo(u)}
                                 disabled={togglingId === u.id}
-                                title={u.ativo ? "Desativar" : "Ativar"}
                               >
                                 {togglingId === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : u.ativo ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                               </Button>
@@ -319,9 +434,7 @@ const GestaoUsuariosGlobal = () => {
                       );
                     })}
                     {(usuarios || []).length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum usuário cadastrado</TableCell>
-                      </TableRow>
+                      <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum usuário cadastrado</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
@@ -336,15 +449,17 @@ const GestaoUsuariosGlobal = () => {
                 <Shield className="w-5 h-5 text-primary" />
                 <h2 className="text-sm font-semibold text-foreground">Matriz de Permissões por Perfil</h2>
               </div>
-              <p className="text-xs text-muted-foreground mb-5">Veja o que cada nível de acesso pode fazer no sistema.</p>
+              <p className="text-xs text-muted-foreground mb-5">O que cada nível de acesso pode fazer no sistema.</p>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="min-w-[220px]">Funcionalidade</TableHead>
                       {PERFIS.map(p => (
-                        <TableHead key={p} className="text-center w-[110px]">
-                          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors[p]}`}>{p}</span>
+                        <TableHead key={p} className="text-center w-[100px]">
+                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${perfilColors[p]}`}>
+                            {perfilIcons[p]}{p}
+                          </span>
                         </TableHead>
                       ))}
                     </TableRow>
@@ -353,10 +468,11 @@ const GestaoUsuariosGlobal = () => {
                     {PERMISSION_MATRIX.map((row) => (
                       <TableRow key={row.label}>
                         <TableCell className="text-sm">{row.label}</TableCell>
-                        <TableCell className="text-center">{row.admin ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto" /> : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto" />}</TableCell>
-                        <TableCell className="text-center">{row.gestor ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto" /> : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto" />}</TableCell>
-                        <TableCell className="text-center">{row.auxiliar ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto" /> : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto" />}</TableCell>
-                        <TableCell className="text-center">{row.visualizador ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto" /> : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto" />}</TableCell>
+                        {[row.admin, row.socio, row.gestor, row.auxiliar, row.visualizador].map((v, i) => (
+                          <TableCell key={i} className="text-center">
+                            {v ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto" /> : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto" />}
+                          </TableCell>
+                        ))}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -364,25 +480,16 @@ const GestaoUsuariosGlobal = () => {
               </div>
             </div>
 
+            {/* Descrição dos perfis */}
             <div className="hub-card-base p-5 mb-6">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Descrição dos Perfis</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors.Admin}`}>Admin</span>
-                  <p className="text-xs text-muted-foreground mt-1">Acesso total. Gerencia usuários, configurações e pode excluir registros.</p>
-                </div>
-                <div className="space-y-1">
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors.Gestor}`}>Gestor</span>
-                  <p className="text-xs text-muted-foreground mt-1">Gerencia operações financeiras, aprova pagamentos e faz conciliação.</p>
-                </div>
-                <div className="space-y-1">
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors.Auxiliar}`}>Auxiliar</span>
-                  <p className="text-xs text-muted-foreground mt-1">Cria e edita lançamentos e cadastros, mas não aprova nem exclui.</p>
-                </div>
-                <div className="space-y-1">
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors.Visualizador}`}>Visualizador</span>
-                  <p className="text-xs text-muted-foreground mt-1">Apenas visualiza dashboards, relatórios e exporta dados.</p>
-                </div>
+                {PERFIS.map(p => (
+                  <div key={p} className="space-y-1">
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${perfilColors[p]}`}>{perfilIcons[p]}{p}</span>
+                    <p className="text-xs text-muted-foreground mt-1">{perfilDesc[p]}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -414,34 +521,25 @@ const GestaoUsuariosGlobal = () => {
                             <div>
                               <span className="text-sm font-medium">{u.nome}</span>
                               <span className="text-[10px] text-muted-foreground block">{u.email}</span>
-                              {isAdmin && <span className="text-[9px] text-[hsl(var(--accent))]">Acesso total</span>}
+                              <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 ${perfilColors[u.perfil]}`}>
+                                {perfilIcons[u.perfil]}{u.perfil}
+                              </span>
                             </div>
                           </TableCell>
                           {(companies || []).map(c => {
-                            if (isAdmin) {
-                              return (
-                                <TableCell key={c.id} className="text-center">
-                                  <CheckCircle2 className="w-4 h-4 text-[hsl(var(--accent))] mx-auto" />
-                                </TableCell>
-                              );
-                            }
+                            if (isAdmin) return (
+                              <TableCell key={c.id} className="text-center">
+                                <CheckCircle2 className="w-4 h-4 text-[hsl(var(--accent))] mx-auto" />
+                              </TableCell>
+                            );
                             const has = hasAccess(u.auth_id!, c.id);
                             const isToggling = togglingAccess === `${u.auth_id}-${c.id}`;
                             return (
                               <TableCell key={c.id} className="text-center">
-                                <button
-                                  onClick={() => handleToggleAccess(u.auth_id!, c.id)}
-                                  disabled={isToggling}
-                                  className="mx-auto block"
-                                  title={`${has ? "Remover" : "Conceder"} acesso: ${u.nome} → ${c.name}`}
-                                >
-                                  {isToggling ? (
-                                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mx-auto" />
-                                  ) : has ? (
-                                    <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto cursor-pointer" />
-                                  ) : (
-                                    <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto cursor-pointer hover:text-muted-foreground/60" />
-                                  )}
+                                <button onClick={() => handleToggleAccess(u.auth_id!, c.id)} disabled={isToggling} className="mx-auto block">
+                                  {isToggling ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mx-auto" />
+                                    : has ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--status-positive))] mx-auto cursor-pointer" />
+                                    : <XCircle className="w-4 h-4 text-muted-foreground/30 mx-auto cursor-pointer hover:text-muted-foreground/60" />}
                                 </button>
                               </TableCell>
                             );
@@ -463,52 +561,159 @@ const GestaoUsuariosGlobal = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Modal */}
-        <Dialog open={modalOpen} onOpenChange={(o) => { if (!o) { setModalOpen(false); resetForm(); } else setModalOpen(true); }}>
-          <DialogContent className="max-w-md">
+        {/* ===== MODAL CRIAR / EDITAR ===== */}
+        <Dialog open={modalOpen} onOpenChange={(o) => { if (!o) { setModalOpen(false); resetForm(); } }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingId ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleSave} className="space-y-4 pt-1">
+
+              {/* ── Empresa principal ── */}
               <div>
-                <Label>Empresa</Label>
+                <Label>Empresa principal *</Label>
                 <Select value={formCompanyId} onValueChange={setFormCompanyId} disabled={!!editingId}>
-                  <SelectTrigger><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
                   <SelectContent>
-                    {(companies || []).map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
+                    {(companies || []).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* ── Dados básicos ── */}
               <div>
-                <Label>Nome</Label>
-                <Input value={formNome} onChange={e => setFormNome(e.target.value)} placeholder="Nome completo" required />
+                <Label>Nome *</Label>
+                <Input className="mt-1" value={formNome} onChange={e => setFormNome(e.target.value)} placeholder="Nome completo" required />
               </div>
               <div>
-                <Label>E-mail</Label>
-                <Input type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} placeholder="email@exemplo.com" required />
+                <Label>E-mail *</Label>
+                <Input className="mt-1" type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} placeholder="email@exemplo.com" required />
               </div>
               <div>
                 <Label>Senha {editingId && <span className="text-muted-foreground text-xs">(deixe em branco para não alterar)</span>}</Label>
-                <Input
-                  type="password"
-                  value={formSenha}
-                  onChange={e => setFormSenha(e.target.value)}
-                  placeholder={editingId ? "Nova senha (opcional)" : "Senha de acesso"}
-                  required={!editingId}
-                />
+                <Input className="mt-1" type="password" value={formSenha} onChange={e => setFormSenha(e.target.value)}
+                  placeholder={editingId ? "Nova senha (opcional)" : "Senha de acesso"} required={!editingId} />
               </div>
+
+              {/* ── Perfil ── */}
               <div>
-                <Label>Perfil</Label>
-                <Select value={formPerfil} onValueChange={(v) => setFormPerfil(v as Perfil)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>Perfil *</Label>
+                <Select value={formPerfil} onValueChange={(v) => {
+                  setFormPerfil(v as Perfil);
+                  setFormModulos([]);
+                  if (v === "Admin") setFormEmpresas([]);
+                  else if (v === "Sócio") setFormEmpresas(formCompanyId ? [formCompanyId] : []);
+                  else setFormEmpresas(formCompanyId ? [formCompanyId] : []);
+                }}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {allowedPerfis.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    {PERFIS.map(p => (
+                      <SelectItem key={p} value={p}>
+                        <span className="flex items-center gap-2">{perfilIcons[p]}{p}</span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {formPerfil && (
+                  <p className="text-xs text-muted-foreground mt-1">{perfilDesc[formPerfil]}</p>
+                )}
               </div>
-              <div className="flex gap-2">
+
+              {/* ── Admin: aviso de acesso total ── */}
+              {formPerfil === "Admin" && (
+                <div className="rounded-lg border border-[hsl(var(--status-danger)/0.3)] bg-[hsl(var(--status-danger)/0.05)] p-3 flex items-start gap-2">
+                  <Crown className="w-4 h-4 text-[hsl(var(--status-danger))] mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-[hsl(var(--status-danger))]">Acesso Master</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Este usuário terá acesso irrestrito a todas as empresas, todos os módulos e todas as funcionalidades do sistema.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Sócio: selecionar módulos ── */}
+              {formPerfil === "Sócio" && formCompanyId && (
+                <div className="border border-border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <Star className="w-4 h-4 text-[hsl(var(--accent))]" /> Módulos disponíveis
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Selecione quais módulos este sócio pode acessar na empresa principal.</p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button type="button" onClick={selectAllModulos} className="text-[10px] text-primary hover:underline">Todos</button>
+                      <span className="text-muted-foreground text-[10px]">|</span>
+                      <button type="button" onClick={clearModulos} className="text-[10px] text-muted-foreground hover:underline">Limpar</button>
+                    </div>
+                  </div>
+
+                  {!socioModules || socioModules.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2">Nenhum módulo encontrado para esta empresa.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                      {socioModules.map(mod => (
+                        <label key={mod} className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-muted/40 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formModulos.includes(mod)}
+                            onChange={() => toggleModulo(mod)}
+                            className="w-3.5 h-3.5 rounded accent-primary"
+                          />
+                          <span className="text-xs text-foreground">{MODULE_LABELS[mod] || mod}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {formModulos.length > 0 && (
+                    <p className="text-xs text-[hsl(var(--status-positive))] font-medium">
+                      {formModulos.length} módulo{formModulos.length !== 1 ? "s" : ""} selecionado{formModulos.length !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Gestor / Auxiliar / Visualizador: acesso a empresas ── */}
+              {!editingId && (formPerfil === "Gestor" || formPerfil === "Auxiliar" || formPerfil === "Visualizador") && (
+                <div className="border border-border rounded-lg p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-primary" /> Acesso a empresas
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Selecione quais empresas este usuário pode acessar.
+                      {formPerfil === "Gestor" && " Terá permissão para criar lançamentos, aprovar pagamentos e fazer conciliação."}
+                      {formPerfil === "Auxiliar" && " Poderá criar e editar lançamentos e cadastros."}
+                      {formPerfil === "Visualizador" && " Acesso somente leitura — poderá visualizar e exportar."}
+                    </p>
+                  </div>
+                  <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                    {(companies || []).map(c => {
+                      const isPrimary = c.id === formCompanyId;
+                      const checked = formEmpresas.includes(c.id);
+                      return (
+                        <label key={c.id} className={`flex items-center gap-2.5 py-1.5 px-2 rounded cursor-pointer transition-colors ${checked ? "bg-primary/5" : "hover:bg-muted/40"} ${isPrimary ? "cursor-default" : ""}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleEmpresa(c.id)}
+                            disabled={isPrimary}
+                            className="w-3.5 h-3.5 rounded accent-primary"
+                          />
+                          <span className="text-xs text-foreground flex-1">{c.name}</span>
+                          {isPrimary && <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Principal</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {formEmpresas.length} empresa{formEmpresas.length !== 1 ? "s" : ""} selecionada{formEmpresas.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              )}
+
+              {/* ── Botões ── */}
+              <div className="flex gap-2 pt-2">
                 <Button type="button" variant="outline" className="flex-1" onClick={() => { setModalOpen(false); resetForm(); }}>Cancelar</Button>
                 <Button type="submit" className="flex-1" disabled={saving}>
                   {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : (editingId ? "Atualizar" : "Criar Usuário")}
