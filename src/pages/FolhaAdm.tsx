@@ -36,7 +36,7 @@ const FolhaAdm = () => {
   const [editCargo, setEditCargo] = useState("");
   const [editSalarioBase, setEditSalarioBase] = useState("");
   const [editBeneficios, setEditBeneficios] = useState("");
-  const [editUnidade, setEditUnidade] = useState("");
+  const [editUnidade, setEditUnidade] = useState("_sem_unidade");
 
   // Form state
   const [formColaboradorId, setFormColaboradorId] = useState("");
@@ -45,7 +45,7 @@ const FolhaAdm = () => {
   const [formSalarioBase, setFormSalarioBase] = useState("");
   const [formBeneficios, setFormBeneficios] = useState("");
   const [formDescontos, setFormDescontos] = useState("");
-  const [formUnidade, setFormUnidade] = useState("");
+  const [formUnidade, setFormUnidade] = useState("_sem_unidade");
 
   // Colaboradores ativos
   const { data: colaboradores, isLoading } = useQuery({
@@ -152,7 +152,7 @@ const FolhaAdm = () => {
 
   // Colaboradores filtrados pela unidade selecionada no modal
   const colaboradoresFiltrados = useMemo(() => {
-    if (!formUnidade) return colaboradores || [];
+    if (!formUnidade || formUnidade === "_sem_unidade") return colaboradores || [];
     // Find colaboradores who have folha records for this branch name
     const folhaIds = new Set(
       (folhaPagamento || [])
@@ -210,7 +210,7 @@ const FolhaAdm = () => {
     setEditBeneficios(c.beneficios > 0
       ? c.beneficios.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : "");
-    setEditUnidade(c.unidade || "");
+    setEditUnidade(c.unidade || "_sem_unidade");
     setEditModalOpen(true);
   };
 
@@ -239,7 +239,7 @@ const FolhaAdm = () => {
       const latest = folhaRecords.sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""))[0] as any;
       await (supabase as any).from("folha_pagamento").update({
         beneficios: benef,
-        unidade: editUnidade || "Sem unidade",
+        unidade: (editUnidade && editUnidade !== "_sem_unidade") ? editUnidade : "Sem unidade",
         cargo: editCargo,
         salario_base: salBase,
         // valor_liquido é GENERATED — não pode ser atualizado diretamente
@@ -249,7 +249,7 @@ const FolhaAdm = () => {
         company_id: companyId!,
         colaborador_id: editItem.id,
         nome_colaborador: editItem.nome,
-        unidade: editUnidade || "Sem unidade",
+        unidade: (editUnidade && editUnidade !== "_sem_unidade") ? editUnidade : "Sem unidade",
         cargo: editCargo,
         salario_base: salBase,
         beneficios: benef,
@@ -296,7 +296,7 @@ const FolhaAdm = () => {
       company_id: companyId!,
       colaborador_id: formColaboradorId,
       nome_colaborador: formColaboradorNome,
-      unidade: formUnidade || "Sem unidade",
+      unidade: (formUnidade && formUnidade !== "_sem_unidade") ? formUnidade : "Sem unidade",
       cargo: formCargo,
       salario_base: salarioBaseNum,
       beneficios: beneficiosNum,
@@ -322,7 +322,7 @@ const FolhaAdm = () => {
     setFormSalarioBase("");
     setFormBeneficios("");
     setFormDescontos("");
-    setFormUnidade("");
+    setFormUnidade("_sem_unidade");
     qc.invalidateQueries({ queryKey: ["colaboradores", companyId] });
     qc.invalidateQueries({ queryKey: ["folha-pagamento", companyId] });
   };
@@ -435,7 +435,7 @@ const FolhaAdm = () => {
                 <Select value={editUnidade} onValueChange={setEditUnidade}>
                   <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sem unidade</SelectItem>
+                    <SelectItem value="_sem_unidade">Sem unidade</SelectItem>
                     {(branches || []).map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -502,7 +502,7 @@ const FolhaAdm = () => {
             setFormSalarioBase("");
             setFormBeneficios("");
             setFormDescontos("");
-            setFormUnidade("");
+            setFormUnidade("_sem_unidade");
           }
         }}>
           <DialogContent className="max-w-lg">
@@ -513,7 +513,7 @@ const FolhaAdm = () => {
                 <Select value={formUnidade} onValueChange={setFormUnidade}>
                   <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sem unidade</SelectItem>
+                    <SelectItem value="_sem_unidade">Sem unidade</SelectItem>
                     {(branches || []).map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
