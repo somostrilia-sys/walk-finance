@@ -41,14 +41,22 @@ const CompanyModules = () => {
   // dentro do módulo Colaboradores — ocultar o módulo standalone
   const HIDDEN_FOR_OBJETIVO = ["relatorio-colaborador"];
 
+  // Módulo "usuarios" é gerenciado globalmente pelo botão de engrenagem no dashboard
+  // — ocultar de todas as empresas
+  const HIDDEN_FOR_ALL = ["usuarios"];
+
   const modulesWithConciliacao = modulesRaw
     ? modulesRaw.some((m) => m.module_name === "conciliacao")
       ? modulesRaw
       : [...modulesRaw, { id: "conciliacao-fallback", module_name: "conciliacao", company_id: companyId, is_enabled: true }]
     : modulesRaw;
 
-  const modules = isObjetivo && modulesWithConciliacao
-    ? modulesWithConciliacao.filter((m) => !HIDDEN_FOR_OBJETIVO.includes(m.module_name))
+  const modules = modulesWithConciliacao
+    ? modulesWithConciliacao.filter((m) => {
+        if (HIDDEN_FOR_ALL.includes(m.module_name)) return false;
+        if (isObjetivo && HIDDEN_FOR_OBJETIVO.includes(m.module_name)) return false;
+        return true;
+      })
     : modulesWithConciliacao;
 
   if (!company && !isLoading) {

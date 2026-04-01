@@ -22,6 +22,7 @@ import CalendarioFinanceiro from "./pages/CalendarioFinanceiro";
 import DashboardSocio from "./pages/DashboardSocio";
 import RelatorioPorColaborador from "./pages/RelatorioPorColaborador";
 import GestaoUsuarios from "./pages/GestaoUsuarios";
+import GestaoUsuariosGlobal from "./pages/GestaoUsuariosGlobal";
 import GestaoFiscal from "./pages/GestaoFiscal";
 
 import CentroCustos from "./pages/CentroCustos";
@@ -75,6 +76,7 @@ const App = () => (
             <Route path="/empresa/:companyId/eventos" element={<ProtectedRoute><ModuloEventos /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/relatorio-colaborador" element={<ProtectedRoute><RelatorioPorColaborador /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/usuarios" element={<ProtectedRoute><GestaoUsuarios /></ProtectedRoute>} />
+            <Route path="/gestao-usuarios" element={<ProtectedRoute><GestaoUsuariosGlobal /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/gestao-fiscal" element={<ProtectedRoute><GestaoFiscal /></ProtectedRoute>} />
             <Route path="/empresa/:companyId/:moduleId" element={<ProtectedRoute><ModulePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

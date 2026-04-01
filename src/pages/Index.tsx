@@ -18,7 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import {
   Loader2, Building2, LayoutGrid, DollarSign, TrendingUp, TrendingDown,
-  AlertTriangle, Landmark, BarChart3, Filter, Percent, Users,
+  AlertTriangle, Landmark, BarChart3, Filter, Percent, Users, Settings,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -153,6 +153,13 @@ const Index = () => {
                 ))}
               </SelectContent>
             </Select>
+            <button
+              onClick={() => navigate("/gestao-usuarios")}
+              title="Gestão de Usuários"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
