@@ -116,6 +116,8 @@ const FolhaAdm = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const unidade = (folhaRecords[0] as any)?.unidade || null;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data_pagamento = (folhaRecords[0] as any)?.data_pagamento || null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const beneficios = folhaRecords.reduce((s: number, f: any) => s + Number(f.beneficios || 0), 0);
 
       const base = Number(c.salario_base || 0);
@@ -129,6 +131,7 @@ const FolhaAdm = () => {
         descontoMotivos,
         total,
         unidade,
+        data_pagamento,
         beneficios,
         statusPagamento: "Pendente" as string,
       };
@@ -371,6 +374,7 @@ const FolhaAdm = () => {
                     <th className="text-left py-3 px-4 text-muted-foreground font-medium">Nome</th>
                     <th className="text-left py-3 px-4 text-muted-foreground font-medium">Unidade</th>
                     <th className="text-left py-3 px-4 text-muted-foreground font-medium">Cargo</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium">Dt. Pagamento</th>
                     <th className="text-right py-3 px-4 text-muted-foreground font-medium">Salário Base</th>
                     <th className="text-right py-3 px-4 text-muted-foreground font-medium">Benefícios R$</th>
                     <th className="text-right py-3 px-4 text-muted-foreground font-medium">Comissão R$</th>
@@ -387,6 +391,9 @@ const FolhaAdm = () => {
                       <td className="py-2.5 px-4 font-medium text-foreground">{c.nome}</td>
                       <td className="py-2.5 px-4 text-muted-foreground text-xs">{c.unidade || "—"}</td>
                       <td className="py-2.5 px-4 text-muted-foreground text-xs">{c.cargo}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground text-xs">
+                        {c.data_pagamento ? new Date(c.data_pagamento + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
+                      </td>
                       <td className="py-2.5 px-4 text-right text-foreground">{formatCurrency(Number(c.salario_base))}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-positive))]">{c.beneficios > 0 ? formatCurrency(c.beneficios) : "—"}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-positive))]">{c.comissaoMes > 0 ? formatCurrency(c.comissaoMes) : "—"}</td>
@@ -404,11 +411,11 @@ const FolhaAdm = () => {
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={10} className="text-center text-muted-foreground py-8">Nenhum colaborador na folha</td></tr>
+                    <tr><td colSpan={11} className="text-center text-muted-foreground py-8">Nenhum colaborador na folha</td></tr>
                   )}
                   {filtered.length > 0 && (
                     <tr className="border-t-2 border-border bg-muted/30 font-bold">
-                      <td className="py-2.5 px-4 font-bold text-foreground" colSpan={3}>Total ({filtered.length})</td>
+                      <td className="py-2.5 px-4 font-bold text-foreground" colSpan={4}>Total ({filtered.length})</td>
                       <td className="py-2.5 px-4 text-right">{formatCurrency(filtered.reduce((s, c) => s + Number(c.salario_base), 0))}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-positive))]">{formatCurrency(filtered.reduce((s, c) => s + c.beneficios, 0))}</td>
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-positive))]">{formatCurrency(filtered.reduce((s, c) => s + c.comissaoMes, 0))}</td>
