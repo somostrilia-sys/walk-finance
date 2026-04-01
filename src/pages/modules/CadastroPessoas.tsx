@@ -119,7 +119,7 @@ const CadastroPessoas = () => {
       tipo: form.tipo,
       razao_social: form.razao_social,
       cpf_cnpj: form.cpf_cnpj || null,
-      tipo_servico: form.tipo_servico || null,
+      tipo_servico: (form.tipo_servico && form.tipo_servico !== "_sem_categoria") ? form.tipo_servico : null,
       condicao_pagamento: form.condicao_pagamento || null,
       telefone: form.telefone || null,
       email: form.email || null,
@@ -327,8 +327,8 @@ const CadastroPessoas = () => {
                     <Select value={form.tipo_servico} onValueChange={v => setForm(f => ({ ...f, tipo_servico: v }))}>
                       <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="_sem_categoria">Sem categoria</SelectItem>
                         {(categories || []).map((c: any) => <SelectItem key={c.id} value={c.name}>{c.icon} {c.name}</SelectItem>)}
-                        {(categories || []).length === 0 && <SelectItem value="" disabled>Nenhuma categoria</SelectItem>}
                       </SelectContent>
                     </Select>
                   </div>
@@ -462,7 +462,7 @@ const CadastroPessoas = () => {
                               cpf_cnpj: p.cpf_cnpj || "",
                               tipo: p.tipo || "cliente",
                               tipo_pf_pj: p.cpf_cnpj?.replace(/\D/g, "").length === 14 ? "PJ" : "PF",
-                              tipo_servico: p.tipo_servico || "",
+                              tipo_servico: p.tipo_servico || "_sem_categoria",
                               condicao_pagamento: p.condicao_pagamento || "",
                               telefone: p.telefone || "",
                               email: p.email || "",
