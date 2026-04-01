@@ -69,6 +69,7 @@ const ContasReceber = () => {
   const { data: pessoas } = usePessoas(companyId);
   const { data: categorias } = useExpenseCategories(companyId);
   const company = companies?.find(c => c.id === companyId);
+  const isObjetivo = company?.name?.toLowerCase().includes("objetivo");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState("todos");
@@ -135,9 +136,15 @@ const ContasReceber = () => {
     return lista.sort((a, b) => a.date.localeCompare(b.date));
   }, [contas, filtroStatus, search, filtroPeriodo]);
 
-  const totalPendente = filtered.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount), 0);
-  const totalRecebido = filtered.filter((c: any) => c.status === "confirmado").reduce((s: number, c: any) => s + Number(c.amount), 0);
-  const totalVencido = filtered.filter((c: any) => isVencido(c.date, c.status)).reduce((s: number, c: any) => s + Number(c.amount), 0);
+  // Cards mostram totais por período (sem filtro de status/busca), exceto Objetivo que mostra tudo
+  const contasParaCards = useMemo(() => {
+    if (isObjetivo) return contas;
+    return filterByPeriod(contas, filtroPeriodo, "date");
+  }, [contas, filtroPeriodo, isObjetivo]);
+
+  const totalPendente = contasParaCards.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const totalRecebido = contasParaCards.filter((c: any) => c.status === "confirmado").reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const totalVencido = contasParaCards.filter((c: any) => isVencido(c.date, c.status)).reduce((s: number, c: any) => s + Number(c.amount), 0);
 
   const handleAdd = async () => {
     if (!form.entity_name || !form.amount || !form.date) return toast({ title: "Preencha campos obrigatórios", variant: "destructive" });
@@ -187,7 +194,7 @@ const ContasReceber = () => {
         <PageHeader title="Contas a Receber" subtitle="Gestão de recebíveis e receitas" showBack companyLogo={company?.logo_url} />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
-          <ModuleStatCard label="Total Contas" value={filtered.length} icon={<ArrowUpCircle className="w-4 h-4" />} />
+          <ModuleStatCard label="Total Contas" value={contasParaCards.length} icon={<ArrowUpCircle className="w-4 h-4" />} />
           <ModuleStatCard label="Pendente" value={formatCurrency(totalPendente)} icon={<Clock className="w-4 h-4" />} />
           <ModuleStatCard label="Recebido" value={formatCurrency(totalRecebido)} icon={<CheckCircle2 className="w-4 h-4" />} />
           <ModuleStatCard label="Vencido" value={formatCurrency(totalVencido)} icon={<AlertTriangle className="w-4 h-4" />} />
