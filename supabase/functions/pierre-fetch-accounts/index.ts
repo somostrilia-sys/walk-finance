@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-const PIERRE_API_KEY = Deno.env.get("PIERRE_API_KEY") || ""
+const PIERRE_API_KEY = Deno.env.get("PIERRE_API_KEY") || "sk-aXHYoDVy1Y3N7hz02s7U7c2HedoB2ST9"
 const PIERRE_BASE_URL = "https://www.pierre.finance/tools/api"
 
 const corsHeaders = {
