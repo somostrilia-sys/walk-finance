@@ -260,7 +260,7 @@ const Categorizacao = () => {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-0">
-                        <ScrollArea className="max-h-[400px]">
+                        <ScrollArea className="h-[400px]">
                         <div className="divide-y divide-border/30">
                           {cats.map((cat: any) => (
                             <div key={cat.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/20 transition-colors">
@@ -299,7 +299,7 @@ const Categorizacao = () => {
               </TabsContent>
               <TabsContent value="lista">
                 <Card><CardContent className="p-0">
-                  <ScrollArea className="max-h-[500px]">
+                  <ScrollArea className="h-[500px]">
                   <Table>
                     <TableHeader><TableRow><TableHead>Ícone</TableHead><TableHead>Nome</TableHead><TableHead>Tipo</TableHead><TableHead>Classificação</TableHead><TableHead>Grupo</TableHead><TableHead className="w-20">Ações</TableHead></TableRow></TableHeader>
                     <TableBody>
