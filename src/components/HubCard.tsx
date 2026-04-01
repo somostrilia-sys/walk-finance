@@ -60,8 +60,8 @@ const HubCard = ({ title, icon, initials, logoUrl, brandColor, subtitle, to, sta
           <IconComponent className="w-7 h-7 text-[hsl(0,0%,100%)]" />
         </div>
       ) : logoUrl ? (
-        <div className="w-14 h-14 rounded-xl overflow-hidden border border-border/50 bg-white flex items-center justify-center p-1">
-          <img src={logoUrl} alt={title} className="w-full h-full object-contain" />
+        <div className="w-14 h-14 rounded-xl overflow-hidden border border-border/50">
+          <img src={logoUrl} alt={title} className="w-full h-full object-cover" />
         </div>
       ) : initials ? (
         <div
