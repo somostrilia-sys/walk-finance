@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { formatCurrency, parseCurrency } from "@/lib/formatCurrency";
 import {
-  DollarSign, Users, TrendingUp, Download, Search, Loader2, Plus,
+  DollarSign, Users, TrendingUp, Download, Search, Loader2, Plus, Pencil,
 } from "lucide-react";
 
 const FolhaAdm = () => {
@@ -28,7 +28,15 @@ const FolhaAdm = () => {
   const [busca, setBusca] = useState("");
   const [filtroUnidade, setFiltroUnidade] = useState("todas");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+
+  // Edit form state
+  const [editCargo, setEditCargo] = useState("");
+  const [editSalarioBase, setEditSalarioBase] = useState("");
+  const [editBeneficios, setEditBeneficios] = useState("");
+  const [editUnidade, setEditUnidade] = useState("");
 
   // Form state
   const [formColaboradorId, setFormColaboradorId] = useState("");
@@ -193,6 +201,72 @@ const FolhaAdm = () => {
   const salarioBaseNum = parseCurrency(formSalarioBase);
   const valorLiquido = salarioBaseNum + beneficiosNum - descontosNum;
 
+  const handleOpenEdit = (c: any) => {
+    setEditItem(c);
+    setEditCargo(c.cargo || "");
+    setEditSalarioBase(Number(c.salario_base || 0) > 0
+      ? Number(c.salario_base).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : "");
+    setEditBeneficios(c.beneficios > 0
+      ? c.beneficios.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : "");
+    setEditUnidade(c.unidade || "");
+    setEditModalOpen(true);
+  };
+
+  const handleSalvarEdicao = async () => {
+    if (!editItem) return;
+    setSaving(true);
+
+    const salBase = parseCurrency(editSalarioBase);
+    const benef = parseCurrency(editBeneficios);
+
+    // Atualiza colaborador (salario_base e cargo)
+    const { error: errColaborador } = await supabase
+      .from("colaboradores")
+      .update({ salario_base: salBase, cargo: editCargo } as any)
+      .eq("id", editItem.id);
+
+    if (errColaborador) {
+      toast.error("Erro ao atualizar colaborador: " + errColaborador.message);
+      setSaving(false);
+      return;
+    }
+
+    // Atualiza ou insere registro em folha_pagamento
+    const folhaRecords = (folhaPagamento || []).filter((f: any) => f.colaborador_id === editItem.id);
+    if (folhaRecords.length > 0) {
+      const latest = folhaRecords.sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""))[0] as any;
+      await (supabase as any).from("folha_pagamento").update({
+        beneficios: benef,
+        unidade: editUnidade || "Sem unidade",
+        cargo: editCargo,
+        salario_base: salBase,
+        valor_liquido: salBase + benef,
+      }).eq("id", latest.id);
+    } else {
+      await (supabase as any).from("folha_pagamento").insert({
+        company_id: companyId!,
+        colaborador_id: editItem.id,
+        nome_colaborador: editItem.nome,
+        unidade: editUnidade || "Sem unidade",
+        cargo: editCargo,
+        salario_base: salBase,
+        beneficios: benef,
+        descontos: 0,
+        valor_liquido: salBase + benef,
+        created_by: user?.id,
+      });
+    }
+
+    setSaving(false);
+    toast.success("Registro atualizado!");
+    setEditModalOpen(false);
+    setEditItem(null);
+    qc.invalidateQueries({ queryKey: ["colaboradores"] });
+    qc.invalidateQueries({ queryKey: ["folha-pagamento", companyId] });
+  };
+
   const handleSelectColaborador = (id: string) => {
     setFormColaboradorId(id);
     const col = (colaboradores || []).find(c => c.id === id);
@@ -303,6 +377,7 @@ const FolhaAdm = () => {
                     <th className="text-right py-3 px-4 text-muted-foreground font-medium">Descontos R$</th>
                     <th className="text-right py-3 px-4 text-muted-foreground font-medium">Valor Líquido</th>
                     <th className="text-center py-3 px-4 text-muted-foreground font-medium">Status</th>
+                    <th className="text-center py-3 px-4 text-muted-foreground font-medium">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -320,6 +395,11 @@ const FolhaAdm = () => {
                       <td className="py-2.5 px-4 text-center">
                         <Badge variant="outline" className="bg-[hsl(var(--status-warning)/0.15)] text-[hsl(var(--status-warning))] border-[hsl(var(--status-warning)/0.3)] text-[10px]">Pendente</Badge>
                       </td>
+                      <td className="py-2.5 px-4 text-center">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => handleOpenEdit(c)} title="Editar registro">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
@@ -335,6 +415,7 @@ const FolhaAdm = () => {
                       <td className="py-2.5 px-4 text-right text-[hsl(var(--status-danger))]">{formatCurrency(filtered.reduce((s, c) => s + c.descontos, 0))}</td>
                       <td className="py-2.5 px-4 text-right font-bold text-foreground">{formatCurrency(filtered.reduce((s, c) => s + c.total, 0))}</td>
                       <td></td>
+                      <td></td>
                     </tr>
                   )}
                 </tbody>
@@ -342,6 +423,73 @@ const FolhaAdm = () => {
             </div>
           </div>
         )}
+
+        {/* Modal Editar Registro */}
+        <Dialog open={editModalOpen} onOpenChange={(o) => { setEditModalOpen(o); if (!o) setEditItem(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Editar Registro — {editItem?.nome}</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Unidade</Label>
+                <Select value={editUnidade} onValueChange={setEditUnidade}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sem unidade</SelectItem>
+                    {(branches || []).map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Cargo</Label>
+                <Input value={editCargo} onChange={e => setEditCargo(e.target.value)} placeholder="Digite o cargo" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Salário Base</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input value={editSalarioBase} onChange={handleValorInput(setEditSalarioBase)} placeholder="0,00" className="pl-9" />
+                  </div>
+                </div>
+                <div>
+                  <Label>Benefícios</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input value={editBeneficios} onChange={handleValorInput(setEditBeneficios)} placeholder="0,00" className="pl-9" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Comissão (mês atual)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input value={editItem?.comissaoMes > 0 ? editItem.comissaoMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "0,00"} readOnly className="pl-9 bg-muted/50" />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Calculado automaticamente</p>
+                </div>
+                <div>
+                  <Label>Valor Líquido</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input
+                      value={(parseCurrency(editSalarioBase) + parseCurrency(editBeneficios)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      readOnly className="pl-9 bg-muted/50 font-semibold"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Base + Benefícios</p>
+                </div>
+              </div>
+
+              <Button className="w-full" onClick={handleSalvarEdicao} disabled={saving}>
+                {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : "Salvar alterações"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Modal Novo Registro */}
         <Dialog open={modalOpen} onOpenChange={(o) => {
