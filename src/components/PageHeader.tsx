@@ -24,7 +24,7 @@ const PageHeader = ({ title, subtitle, showBack = false, companyLogo }: PageHead
         </button>
       )}
       {companyLogo ? (
-        <img src={companyLogo} alt="" className="w-10 h-10 rounded-lg object-cover border border-border/50 flex-shrink-0" />
+        <img src={companyLogo} alt="" className="w-10 h-10 rounded-lg object-contain border border-border/50 flex-shrink-0 bg-white p-0.5" />
       ) : null}
       <div className="flex-1">
         <h1 className="text-2xl font-bold section-title">{title}</h1>
