@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { OpenFinanceButton } from "@/components/OpenFinanceButton";
+import { PluggyConnectButton } from "@/components/PluggyConnectButton";
 
 const statusConfig = {
   pendente: { icon: AlertCircle, label: "Pendente", badgeClass: "status-badge-warning" },
@@ -195,7 +195,7 @@ const ConciliacaoBancaria = () => {
                   <p className="text-xs text-muted-foreground mt-0.5">Conecte sua conta via Open Finance para importar movimentações automaticamente.</p>
                 </div>
                 {companyId && (
-                  <OpenFinanceButton companyId={companyId} onImported={handlePluggyImported} />
+                  <PluggyConnectButton companyId={companyId} onImported={handlePluggyImported} />
                 )}
               </div>
 

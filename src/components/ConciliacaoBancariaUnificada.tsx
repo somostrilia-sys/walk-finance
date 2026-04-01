@@ -28,7 +28,7 @@ import { parsePixQRCode } from "@/lib/pixParser";
 import { PERIOD_OPTIONS, filterByPeriod, type PeriodValue } from "@/lib/periodFilter";
 import { Calendar } from "lucide-react";
 import ModalConciliacaoV2 from "@/components/ModalConciliacaoV2";
-import { OpenFinanceButton } from "@/components/OpenFinanceButton";
+import { PluggyConnectButton } from "@/components/PluggyConnectButton";
 
 type ItemExtrato = {
   id: string;
@@ -775,7 +775,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
             </button>
 
             <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50 transition-all text-center">
-              <OpenFinanceButton
+              <PluggyConnectButton
                 companyId={companyId}
                 onImported={() => qc.invalidateQueries({ queryKey: ["unif_extrato", companyId] })}
               />
