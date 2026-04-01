@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { gerarParcelas, labelParcela } from "@/lib/utils";
+import { logAudit } from "@/lib/auditLog";
 import { PERIOD_OPTIONS, filterByPeriod, type PeriodValue } from "@/lib/periodFilter";
 import AppLayout from "@/components/AppLayout";
 import PageHeader from "@/components/PageHeader";
@@ -302,6 +303,7 @@ const ContasPagar = () => {
       setTotalParcelas(1);
       
       toast({ title: "Conta a pagar cadastrada com sucesso" });
+      if (companyId) logAudit({ companyId, acao: "criar", modulo: "Contas a Pagar", descricao: `Nova conta criada: ${form.fornecedor || form.descricao} — R$ ${Number(form.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} venc. ${form.vencimento}` });
     }
   };
 
@@ -346,6 +348,7 @@ const ContasPagar = () => {
     }
 
     toast({ title: "Conta baixada como paga" });
+    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Pagar", descricao: `Conta baixada como paga: ${conta.description || conta.entity_name || conta.id} — R$ ${Number(conta.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` });
   };
 
   const handleCancelar = async (conta: any) => {
@@ -362,6 +365,7 @@ const ContasPagar = () => {
     }
 
     toast({ title: "Conta cancelada" });
+    if (companyId) logAudit({ companyId, acao: "cancelar", modulo: "Contas a Pagar", descricao: `Conta cancelada: ${conta.description || conta.entity_name || conta.id}` });
   };
 
   const handleDelete = async (conta: any, deleteGroup = false) => {
@@ -388,6 +392,7 @@ const ContasPagar = () => {
 
     setDeleteConfirmId(null);
     toast({ title: deleteGroup ? "Todas as parcelas excluídas" : "Conta excluída" });
+    if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Contas a Pagar", descricao: `${deleteGroup ? "Grupo de parcelas excluído" : "Conta excluída"}: ${conta.description || conta.entity_name || conta.id}` });
   };
 
   const toggleSelect = (id: string) => {
@@ -448,6 +453,7 @@ const ContasPagar = () => {
     queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
     setSelectedIds(new Set());
     toast({ title: `${selected.length} conta(s) baixada(s) como paga(s)` });
+    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Pagar", descricao: `${selected.length} conta(s) baixadas em lote como pagas` });
   };
 
   const handleBulkDelete = async () => {
@@ -512,6 +518,7 @@ const ContasPagar = () => {
     }
 
     setEditModalOpen(false);
+    if (companyId && editForm) logAudit({ companyId, acao: "editar", modulo: "Contas a Pagar", descricao: `Conta editada: ${editForm.fornecedor || editForm.descricao} — R$ ${Number(editForm.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` });
     setEditForm(null);
     toast({ title: "Conta atualizada com sucesso" });
   };
