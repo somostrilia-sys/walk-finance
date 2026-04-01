@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatCurrency } from "@/data/mockData";
 import {
-  Users, UserPlus, History, DollarSign, Plus, Search, Loader2, AlertTriangle,
+  Users, UserPlus, History, DollarSign, Plus, Search, Loader2, AlertTriangle, Pencil,
 } from "lucide-react";
 
 const ContratacoesDemissoes = () => {
@@ -29,6 +29,8 @@ const ContratacoesDemissoes = () => {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [demissaoModal, setDemissaoModal] = useState<string | null>(null);
+  const [editModal, setEditModal] = useState<any | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState("ativo");
   const [busca, setBusca] = useState("");
   const [baseCalculo, setBaseCalculo] = useState<"manual" | "automatico">("manual");
@@ -101,6 +103,30 @@ const ContratacoesDemissoes = () => {
     if (error) { toast.error(error.message); return; }
     toast.success("Colaborador contratado!");
     setModalOpen(false);
+    qc.invalidateQueries({ queryKey: ["colaboradores", companyId] });
+  };
+
+  // Handle edição de colaborador
+  const handleSalvarEdicao = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editModal) return;
+    setEditSaving(true);
+    const fd = new FormData(e.currentTarget);
+    const { error } = await supabase.from("colaboradores").update({
+      nome: (fd.get("nome") as string)?.trim(),
+      cpf: (fd.get("cpf") as string)?.trim() || null,
+      cargo: (fd.get("cargo") as string)?.trim() || null,
+      admissao: (fd.get("admissao") as string) || null,
+      salario_base: Number(fd.get("salario_base")) || 0,
+      banco: (fd.get("banco") as string)?.trim() || null,
+      agencia: (fd.get("agencia") as string)?.trim() || null,
+      conta: (fd.get("conta") as string)?.trim() || null,
+      chave_pix: (fd.get("chave_pix") as string)?.trim() || null,
+    }).eq("id", editModal.id);
+    setEditSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Colaborador atualizado!");
+    setEditModal(null);
     qc.invalidateQueries({ queryKey: ["colaboradores", companyId] });
   };
 
@@ -238,11 +264,16 @@ const ContratacoesDemissoes = () => {
                             }>{c.status === "ativo" ? "Ativo" : "Desligado"}</Badge>
                           </td>
                           <td className="py-2.5 px-4 text-center">
-                            {c.status === "ativo" && (
-                              <Button variant="ghost" size="sm" className="text-[hsl(var(--status-danger))] text-xs" onClick={() => setDemissaoModal(c.id)}>
-                                Registrar Demissão
+                            <div className="flex items-center justify-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditModal(c)} title="Editar colaborador">
+                                <Pencil className="w-3.5 h-3.5" />
                               </Button>
-                            )}
+                              {c.status === "ativo" && (
+                                <Button variant="ghost" size="sm" className="text-[hsl(var(--status-danger))] text-xs" onClick={() => setDemissaoModal(c.id)}>
+                                  Registrar Demissão
+                                </Button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -296,6 +327,68 @@ const ContratacoesDemissoes = () => {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Modal Editar Colaborador */}
+        <Dialog open={!!editModal} onOpenChange={(open) => { if (!open) setEditModal(null); }}>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Editar Colaborador — {editModal?.nome}</DialogTitle></DialogHeader>
+            {editModal && (
+              <form onSubmit={handleSalvarEdicao} className="space-y-4 mt-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 space-y-1.5">
+                    <Label>Nome Completo *</Label>
+                    <Input name="nome" defaultValue={editModal.nome} required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>CPF</Label>
+                    <Input name="cpf" defaultValue={editModal.cpf || ""} placeholder="000.000.000-00" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Cargo</Label>
+                    <Input name="cargo" defaultValue={editModal.cargo || ""} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Data de Admissão</Label>
+                    <Input name="admissao" type="date" defaultValue={editModal.admissao || ""} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Remuneração (R$)</Label>
+                    <Input name="salario_base" type="number" step="0.01" defaultValue={editModal.salario_base || 0} />
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-4">
+                  <h4 className="text-sm font-semibold text-foreground mb-3">Dados Bancários</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Banco</Label>
+                      <Input name="banco" defaultValue={editModal.banco || ""} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Agência</Label>
+                      <Input name="agencia" defaultValue={editModal.agencia || ""} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Conta</Label>
+                      <Input name="conta" defaultValue={editModal.conta || ""} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Chave PIX</Label>
+                      <Input name="chave_pix" defaultValue={editModal.chave_pix || ""} />
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
+                  <Button type="submit" disabled={editSaving}>
+                    {editSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : "Salvar alterações"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Modal Demissão */}
         <Dialog open={!!demissaoModal} onOpenChange={(open) => { if (!open) setDemissaoModal(null); }}>
