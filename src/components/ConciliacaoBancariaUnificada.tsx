@@ -28,7 +28,7 @@ import { parsePixQRCode } from "@/lib/pixParser";
 import { PERIOD_OPTIONS, filterByPeriod, type PeriodValue } from "@/lib/periodFilter";
 import { Calendar } from "lucide-react";
 import ModalConciliacaoV2 from "@/components/ModalConciliacaoV2";
-import { PluggyConnectButton } from "@/components/PluggyConnectButton";
+import { OpenFinanceButton } from "@/components/OpenFinanceButton";
 
 type ItemExtrato = {
   id: string;
@@ -584,18 +584,16 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
 
   return (
     <div className="space-y-4">
-      {/* Botões de ação principais */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button variant="outline" size="sm" onClick={() => setContasModal(true)} className="gap-1.5">
-          <Landmark className="w-4 h-4" /> Contas Correntes
-        </Button>
-      </div>
-
       <Tabs defaultValue="extrato">
-        <TabsList>
-          <TabsTrigger value="extrato">Extrato Bancário</TabsTrigger>
-          <TabsTrigger value="importar">Importar e Conciliar</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <TabsList>
+            <TabsTrigger value="extrato">Extrato Bancário</TabsTrigger>
+            <TabsTrigger value="importar">Importar e Conciliar</TabsTrigger>
+          </TabsList>
+          <Button variant="outline" size="sm" onClick={() => setContasModal(true)} className="gap-1.5">
+            <Landmark className="w-4 h-4" /> Contas Correntes
+          </Button>
+        </div>
 
         {/* ── ABA EXTRATO ── */}
         <TabsContent value="extrato" className="space-y-4 pt-2">
@@ -777,7 +775,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
             </button>
 
             <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50 transition-all text-center">
-              <PluggyConnectButton
+              <OpenFinanceButton
                 companyId={companyId}
                 onImported={() => qc.invalidateQueries({ queryKey: ["unif_extrato", companyId] })}
               />
