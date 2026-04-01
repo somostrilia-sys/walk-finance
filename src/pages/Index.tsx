@@ -336,7 +336,7 @@ const Index = () => {
                     style={{ backgroundColor: company.primary_color || "hsl(var(--primary))" }}
                   >
                     {(company.logo_url || LOCAL_LOGOS[company.id]) ? (
-                      <img src={company.logo_url || LOCAL_LOGOS[company.id]} alt={company.name} className="w-full h-full object-cover" />
+                      <img src={company.logo_url || LOCAL_LOGOS[company.id]} alt={company.name} className="w-full h-full object-contain p-1" />
                     ) : (
                       <span className="text-lg font-bold text-white">{company.initials}</span>
                     )}
