@@ -242,7 +242,7 @@ const FolhaAdm = () => {
         unidade: editUnidade || "Sem unidade",
         cargo: editCargo,
         salario_base: salBase,
-        valor_liquido: salBase + benef,
+        // valor_liquido é GENERATED — não pode ser atualizado diretamente
       }).eq("id", latest.id);
     } else {
       await (supabase as any).from("folha_pagamento").insert({
@@ -254,7 +254,7 @@ const FolhaAdm = () => {
         salario_base: salBase,
         beneficios: benef,
         descontos: 0,
-        valor_liquido: salBase + benef,
+        // valor_liquido é GENERATED — calculado automaticamente
         created_by: user?.id,
       });
     }
@@ -263,7 +263,7 @@ const FolhaAdm = () => {
     toast.success("Registro atualizado!");
     setEditModalOpen(false);
     setEditItem(null);
-    qc.invalidateQueries({ queryKey: ["colaboradores"] });
+    qc.invalidateQueries({ queryKey: ["colaboradores", companyId] });
     qc.invalidateQueries({ queryKey: ["folha-pagamento", companyId] });
   };
 
@@ -301,7 +301,7 @@ const FolhaAdm = () => {
       salario_base: salarioBaseNum,
       beneficios: beneficiosNum,
       descontos: descontosNum,
-      valor_liquido: valorLiquido,
+      // valor_liquido é coluna GENERATED — calculada automaticamente pelo banco
       data_pagamento: fd.get("data_pagamento") as string || null,
       created_by: user?.id,
     };
@@ -323,7 +323,8 @@ const FolhaAdm = () => {
     setFormBeneficios("");
     setFormDescontos("");
     setFormUnidade("");
-    qc.invalidateQueries({ queryKey: ["colaboradores"] });
+    qc.invalidateQueries({ queryKey: ["colaboradores", companyId] });
+    qc.invalidateQueries({ queryKey: ["folha-pagamento", companyId] });
   };
 
   return (
