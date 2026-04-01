@@ -38,6 +38,16 @@ const ContratacoesDemissoes = () => {
   const [busca, setBusca] = useState("");
   const [baseCalculo, setBaseCalculo] = useState<"manual" | "automatico">("manual");
 
+  // Campos controlados do modal Nova Contratação
+  const [formContrato, setFormContrato] = useState("MEI");
+  const [formUnidade, setFormUnidade] = useState("_sem_unidade");
+  const [formTemComissao, setFormTemComissao] = useState(false);
+
+  // Campos controlados do modal Editar
+  const [editContrato, setEditContrato] = useState("MEI");
+  const [editUnidadeColab, setEditUnidadeColab] = useState("_sem_unidade");
+  const [editTemComissao, setEditTemComissao] = useState(false);
+
   // Relatório states
   const [relBusca, setRelBusca] = useState("");
   const [relFiltroUnidade, setRelFiltroUnidade] = useState("todas");
@@ -124,24 +134,42 @@ const ContratacoesDemissoes = () => {
       salario = Math.round((salario / diasMes) * diasTrabalhados * 100) / 100;
     }
 
+    const unidadeNome = formUnidade !== "_sem_unidade"
+      ? ((branches || []).find((b: any) => b.id === formUnidade)?.name || null)
+      : null;
+
+    const diaPagSalario = Number(fd.get("dia_pagamento_salario")) || null;
+    const diaPagComissao = formTemComissao ? (Number(fd.get("dia_pagamento_comissao")) || null) : null;
+    const fechamentoInicio = Number(fd.get("fechamento_folha_inicio")) || null;
+    const fechamentoFim = Number(fd.get("fechamento_folha_fim")) || null;
+
     const { error } = await supabase.from("colaboradores").insert({
       company_id: companyId!,
       nome: nome.trim(),
       cpf: (fd.get("cpf") as string)?.trim() || null,
-      cargo: (fd.get("cargo") as string)?.trim() || "MEI",
+      cargo: (fd.get("cargo") as string)?.trim() || formContrato,
       salario_base: salario,
-      contrato: "MEI",
+      contrato: formContrato,
       tipo_remuneracao: "fixo",
       admissao: (fd.get("admissao") as string) || null,
       chave_pix: (fd.get("chave_pix") as string)?.trim() || null,
       banco: (fd.get("banco") as string)?.trim() || null,
       agencia: (fd.get("agencia") as string)?.trim() || null,
       conta: (fd.get("conta") as string)?.trim() || null,
+      comissao_tipo: formTemComissao ? "percentual" : "nenhum",
+      unidade: unidadeNome,
+      dia_pagamento_salario: diaPagSalario,
+      dia_pagamento_comissao: diaPagComissao,
+      fechamento_folha_inicio: fechamentoInicio,
+      fechamento_folha_fim: fechamentoFim,
       created_by: user?.id,
-    });
+    } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Colaborador contratado!");
     setModalOpen(false);
+    setFormContrato("MEI");
+    setFormUnidade("_sem_unidade");
+    setFormTemComissao(false);
     qc.invalidateQueries({ queryKey: ["colaboradores", companyId] });
   };
 
@@ -151,6 +179,10 @@ const ContratacoesDemissoes = () => {
     if (!editModal) return;
     setEditSaving(true);
     const fd = new FormData(e.currentTarget);
+    const editUnidadeNome = editUnidadeColab !== "_sem_unidade"
+      ? ((branches || []).find((b: any) => b.id === editUnidadeColab)?.name || null)
+      : null;
+
     const { error } = await supabase.from("colaboradores").update({
       nome: (fd.get("nome") as string)?.trim(),
       cpf: (fd.get("cpf") as string)?.trim() || null,
@@ -161,7 +193,14 @@ const ContratacoesDemissoes = () => {
       agencia: (fd.get("agencia") as string)?.trim() || null,
       conta: (fd.get("conta") as string)?.trim() || null,
       chave_pix: (fd.get("chave_pix") as string)?.trim() || null,
-    }).eq("id", editModal.id);
+      contrato: editContrato,
+      unidade: editUnidadeNome,
+      comissao_tipo: editTemComissao ? "percentual" : "nenhum",
+      dia_pagamento_salario: Number(fd.get("dia_pagamento_salario")) || null,
+      dia_pagamento_comissao: editTemComissao ? (Number(fd.get("dia_pagamento_comissao")) || null) : null,
+      fechamento_folha_inicio: Number(fd.get("fechamento_folha_inicio")) || null,
+      fechamento_folha_fim: Number(fd.get("fechamento_folha_fim")) || null,
+    } as any).eq("id", editModal.id);
     setEditSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Colaborador atualizado!");
@@ -304,16 +343,87 @@ const ContratacoesDemissoes = () => {
                   <Button size="sm" className="gap-2"><Plus className="w-4 h-4" /> Nova Contratação</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader><DialogTitle>Nova Contratação (MEI)</DialogTitle></DialogHeader>
+                  <DialogHeader><DialogTitle>Nova Contratação</DialogTitle></DialogHeader>
                   <form onSubmit={handleCreate} className="space-y-4 mt-2">
+
+                    {/* Identificação */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2 space-y-1.5"><Label>Nome Completo *</Label><Input name="nome" required /></div>
                       <div className="space-y-1.5"><Label>CPF</Label><Input name="cpf" placeholder="000.000.000-00" /></div>
-                      <div className="space-y-1.5"><Label>Cargo</Label><Input name="cargo" defaultValue="MEI" /></div>
-                      <div className="space-y-1.5"><Label>Email</Label><Input name="email" type="email" /></div>
-                      <div className="space-y-1.5"><Label>Data Início</Label><Input name="admissao" type="date" /></div>
+                      <div className="space-y-1.5"><Label>Cargo / Função</Label><Input name="cargo" placeholder="Ex: Consultor, Mecânico..." /></div>
+                      <div className="space-y-1.5">
+                        <Label>Tipo de Contratação *</Label>
+                        <Select value={formContrato} onValueChange={setFormContrato}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MEI">MEI</SelectItem>
+                            <SelectItem value="PJ">PJ — Pessoa Jurídica</SelectItem>
+                            <SelectItem value="CLT">CLT</SelectItem>
+                            <SelectItem value="Freelancer">Freelancer</SelectItem>
+                            <SelectItem value="Autônomo">Autônomo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Unidade</Label>
+                        <Select value={formUnidade} onValueChange={setFormUnidade}>
+                          <SelectTrigger><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="_sem_unidade">Sem unidade</SelectItem>
+                            {(branches || []).map((b: any) => (
+                              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5"><Label>Data de Admissão</Label><Input name="admissao" type="date" /></div>
                     </div>
 
+                    {/* Período de fechamento da folha */}
+                    <div className="border-t border-border pt-4">
+                      <h4 className="text-sm font-semibold text-foreground mb-1">Fechamento da Folha</h4>
+                      <p className="text-xs text-muted-foreground mb-3">Intervalo de dias que define o ciclo de apuração deste colaborador (ex: dia 20 ao dia 19 do mês seguinte).</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label>Início do período (dia do mês)</Label>
+                          <Input name="fechamento_folha_inicio" type="number" min={1} max={31} placeholder="Ex: 20" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Fim do período (dia do mês)</Label>
+                          <Input name="fechamento_folha_fim" type="number" min={1} max={31} placeholder="Ex: 19" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Datas de pagamento */}
+                    <div className="border-t border-border pt-4">
+                      <h4 className="text-sm font-semibold text-foreground mb-3">Datas de Recebimento</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label>Dia fixo de pagamento do salário *</Label>
+                          <Input name="dia_pagamento_salario" type="number" min={1} max={31} placeholder="Ex: 5" required />
+                          <p className="text-xs text-muted-foreground">Dia do mês em que o salário é pago</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="flex items-center gap-2">
+                            Tem comissão?
+                            <button type="button"
+                              onClick={() => setFormTemComissao(v => !v)}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${formTemComissao ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${formTemComissao ? "translate-x-4" : "translate-x-1"}`} />
+                            </button>
+                          </Label>
+                          {formTemComissao && (
+                            <>
+                              <Input name="dia_pagamento_comissao" type="number" min={1} max={31} placeholder="Ex: 15" />
+                              <p className="text-xs text-muted-foreground">Dia do mês em que a comissão é paga</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dados Bancários */}
                     <div className="border-t border-border pt-4">
                       <h4 className="text-sm font-semibold text-foreground mb-3">Dados Bancários</h4>
                       <div className="grid grid-cols-2 gap-4">
@@ -324,6 +434,7 @@ const ContratacoesDemissoes = () => {
                       </div>
                     </div>
 
+                    {/* Remuneração */}
                     <div className="border-t border-border pt-4">
                       <h4 className="text-sm font-semibold text-foreground mb-3">Remuneração</h4>
                       <div className="flex gap-3 mb-3">
@@ -383,7 +494,14 @@ const ContratacoesDemissoes = () => {
                           </td>
                           <td className="py-2.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditModal(c)} title="Editar colaborador">
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => {
+                                setEditModal(c);
+                                setEditContrato(c.contrato || "MEI");
+                                setEditTemComissao(c.comissao_tipo && c.comissao_tipo !== "nenhum");
+                                // Map stored unidade name back to branch id
+                                const branch = (branches || []).find((b: any) => b.name === c.unidade);
+                                setEditUnidadeColab(branch ? branch.id : "_sem_unidade");
+                              }} title="Editar colaborador">
                                 <Pencil className="w-3.5 h-3.5" />
                               </Button>
                               {c.status === "ativo" && (
@@ -537,6 +655,8 @@ const ContratacoesDemissoes = () => {
             <DialogHeader><DialogTitle>Editar Colaborador — {editModal?.nome}</DialogTitle></DialogHeader>
             {editModal && (
               <form onSubmit={handleSalvarEdicao} className="space-y-4 mt-2">
+
+                {/* Identificação */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2 space-y-1.5">
                     <Label>Nome Completo *</Label>
@@ -547,8 +667,33 @@ const ContratacoesDemissoes = () => {
                     <Input name="cpf" defaultValue={editModal.cpf || ""} placeholder="000.000.000-00" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Cargo</Label>
+                    <Label>Cargo / Função</Label>
                     <Input name="cargo" defaultValue={editModal.cargo || ""} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Tipo de Contratação</Label>
+                    <Select value={editContrato} onValueChange={setEditContrato}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MEI">MEI</SelectItem>
+                        <SelectItem value="PJ">PJ — Pessoa Jurídica</SelectItem>
+                        <SelectItem value="CLT">CLT</SelectItem>
+                        <SelectItem value="Freelancer">Freelancer</SelectItem>
+                        <SelectItem value="Autônomo">Autônomo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Unidade</Label>
+                    <Select value={editUnidadeColab} onValueChange={setEditUnidadeColab}>
+                      <SelectTrigger><SelectValue placeholder="Sem unidade" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_sem_unidade">Sem unidade</SelectItem>
+                        {(branches || []).map((b: any) => (
+                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Data de Admissão</Label>
@@ -560,6 +705,50 @@ const ContratacoesDemissoes = () => {
                   </div>
                 </div>
 
+                {/* Fechamento da folha */}
+                <div className="border-t border-border pt-4">
+                  <h4 className="text-sm font-semibold text-foreground mb-1">Fechamento da Folha</h4>
+                  <p className="text-xs text-muted-foreground mb-3">Intervalo de dias do ciclo de apuração (ex: dia 20 ao dia 19 do mês seguinte).</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Início do período (dia)</Label>
+                      <Input name="fechamento_folha_inicio" type="number" min={1} max={31} placeholder="Ex: 20" defaultValue={editModal.fechamento_folha_inicio || ""} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Fim do período (dia)</Label>
+                      <Input name="fechamento_folha_fim" type="number" min={1} max={31} placeholder="Ex: 19" defaultValue={editModal.fechamento_folha_fim || ""} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Datas de pagamento */}
+                <div className="border-t border-border pt-4">
+                  <h4 className="text-sm font-semibold text-foreground mb-3">Datas de Recebimento</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Dia fixo de pagamento do salário</Label>
+                      <Input name="dia_pagamento_salario" type="number" min={1} max={31} placeholder="Ex: 5" defaultValue={editModal.dia_pagamento_salario || ""} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="flex items-center gap-2">
+                        Tem comissão?
+                        <button type="button"
+                          onClick={() => setEditTemComissao(v => !v)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${editTemComissao ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${editTemComissao ? "translate-x-4" : "translate-x-1"}`} />
+                        </button>
+                      </Label>
+                      {editTemComissao && (
+                        <>
+                          <Input name="dia_pagamento_comissao" type="number" min={1} max={31} placeholder="Ex: 15" defaultValue={editModal.dia_pagamento_comissao || ""} />
+                          <p className="text-xs text-muted-foreground">Dia do mês em que a comissão é paga</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dados Bancários */}
                 <div className="border-t border-border pt-4">
                   <h4 className="text-sm font-semibold text-foreground mb-3">Dados Bancários</h4>
                   <div className="grid grid-cols-2 gap-4">
