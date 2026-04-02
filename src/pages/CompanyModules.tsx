@@ -118,12 +118,19 @@ const CompanyModules = () => {
                 description: mod.module_name,
                 label: mod.module_name,
               };
+              // Override label/description for cadastro-pessoas based on company type
+              const label = (mod.module_name === "cadastro-pessoas" && !isObjetivo)
+                ? "Clientes e Prestadores"
+                : config.label;
+              const description = (mod.module_name === "cadastro-pessoas" && !isObjetivo)
+                ? "Clientes, prestadores e vínculos financeiros"
+                : config.description;
               return (
                 <HubCard
                   key={mod.id}
-                  title={config.label}
+                  title={label}
                   icon={config.icon}
-                  subtitle={config.description}
+                  subtitle={description}
                   to={`/empresa/${companyId}/${mod.module_name}`}
                   delay={i}
                 />

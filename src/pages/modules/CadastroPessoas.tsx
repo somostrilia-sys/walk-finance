@@ -238,11 +238,11 @@ const CadastroPessoas = () => {
   return (
     <AppLayout companyBar={{ primary: company?.primary_color, accent: company?.accent_color }}>
       <div className="module-page">
-        <PageHeader title="Cadastros" subtitle="Associados, prestadores e dados da empresa" showBack companyLogo={company?.logo_url} />
+        <PageHeader title="Cadastros" subtitle={isObjetivo ? "Associados, prestadores e dados da empresa" : "Clientes, prestadores e dados da empresa"} showBack companyLogo={company?.logo_url} />
 
         <Tabs defaultValue="pessoas" className="w-full">
           <TabsList className="mb-4">
-            <TabsTrigger value="pessoas">Associados e Prestadores</TabsTrigger>
+            <TabsTrigger value="pessoas">{isObjetivo ? "Associados e Prestadores" : "Clientes e Prestadores"}</TabsTrigger>
             <TabsTrigger value="empresa">Empresa</TabsTrigger>
           </TabsList>
 
