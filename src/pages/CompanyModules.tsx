@@ -30,6 +30,7 @@ const moduleConfig: Record<string, { icon: string; description: string; label: s
   "usuarios": { icon: "UserCog", description: "Gestão de acesso e usuários", label: "Usuários" },
   "relatorio-colaborador": { icon: "FileText", description: "Relatório individual por colaborador", label: "Relatório por Colaborador" },
   "gestao-fiscal": { icon: "Receipt", description: "Gestão fiscal e tributária", label: "Gestão Fiscal" },
+  "fluxo-caixa": { icon: "Wallet", description: "Controle diário de entradas e saídas", label: "Fluxo de Caixa" },
 };
 
 const CompanyModules = () => {
