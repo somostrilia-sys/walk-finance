@@ -205,6 +205,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   // ── Cadastro Contas Correntes ─────────────────────────────────────────────
   const [contasModal, setContasModal] = useState(false);
   const [novaContaOpen, setNovaContaOpen] = useState(false);
+  const [editContaId, setEditContaId] = useState<string | null>(null);
   const [contaSaving, setContaSaving] = useState(false);
   const [contaForm, setContaForm] = useState({
     tipo_conta: "corrente" as "corrente" | "poupanca" | "cartao_credito",
@@ -283,6 +284,26 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       saldo_inicial: "", data_saldo_inicial: new Date().toISOString().slice(0, 10),
       limite_credito: "", conta_vinculada_id: "_nenhuma",
     });
+    setEditContaId(null);
+  };
+
+  const handleOpenEditConta = (c: any) => {
+    setEditContaId(c.id);
+    setContaForm({
+      tipo_conta: c.tipo_conta || "corrente",
+      banco_search: c.codigo_banco ? `${c.codigo_banco} - ${c.bank_name}` : (c.bank_name || ""),
+      banco_code: c.codigo_banco || "",
+      banco_name: c.bank_name || "",
+      nome_conta: c.nome_conta || "",
+      agencia: c.agency || "",
+      conta: c.account_number || "",
+      digito: c.digito || "",
+      saldo_inicial: String(c.current_balance ?? ""),
+      data_saldo_inicial: c.data_saldo_inicial || new Date().toISOString().slice(0, 10),
+      limite_credito: String(c.limite_credito ?? ""),
+      conta_vinculada_id: c.conta_vinculada_id || "_nenhuma",
+    });
+    setNovaContaOpen(true);
   };
 
   const handleSalvarConta = async () => {
@@ -290,25 +311,38 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     if (!contaForm.nome_conta) { toast({ title: "Informe o nome da conta", variant: "destructive" }); return; }
     setContaSaving(true);
     const payload: any = {
-      company_id: companyId,
       bank_name: contaForm.banco_name,
       account_number: contaForm.conta || null,
       agency: contaForm.agencia || null,
-      current_balance: parseFloat(contaForm.saldo_inicial.replace(/\./g, "").replace(",", ".")) || 0,
       tipo_conta: contaForm.tipo_conta,
       nome_conta: contaForm.nome_conta,
       digito: contaForm.digito || null,
       codigo_banco: contaForm.banco_code || null,
-      saldo_inicial: parseFloat(contaForm.saldo_inicial.replace(/\./g, "").replace(",", ".")) || 0,
       data_saldo_inicial: contaForm.data_saldo_inicial || null,
       limite_credito: contaForm.tipo_conta === "cartao_credito" ? (parseFloat(contaForm.limite_credito.replace(/\./g, "").replace(",", ".")) || 0) : 0,
       conta_vinculada_id: contaForm.tipo_conta === "cartao_credito" && contaForm.conta_vinculada_id && contaForm.conta_vinculada_id !== "_nenhuma" ? contaForm.conta_vinculada_id : null,
     };
-    const { error } = await supabase.from("bank_accounts").insert(payload);
+
+    let error: any;
+    if (editContaId) {
+      // Edição: atualiza campos sem sobrescrever saldo corrente automaticamente
+      ({ error } = await supabase.from("bank_accounts").update(payload).eq("id", editContaId));
+      if (!error) {
+        toast({ title: "Conta atualizada com sucesso!" });
+        logAudit({ companyId, acao: "editar", modulo: "Conciliação Bancária", descricao: `Conta bancária editada: ${contaForm.nome_conta} — ${contaForm.banco_name}` });
+      }
+    } else {
+      // Criação: inclui company_id e saldo inicial
+      const saldo = parseFloat(contaForm.saldo_inicial.replace(/\./g, "").replace(",", ".")) || 0;
+      ({ error } = await supabase.from("bank_accounts").insert({ ...payload, company_id: companyId, current_balance: saldo, saldo_inicial: saldo }));
+      if (!error) {
+        toast({ title: "Conta cadastrada com sucesso!" });
+        logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta bancária cadastrada: ${contaForm.nome_conta} — ${contaForm.banco_name}` });
+      }
+    }
+
     setContaSaving(false);
     if (error) { toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Conta cadastrada com sucesso!" });
-    logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta bancária cadastrada: ${contaForm.nome_conta} — ${contaForm.banco_name}` });
     qc.invalidateQueries({ queryKey: ["bank_accounts", companyId] });
     setNovaContaOpen(false);
     resetContaForm();
@@ -952,7 +986,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                     <TableHead>Nome</TableHead>
                     <TableHead>Ag/Conta</TableHead>
                     <TableHead className="text-right">Saldo</TableHead>
-                    <TableHead className="w-12"></TableHead>
+                    <TableHead className="w-20"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -971,9 +1005,14 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(Number(c.current_balance || 0))}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteConta(c.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => handleOpenEditConta(c)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteConta(c.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -987,7 +1026,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       {/* Modal Nova Conta */}
       <Dialog open={novaContaOpen} onOpenChange={(o) => { setNovaContaOpen(o); if (!o) resetContaForm(); }}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Incluir Conta</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editContaId ? "Editar Conta" : "Incluir Conta"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>Tipo de Conta</Label>
@@ -1078,7 +1117,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
             )}
 
             <Button onClick={handleSalvarConta} className="w-full" disabled={contaSaving}>
-              {contaSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : "Cadastrar Conta"}
+              {contaSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : editContaId ? "Salvar Alterações" : "Cadastrar Conta"}
             </Button>
           </div>
         </DialogContent>
