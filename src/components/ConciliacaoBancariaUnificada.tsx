@@ -306,6 +306,15 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     setNovaContaOpen(true);
   };
 
+  // Parse saldo: suporta "1.234,56" (BR) e "1234.56" (DB/padrão)
+  const parseSaldo = (v: string) => {
+    if (!v) return 0;
+    // Se tem vírgula, assume formato BR: remove pontos de milhar e troca vírgula por ponto
+    if (v.includes(",")) return parseFloat(v.replace(/\./g, "").replace(",", ".")) || 0;
+    // Sem vírgula: ponto é decimal — parse direto
+    return parseFloat(v) || 0;
+  };
+
   const handleSalvarConta = async () => {
     if (!contaForm.banco_name) { toast({ title: "Selecione a instituição bancária", variant: "destructive" }); return; }
     if (!contaForm.nome_conta) { toast({ title: "Informe o nome da conta", variant: "destructive" }); return; }
@@ -319,14 +328,14 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       digito: contaForm.digito || null,
       codigo_banco: contaForm.banco_code || null,
       data_saldo_inicial: contaForm.data_saldo_inicial || null,
-      limite_credito: contaForm.tipo_conta === "cartao_credito" ? (parseFloat(contaForm.limite_credito.replace(/\./g, "").replace(",", ".")) || 0) : 0,
+      limite_credito: contaForm.tipo_conta === "cartao_credito" ? parseSaldo(contaForm.limite_credito) : 0,
       conta_vinculada_id: contaForm.tipo_conta === "cartao_credito" && contaForm.conta_vinculada_id && contaForm.conta_vinculada_id !== "_nenhuma" ? contaForm.conta_vinculada_id : null,
     };
 
     let error: any;
     if (editContaId) {
       // Edição: atualiza todos os campos inclusive saldo inicial e saldo corrente
-      const saldo = parseFloat(contaForm.saldo_inicial.replace(/\./g, "").replace(",", ".")) || 0;
+      const saldo = parseSaldo(contaForm.saldo_inicial);
       ({ error } = await supabase.from("bank_accounts").update({ ...payload, current_balance: saldo, saldo_inicial: saldo }).eq("id", editContaId));
       if (!error) {
         toast({ title: "Conta atualizada com sucesso!" });
@@ -334,7 +343,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       }
     } else {
       // Criação: inclui company_id e saldo inicial
-      const saldo = parseFloat(contaForm.saldo_inicial.replace(/\./g, "").replace(",", ".")) || 0;
+      const saldo = parseSaldo(contaForm.saldo_inicial);
       ({ error } = await supabase.from("bank_accounts").insert({ ...payload, company_id: companyId, current_balance: saldo, saldo_inicial: saldo }));
       if (!error) {
         toast({ title: "Conta cadastrada com sucesso!" });
