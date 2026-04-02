@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,10 +15,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/auditLog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus, Loader2, Pencil, UserX, UserCheck, Users, Shield,
   CheckCircle2, XCircle, Building2, Crown, Briefcase, Eye,
-  Settings2, Star,
+  Settings2, Star, ClipboardList, Download, Activity,
 } from "lucide-react";
 
 type Perfil = "Admin" | "Sócio" | "Gestor" | "Auxiliar" | "Visualizador";
@@ -127,6 +128,118 @@ const GestaoUsuariosGlobal = () => {
   const [formModulos, setFormModulos] = useState<string[]>([]);
 
   const companyIds = (companies || []).map(c => c.id);
+
+  // Audit filters
+  const [auditFiltroUsuario, setAuditFiltroUsuario] = useState("");
+  const [auditFiltroDateFrom, setAuditFiltroDateFrom] = useState("");
+  const [auditFiltroDateTo, setAuditFiltroDateTo] = useState("");
+  const [auditFiltroModulo, setAuditFiltroModulo] = useState("todos");
+  const [auditFiltroAcao, setAuditFiltroAcao] = useState("todas");
+
+  // Audit log query — global across all companies
+  const { data: auditLogs, isLoading: auditLoading } = useQuery({
+    queryKey: ["audit_log_global", companyIds],
+    queryFn: async () => {
+      if (companyIds.length === 0) return [];
+      const { data } = await (supabase as any)
+        .from("audit_log")
+        .select("*")
+        .in("company_id", companyIds)
+        .order("created_at", { ascending: false })
+        .limit(2000);
+      return data || [];
+    },
+    enabled: companyIds.length > 0,
+    refetchInterval: 30000,
+  });
+
+  const auditFiltered = useMemo(() => {
+    let rows = auditLogs || [];
+    if (auditFiltroUsuario.trim()) {
+      const q = auditFiltroUsuario.toLowerCase();
+      rows = rows.filter((r: any) =>
+        (r.user_nome || "").toLowerCase().includes(q) ||
+        (r.user_email || "").toLowerCase().includes(q)
+      );
+    }
+    if (auditFiltroModulo && auditFiltroModulo !== "todos") {
+      rows = rows.filter((r: any) => r.modulo === auditFiltroModulo);
+    }
+    if (auditFiltroAcao && auditFiltroAcao !== "todas") {
+      rows = rows.filter((r: any) => r.acao === auditFiltroAcao);
+    }
+    if (auditFiltroDateFrom) {
+      const from = new Date(auditFiltroDateFrom);
+      rows = rows.filter((r: any) => new Date(r.created_at) >= from);
+    }
+    if (auditFiltroDateTo) {
+      const to = new Date(auditFiltroDateTo);
+      to.setHours(23, 59, 59, 999);
+      rows = rows.filter((r: any) => new Date(r.created_at) <= to);
+    }
+    return rows;
+  }, [auditLogs, auditFiltroUsuario, auditFiltroModulo, auditFiltroAcao, auditFiltroDateFrom, auditFiltroDateTo]);
+
+  const auditModulos = useMemo(() => {
+    const s = new Set((auditLogs || []).map((r: any) => r.modulo));
+    return Array.from(s).sort();
+  }, [auditLogs]);
+
+  const auditAcoes = useMemo(() => {
+    const s = new Set((auditLogs || []).map((r: any) => r.acao));
+    return Array.from(s).sort();
+  }, [auditLogs]);
+
+  const auditHoje = useMemo(() => {
+    const today = new Date().toLocaleDateString("pt-BR");
+    return (auditLogs || []).filter((r: any) =>
+      new Date(r.created_at).toLocaleDateString("pt-BR") === today
+    ).length;
+  }, [auditLogs]);
+
+  const auditUsuariosUnicos = useMemo(() => {
+    const s = new Set((auditLogs || []).map((r: any) => r.user_email));
+    return s.size;
+  }, [auditLogs]);
+
+  const acaoColors: Record<string, string> = {
+    criar: "bg-[hsl(var(--status-positive)/0.15)] text-[hsl(var(--status-positive))]",
+    editar: "bg-primary/10 text-primary",
+    excluir: "bg-[hsl(var(--status-danger)/0.15)] text-[hsl(var(--status-danger))]",
+    ativar: "bg-[hsl(var(--status-positive)/0.15)] text-[hsl(var(--status-positive))]",
+    desativar: "bg-[hsl(var(--status-warning)/0.15)] text-[hsl(var(--status-warning))]",
+    pagar: "bg-[hsl(var(--accent)/0.15)] text-[hsl(var(--accent))]",
+    cancelar: "bg-[hsl(var(--status-danger)/0.15)] text-[hsl(var(--status-danger))]",
+    conciliar: "bg-primary/10 text-primary",
+    acesso: "bg-[hsl(var(--accent)/0.15)] text-[hsl(var(--accent))]",
+  };
+
+  const handleExportAudit = () => {
+    const bom = "\uFEFF";
+    const header = "Data/Hora;Usuário;E-mail;Módulo;Ação;Descrição;Empresa\n";
+    const rows = auditFiltered.map((r: any) => {
+      const companyName = (companies || []).find(c => c.id === r.company_id)?.name || r.company_id;
+      const dt = new Date(r.created_at);
+      const data = dt.toLocaleDateString("pt-BR");
+      const hora = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      return [
+        `${data} ${hora}`,
+        r.user_nome || "",
+        r.user_email || "",
+        r.modulo || "",
+        r.acao || "",
+        `"${(r.descricao || "").replace(/"/g, '""')}"`,
+        companyName,
+      ].join(";");
+    }).join("\n");
+    const blob = new Blob([bom + header + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `auditoria_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Fetch all users across all companies
   const { data: usuarios, isLoading } = useQuery({
@@ -349,6 +462,7 @@ const GestaoUsuariosGlobal = () => {
           <TabsList className="mb-6">
             <TabsTrigger value="usuarios" className="gap-1.5"><Users className="w-4 h-4" />Usuários</TabsTrigger>
             <TabsTrigger value="permissoes" className="gap-1.5"><Shield className="w-4 h-4" />Permissões</TabsTrigger>
+            <TabsTrigger value="auditoria" className="gap-1.5"><ClipboardList className="w-4 h-4" />Auditoria</TabsTrigger>
           </TabsList>
 
           {/* === ABA USUÁRIOS === */}
@@ -562,6 +676,141 @@ const GestaoUsuariosGlobal = () => {
                   </TableBody>
                 </Table>
               </div>
+            </div>
+          </TabsContent>
+
+          {/* === ABA AUDITORIA === */}
+          <TabsContent value="auditoria">
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="hub-card-base p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total de Registros</span>
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center"><ClipboardList className="w-4 h-4 text-primary" /></div>
+                </div>
+                <span className="text-2xl font-bold text-foreground">{auditFiltered.length}</span>
+              </div>
+              <div className="hub-card-base p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ações Hoje</span>
+                  <div className="w-8 h-8 rounded-lg bg-[hsl(var(--status-positive)/0.1)] flex items-center justify-center"><Activity className="w-4 h-4 text-[hsl(var(--status-positive))]" /></div>
+                </div>
+                <span className="text-2xl font-bold text-foreground">{auditHoje}</span>
+              </div>
+              <div className="hub-card-base p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Usuários Ativos</span>
+                  <div className="w-8 h-8 rounded-lg bg-[hsl(var(--accent)/0.1)] flex items-center justify-center"><Users className="w-4 h-4 text-[hsl(var(--accent))]" /></div>
+                </div>
+                <span className="text-2xl font-bold text-foreground">{auditUsuariosUnicos}</span>
+              </div>
+            </div>
+
+            {/* Filtros + export */}
+            <div className="hub-card-base p-4 mb-4">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="flex-1 min-w-[160px]">
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Usuário</label>
+                  <Input
+                    placeholder="Buscar por nome ou e-mail..."
+                    value={auditFiltroUsuario}
+                    onChange={e => setAuditFiltroUsuario(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="min-w-[140px]">
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Módulo</label>
+                  <Select value={auditFiltroModulo} onValueChange={setAuditFiltroModulo}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os módulos</SelectItem>
+                      {auditModulos.map((m: string) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="min-w-[130px]">
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Ação</label>
+                  <Select value={auditFiltroAcao} onValueChange={setAuditFiltroAcao}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas as ações</SelectItem>
+                      {auditAcoes.map((a: string) => (
+                        <SelectItem key={a} value={a}>{a}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="min-w-[130px]">
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">De</label>
+                  <Input type="date" value={auditFiltroDateFrom} onChange={e => setAuditFiltroDateFrom(e.target.value)} className="h-8 text-xs" />
+                </div>
+                <div className="min-w-[130px]">
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Até</label>
+                  <Input type="date" value={auditFiltroDateTo} onChange={e => setAuditFiltroDateTo(e.target.value)} className="h-8 text-xs" />
+                </div>
+                <Button variant="outline" size="sm" onClick={handleExportAudit} className="gap-1.5 h-8 text-xs">
+                  <Download className="w-3.5 h-3.5" /> Exportar CSV
+                </Button>
+              </div>
+            </div>
+
+            {/* Tabela */}
+            <div className="hub-card-base overflow-hidden">
+              {auditLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              ) : (
+                <ScrollArea className="h-[520px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[110px]">Data/Hora</TableHead>
+                        <TableHead className="min-w-[160px]">Usuário</TableHead>
+                        <TableHead className="min-w-[80px]">Empresa</TableHead>
+                        <TableHead className="min-w-[130px]">Módulo</TableHead>
+                        <TableHead className="min-w-[90px]">Ação</TableHead>
+                        <TableHead>Descrição</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {auditFiltered.map((r: any) => {
+                        const dt = new Date(r.created_at);
+                        const companyName = (companies || []).find(c => c.id === r.company_id)?.name || "—";
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="text-xs text-muted-foreground">
+                              <div className="font-medium text-foreground">{dt.toLocaleDateString("pt-BR")}</div>
+                              <div>{dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm font-medium">{r.user_nome || r.user_email}</div>
+                              {r.user_nome && r.user_nome !== r.user_email && (
+                                <div className="text-[11px] text-muted-foreground">{r.user_email}</div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{companyName}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{r.modulo}</TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full ${acaoColors[r.acao] || "bg-muted text-muted-foreground"}`}>
+                                {r.acao}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[300px] truncate">{r.descricao}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {auditFiltered.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                            Nenhum registro de auditoria encontrado
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
             </div>
           </TabsContent>
         </Tabs>
