@@ -325,8 +325,9 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
 
     let error: any;
     if (editContaId) {
-      // Edição: atualiza campos sem sobrescrever saldo corrente automaticamente
-      ({ error } = await supabase.from("bank_accounts").update(payload).eq("id", editContaId));
+      // Edição: atualiza todos os campos inclusive saldo inicial e saldo corrente
+      const saldo = parseFloat(contaForm.saldo_inicial.replace(/\./g, "").replace(",", ".")) || 0;
+      ({ error } = await supabase.from("bank_accounts").update({ ...payload, current_balance: saldo, saldo_inicial: saldo }).eq("id", editContaId));
       if (!error) {
         toast({ title: "Conta atualizada com sucesso!" });
         logAudit({ companyId, acao: "editar", modulo: "Conciliação Bancária", descricao: `Conta bancária editada: ${contaForm.nome_conta} — ${contaForm.banco_name}` });
