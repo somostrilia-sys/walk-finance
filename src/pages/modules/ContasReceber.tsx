@@ -10,6 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import ModuleStatCard from "@/components/ModuleStatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -81,6 +82,12 @@ const ContasReceber = () => {
   const [form, setForm] = useState({ ...emptyForm });
   const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodValue>("ultimos-30");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [baixaDialogOpen, setBaixaDialogOpen] = useState(false);
+  const [baixaConta, setBaixaConta] = useState<any>(null);
+  const [baixaJuros, setBaixaJuros] = useState("");
+  const [baixaMulta, setBaixaMulta] = useState("");
+  const [baixaDesconto, setBaixaDesconto] = useState("");
+  const [baixaDataRecebimento, setBaixaDataRecebimento] = useState(new Date().toISOString().slice(0, 10));
 
   const clienteSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
@@ -191,15 +198,39 @@ const ContasReceber = () => {
     if (companyId) logAudit({ companyId, acao: "editar", modulo: "Contas a Receber", descricao: `Conta a receber atualizada (id: ${editModal.id})` });
   };
 
-  const handleBaixar = async (conta: any) => {
+  const handleBaixar = (conta: any) => {
+    setBaixaConta(conta);
+    setBaixaJuros("");
+    setBaixaMulta("");
+    setBaixaDesconto("");
+    setBaixaDataRecebimento(new Date().toISOString().slice(0, 10));
+    setBaixaDialogOpen(true);
+  };
+
+  const executeBaixaReceber = async (conta: any, juros = 0, multa = 0, desconto = 0, dataRecebimento?: string) => {
+    const valorOriginal = Number(conta.amount || conta.valor || 0);
+    const valorFinal = valorOriginal + juros + multa - desconto;
+    const dataRec = dataRecebimento || new Date().toISOString().slice(0, 10);
+
     const { error } = conta.source === "contas_receber"
-      ? await supabase.from("contas_receber").update({ status: "recebido", data_recebimento: new Date().toISOString().slice(0, 10) } as any).eq("id", conta.id)
-      : await supabase.from("financial_transactions").update({ status: "confirmado" } as any).eq("id", conta.id);
+      ? await supabase.from("contas_receber").update({
+          status: "recebido",
+          data_recebimento: dataRec,
+          juros, multa, desconto,
+          valor_recebido: valorFinal,
+        } as any).eq("id", conta.id)
+      : await supabase.from("financial_transactions").update({
+          status: "confirmado",
+          payment_date: dataRec,
+          juros, multa, desconto,
+          valor_pago: valorFinal,
+        } as any).eq("id", conta.id);
+
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     queryClient.invalidateQueries({ queryKey: ["contas_receber", companyId] });
-    toast({ title: "Receita baixada como recebida" });
-    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Receber", descricao: `Receita baixada como recebida: ${conta.entity_name || conta.description || conta.descricao} — R$ ${Number(conta.amount || conta.valor).toFixed(2)}` });
+    toast({ title: "Receita baixada como recebida", description: `Valor recebido: R$ ${valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` });
+    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Receber", descricao: `Receita baixada: ${conta.entity_name || conta.description || conta.descricao} — original R$ ${valorOriginal.toFixed(2)}, recebido R$ ${valorFinal.toFixed(2)}${juros ? ` (juros R$${juros.toFixed(2)})` : ""}${multa ? ` (multa R$${multa.toFixed(2)})` : ""}${desconto ? ` (desconto R$${desconto.toFixed(2)})` : ""}` });
   };
 
   const handleDelete = async (conta: any) => {
@@ -380,6 +411,94 @@ const ContasReceber = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Modal de Baixa com Juros / Multa / Desconto */}
+      <Dialog open={baixaDialogOpen} onOpenChange={o => { if (!o) { setBaixaDialogOpen(false); setBaixaConta(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar Recebimento</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const valorOriginal = Number(baixaConta?.amount || baixaConta?.valor || 0);
+            const j = parseFloat(baixaJuros) || 0;
+            const m = parseFloat(baixaMulta) || 0;
+            const d = parseFloat(baixaDesconto) || 0;
+            const valorFinal = valorOriginal + j + m - d;
+            return (
+              <div className="space-y-4 pt-1">
+                <div className="hub-card-base p-3 flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Valor original</span>
+                  <span className="font-semibold text-sm">R$ {valorOriginal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Juros (R$)</Label>
+                    <Input
+                      type="number" min="0" step="0.01" placeholder="0,00"
+                      value={baixaJuros}
+                      onChange={e => setBaixaJuros(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Multa (R$)</Label>
+                    <Input
+                      type="number" min="0" step="0.01" placeholder="0,00"
+                      value={baixaMulta}
+                      onChange={e => setBaixaMulta(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Desconto (R$)</Label>
+                    <Input
+                      type="number" min="0" step="0.01" placeholder="0,00"
+                      value={baixaDesconto}
+                      onChange={e => setBaixaDesconto(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className={`hub-card-base p-3 flex items-center justify-between ${(j > 0 || m > 0 || d > 0) ? "border-primary/30" : ""}`}>
+                  <span className="text-sm font-medium">Valor a receber</span>
+                  <span className={`font-bold text-base ${valorFinal < valorOriginal ? "text-[hsl(var(--status-positive))]" : valorFinal > valorOriginal ? "text-[hsl(var(--status-danger))]" : ""}`}>
+                    R$ {valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Data de recebimento</Label>
+                  <Input
+                    type="date"
+                    value={baixaDataRecebimento}
+                    onChange={e => setBaixaDataRecebimento(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end pt-1">
+                  <Button variant="outline" size="sm" onClick={() => { setBaixaDialogOpen(false); setBaixaConta(null); }}>Cancelar</Button>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      setBaixaDialogOpen(false);
+                      if (baixaConta) await executeBaixaReceber(baixaConta, j, m, d, baixaDataRecebimento);
+                      setBaixaConta(null);
+                      setBaixaJuros("");
+                      setBaixaMulta("");
+                      setBaixaDesconto("");
+                    }}
+                  >
+                    Confirmar Recebimento
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };

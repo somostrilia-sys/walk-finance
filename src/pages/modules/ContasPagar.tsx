@@ -95,6 +95,10 @@ const ContasPagar = () => {
   const [baixaConta, setBaixaConta] = useState<any>(null);
   const [baixaAccountId, setBaixaAccountId] = useState("");
   const [baixaIsBulk, setBaixaIsBulk] = useState(false);
+  const [baixaJuros, setBaixaJuros] = useState("");
+  const [baixaMulta, setBaixaMulta] = useState("");
+  const [baixaDesconto, setBaixaDesconto] = useState("");
+  const [baixaDataPagamento, setBaixaDataPagamento] = useState(new Date().toISOString().slice(0, 10));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -308,22 +312,37 @@ const ContasPagar = () => {
   };
 
   const handleBaixar = async (conta: any) => {
-    if (!isObjetivo && bankAccounts && bankAccounts.length > 0) {
-      setBaixaConta(conta);
-      setBaixaIsBulk(false);
-      setBaixaAccountId("");
-      setBaixaDialogOpen(true);
-      return;
-    }
-    await executeBaixa(conta, null);
+    setBaixaConta(conta);
+    setBaixaIsBulk(false);
+    setBaixaAccountId("");
+    setBaixaJuros("");
+    setBaixaMulta("");
+    setBaixaDesconto("");
+    setBaixaDataPagamento(new Date().toISOString().slice(0, 10));
+    setBaixaDialogOpen(true);
   };
 
-  const executeBaixa = async (conta: any, accountId: string | null) => {
+  const executeBaixa = async (
+    conta: any,
+    accountId: string | null,
+    juros = 0, multa = 0, desconto = 0, dataPagamento?: string
+  ) => {
+    const valorOriginal = Number(conta.amount || conta.valor || 0);
+    const valorFinal = valorOriginal + juros + multa - desconto;
+    const dataPag = dataPagamento || new Date().toISOString().slice(0, 10);
+
     const { error } = conta.source === "contas_pagar"
-      ? await supabase.from("contas_pagar").update({ status: "confirmado" } as any).eq("id", conta.id)
+      ? await supabase.from("contas_pagar").update({
+          status: "confirmado",
+          juros, multa, desconto,
+          valor_pago: valorFinal,
+          data_pagamento: dataPag,
+        } as any).eq("id", conta.id)
       : await supabase.from("financial_transactions").update({
           status: "confirmado",
-          payment_date: new Date().toISOString().slice(0, 10),
+          payment_date: dataPag,
+          juros, multa, desconto,
+          valor_pago: valorFinal,
         } as any).eq("id", conta.id);
 
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -334,8 +353,8 @@ const ContasPagar = () => {
         company_id: companyId,
         bank_account_id: accountId,
         external_description: conta.description || conta.entity_name || "Pagamento",
-        amount: -Math.abs(Number(conta.amount)),
-        date: new Date().toISOString().slice(0, 10),
+        amount: -Math.abs(valorFinal),
+        date: dataPag,
         status: "pendente",
       } as any);
       queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
@@ -347,8 +366,8 @@ const ContasPagar = () => {
       queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     }
 
-    toast({ title: "Conta baixada como paga" });
-    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Pagar", descricao: `Conta baixada como paga: ${conta.description || conta.entity_name || conta.id} — R$ ${Number(conta.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` });
+    toast({ title: "Conta baixada como paga", description: `Valor pago: R$ ${valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` });
+    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Pagar", descricao: `Conta baixada: ${conta.description || conta.entity_name || conta.descricao || conta.id} — valor original R$ ${valorOriginal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}, pago R$ ${valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}${juros ? ` (juros R$ ${juros.toFixed(2)})` : ""}${multa ? ` (multa R$ ${multa.toFixed(2)})` : ""}${desconto ? ` (desconto R$ ${desconto.toFixed(2)})` : ""}` });
   };
 
   const handleCancelar = async (conta: any) => {
@@ -415,36 +434,38 @@ const ContasPagar = () => {
     const selected = filtered.filter((c: any) => selectedIds.has(c.id) && c.status === "pendente");
     if (!selected.length) return toast({ title: "Nenhuma conta pendente selecionada", variant: "destructive" });
 
-    if (!isObjetivo && bankAccounts && bankAccounts.length > 0) {
-      setBaixaIsBulk(true);
-      setBaixaConta(null);
-      setBaixaAccountId("");
-      setBaixaDialogOpen(true);
-      setBulkAction(null);
-      return;
-    }
-
-    await executeBulkBaixa(null);
+    setBaixaIsBulk(true);
+    setBaixaConta(null);
+    setBaixaAccountId("");
+    setBaixaJuros("");
+    setBaixaMulta("");
+    setBaixaDesconto("");
+    setBaixaDataPagamento(new Date().toISOString().slice(0, 10));
+    setBaixaDialogOpen(true);
+    setBulkAction(null);
   };
 
-  const executeBulkBaixa = async (accountId: string | null) => {
+  const executeBulkBaixa = async (accountId: string | null, juros = 0, multa = 0, desconto = 0, dataPagamento?: string) => {
     const selected = filtered.filter((c: any) => selectedIds.has(c.id) && c.status === "pendente");
     const ftIds = selected.filter((c: any) => c.source !== "contas_pagar").map((c: any) => c.id);
     const cpIds = selected.filter((c: any) => c.source === "contas_pagar").map((c: any) => c.id);
+    const dataPag = dataPagamento || new Date().toISOString().slice(0, 10);
 
-    if (ftIds.length) await supabase.from("financial_transactions").update({ status: "confirmado", payment_date: new Date().toISOString().slice(0, 10) } as any).in("id", ftIds);
-    if (cpIds.length) await supabase.from("contas_pagar").update({ status: "confirmado" } as any).in("id", cpIds);
+    if (ftIds.length) await supabase.from("financial_transactions").update({ status: "confirmado", payment_date: dataPag, juros, multa, desconto } as any).in("id", ftIds);
+    if (cpIds.length) await supabase.from("contas_pagar").update({ status: "confirmado", juros, multa, desconto, data_pagamento: dataPag } as any).in("id", cpIds);
 
-    // Create bank reconciliation entries for each
     if (accountId && companyId) {
-      const entries = selected.map((c: any) => ({
-        company_id: companyId,
-        bank_account_id: accountId,
-        external_description: c.description || c.entity_name || "Pagamento",
-        amount: -Math.abs(Number(c.amount)),
-        date: new Date().toISOString().slice(0, 10),
-        status: "pendente",
-      }));
+      const entries = selected.map((c: any) => {
+        const vOrig = Number(c.amount || c.valor || 0);
+        return {
+          company_id: companyId,
+          bank_account_id: accountId,
+          external_description: c.description || c.entity_name || "Pagamento",
+          amount: -Math.abs(vOrig + juros + multa - desconto),
+          date: dataPag,
+          status: "pendente",
+        };
+      });
       await supabase.from("bank_reconciliation_entries").insert(entries as any);
       queryClient.invalidateQueries({ queryKey: ["bank_reconciliation", companyId] });
     }
@@ -453,7 +474,7 @@ const ContasPagar = () => {
     queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
     setSelectedIds(new Set());
     toast({ title: `${selected.length} conta(s) baixada(s) como paga(s)` });
-    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Pagar", descricao: `${selected.length} conta(s) baixadas em lote como pagas` });
+    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Pagar", descricao: `${selected.length} conta(s) baixadas em lote${juros ? ` juros R$${juros.toFixed(2)}` : ""}${multa ? ` multa R$${multa.toFixed(2)}` : ""}${desconto ? ` desconto R$${desconto.toFixed(2)}` : ""}` });
   };
 
   const handleBulkDelete = async () => {
@@ -909,49 +930,127 @@ const ContasPagar = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Modal de Seleção de Conta Bancária para Baixa */}
+        {/* Modal de Baixa com Juros / Multa / Desconto */}
         <Dialog open={baixaDialogOpen} onOpenChange={o => { if (!o) { setBaixaDialogOpen(false); setBaixaConta(null); setBaixaIsBulk(false); } }}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader><DialogTitle>De qual conta foi pago?</DialogTitle></DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              Selecione a conta bancária de onde saiu o pagamento. O lançamento aparecerá como <strong>não conciliado</strong> na movimentação bancária até a importação do extrato.
-            </p>
-            <div className="space-y-3 pt-2">
-              <Select value={baixaAccountId} onValueChange={setBaixaAccountId}>
-                <SelectTrigger><SelectValue placeholder="Selecione a conta corrente..." /></SelectTrigger>
-                <SelectContent>
-                  {bankAccounts?.map((acc: any) => (
-                    <SelectItem key={acc.id} value={acc.id}>
-                      <div className="flex items-center gap-2">
-                        <Landmark className="w-3.5 h-3.5" />
-                        <span>{acc.bank_name}</span>
-                        {acc.account_number && <span className="text-muted-foreground text-xs">Cc: {acc.account_number}</span>}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" size="sm" onClick={() => { setBaixaDialogOpen(false); setBaixaConta(null); setBaixaIsBulk(false); }}>Cancelar</Button>
-                <Button
-                  size="sm"
-                  disabled={!baixaAccountId}
-                  onClick={async () => {
-                    setBaixaDialogOpen(false);
-                    if (baixaIsBulk) {
-                      await executeBulkBaixa(baixaAccountId);
-                    } else if (baixaConta) {
-                      await executeBaixa(baixaConta, baixaAccountId);
-                    }
-                    setBaixaConta(null);
-                    setBaixaIsBulk(false);
-                    setBaixaAccountId("");
-                  }}
-                >
-                  Confirmar Baixa
-                </Button>
-              </div>
-            </div>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirmar Baixa</DialogTitle>
+            </DialogHeader>
+            {(() => {
+              const valorOriginal = baixaIsBulk
+                ? filtered.filter((c: any) => selectedIds.has(c.id) && c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount || c.valor || 0), 0)
+                : Number(baixaConta?.amount || baixaConta?.valor || 0);
+              const j = parseFloat(baixaJuros) || 0;
+              const m = parseFloat(baixaMulta) || 0;
+              const d = parseFloat(baixaDesconto) || 0;
+              const valorFinal = valorOriginal + j + m - d;
+              return (
+                <div className="space-y-4 pt-1">
+                  {/* Valor original */}
+                  <div className="hub-card-base p-3 flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Valor original</span>
+                    <span className="font-semibold text-sm">R$ {valorOriginal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                  </div>
+
+                  {/* Juros / Multa / Desconto */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Juros (R$)</Label>
+                      <Input
+                        type="number" min="0" step="0.01" placeholder="0,00"
+                        value={baixaJuros}
+                        onChange={e => setBaixaJuros(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Multa (R$)</Label>
+                      <Input
+                        type="number" min="0" step="0.01" placeholder="0,00"
+                        value={baixaMulta}
+                        onChange={e => setBaixaMulta(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Desconto (R$)</Label>
+                      <Input
+                        type="number" min="0" step="0.01" placeholder="0,00"
+                        value={baixaDesconto}
+                        onChange={e => setBaixaDesconto(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Valor final calculado */}
+                  <div className={`hub-card-base p-3 flex items-center justify-between ${(j > 0 || m > 0 || d > 0) ? "border-primary/30" : ""}`}>
+                    <span className="text-sm font-medium">Valor a pagar</span>
+                    <span className={`font-bold text-base ${valorFinal < valorOriginal ? "text-[hsl(var(--status-positive))]" : valorFinal > valorOriginal ? "text-[hsl(var(--status-danger))]" : ""}`}>
+                      R$ {valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {/* Data de pagamento */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Data de pagamento</Label>
+                    <Input
+                      type="date"
+                      value={baixaDataPagamento}
+                      onChange={e => setBaixaDataPagamento(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+
+                  {/* Conta bancária (se houver) */}
+                  {!isObjetivo && bankAccounts && bankAccounts.length > 0 && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Conta bancária</Label>
+                      <Select value={baixaAccountId} onValueChange={setBaixaAccountId}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione a conta corrente..." /></SelectTrigger>
+                        <SelectContent>
+                          {bankAccounts?.map((acc: any) => (
+                            <SelectItem key={acc.id} value={acc.id}>
+                              <div className="flex items-center gap-2">
+                                <Landmark className="w-3.5 h-3.5" />
+                                <span>{acc.bank_name}</span>
+                                {acc.account_number && <span className="text-muted-foreground text-xs">Cc: {acc.account_number}</span>}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground mt-1">O lançamento aparecerá como não conciliado até importar o extrato.</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 justify-end pt-1">
+                    <Button variant="outline" size="sm" onClick={() => { setBaixaDialogOpen(false); setBaixaConta(null); setBaixaIsBulk(false); }}>Cancelar</Button>
+                    <Button
+                      size="sm"
+                      disabled={!isObjetivo && bankAccounts && bankAccounts.length > 0 && !baixaAccountId}
+                      onClick={async () => {
+                        setBaixaDialogOpen(false);
+                        const accId = (!isObjetivo && bankAccounts?.length > 0) ? baixaAccountId : null;
+                        if (baixaIsBulk) {
+                          await executeBulkBaixa(accId, j, m, d, baixaDataPagamento);
+                        } else if (baixaConta) {
+                          await executeBaixa(baixaConta, accId, j, m, d, baixaDataPagamento);
+                        }
+                        setBaixaConta(null);
+                        setBaixaIsBulk(false);
+                        setBaixaAccountId("");
+                        setBaixaJuros("");
+                        setBaixaMulta("");
+                        setBaixaDesconto("");
+                      }}
+                    >
+                      Confirmar Baixa
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
           </DialogContent>
         </Dialog>
       </div>
