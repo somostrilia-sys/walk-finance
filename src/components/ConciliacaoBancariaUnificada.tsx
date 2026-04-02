@@ -745,7 +745,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                       }
                     >
                       {item.tipo === "credito" ? "+" : "-"}
-                      {formatCurrency(Number(item.valor), isObjetivo)}
+                      {formatCurrency(Number(item.valor))}
                     </span>
                   </div>
                 </div>
@@ -778,7 +778,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                       }
                     >
                       {item.type === "entrada" ? "+" : "-"}
-                      {formatCurrency(item.amount, isObjetivo)}
+                      {formatCurrency(item.amount)}
                     </span>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openManualEdit(item)}>
                       <Pencil className="h-3.5 w-3.5" />
@@ -1016,7 +1016,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                       <TableCell className="text-xs text-muted-foreground">
                         {c.agency || "—"} / {c.account_number || "—"}{c.digito ? `-${c.digito}` : ""}
                       </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(Number(c.current_balance || 0), isObjetivo)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(Number(c.current_balance || 0))}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => handleOpenEditConta(c)}>

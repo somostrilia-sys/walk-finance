@@ -69,9 +69,9 @@ const CompanyDashboard = () => {
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               {[
-                { label: "Faturamento", value: formatCurrency(entradas, isObjetivo), icon: TrendingUp, status: "positive" as const },
-                { label: "Despesas", value: formatCurrency(saidas, isObjetivo), icon: TrendingDown, status: "danger" as const },
-                { label: "Saldo", value: formatCurrency(saldo, isObjetivo), icon: DollarSign, status: (saldo >= 0 ? "positive" : "danger") as "positive" | "danger" },
+                { label: "Faturamento", value: formatCurrency(entradas), icon: TrendingUp, status: "positive" as const },
+                { label: "Despesas", value: formatCurrency(saidas), icon: TrendingDown, status: "danger" as const },
+                { label: "Saldo", value: formatCurrency(saldo), icon: DollarSign, status: (saldo >= 0 ? "positive" : "danger") as "positive" | "danger" },
                 { label: "Pendentes", value: String(pendentes), icon: AlertTriangle, status: (pendentes > 0 ? "warning" : "positive") as "warning" | "positive" },
               ].map((kpi) => (
                 <div key={kpi.label} className="hub-card-base p-5">
@@ -94,7 +94,7 @@ const CompanyDashboard = () => {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                         <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                        <Tooltip formatter={(v: number) => formatCurrency(v, isObjetivo)} contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }} />
+                        <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }} />
                         <Area type="monotone" dataKey="saldo" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.15)" />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -132,7 +132,7 @@ const CompanyDashboard = () => {
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                       <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                      <Tooltip formatter={(v: number) => formatCurrency(v, isObjetivo)} contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }} />
+                      <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }} />
                       <Bar dataKey="value" fill="hsl(var(--chart-4))" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
