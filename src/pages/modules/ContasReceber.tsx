@@ -250,9 +250,9 @@ const ContasReceber = () => {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
           <ModuleStatCard label="Total Contas" value={contasParaCards.length} icon={<ArrowUpCircle className="w-4 h-4" />} />
-          <ModuleStatCard label="Pendente" value={formatCurrency(totalPendente)} icon={<Clock className="w-4 h-4" />} />
-          <ModuleStatCard label="Recebido" value={formatCurrency(totalRecebido)} icon={<CheckCircle2 className="w-4 h-4" />} />
-          <ModuleStatCard label="Vencido" value={formatCurrency(totalVencido)} icon={<AlertTriangle className="w-4 h-4" />} />
+          <ModuleStatCard label="Pendente" value={formatCurrency(totalPendente, isObjetivo)} icon={<Clock className="w-4 h-4" />} />
+          <ModuleStatCard label="Recebido" value={formatCurrency(totalRecebido, isObjetivo)} icon={<CheckCircle2 className="w-4 h-4" />} />
+          <ModuleStatCard label="Vencido" value={formatCurrency(totalVencido, isObjetivo)} icon={<AlertTriangle className="w-4 h-4" />} />
         </div>
 
         <div className="module-toolbar">
@@ -345,7 +345,7 @@ const ContasReceber = () => {
                       <TableCell className={`text-sm ${vencido ? "text-destructive font-medium" : ""}`}>{fmtDate(c.date)}</TableCell>
                       <TableCell className="font-medium text-sm">{c.entity_name || "—"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{c.description}</TableCell>
-                      <TableCell className="text-right font-semibold text-emerald-600">{formatCurrency(c.amount)}</TableCell>
+                      <TableCell className="text-right font-semibold text-emerald-600">{formatCurrency(c.amount, isObjetivo)}</TableCell>
                       <TableCell>
                         {vencido ? (
                           <Badge variant="destructive" className="text-[10px]">Vencido</Badge>

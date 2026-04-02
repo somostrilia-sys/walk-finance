@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCompanies } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
 import { logAudit } from "@/lib/auditLog";
 import { Button } from "@/components/ui/button";
@@ -196,6 +197,8 @@ const BANCOS_POPULARES: BancoBR[] = [
 export default function ConciliacaoBancariaUnificada({ companyId, branchId, bankAccountId }: Props) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const { data: companies } = useCompanies();
+  const isObjetivo = !!companies?.find(c => c.id === companyId)?.name?.toLowerCase().includes("objetivo");
 
   const [itensExtrato, setItensExtrato] = useState<ItemExtrato[]>([]);
   const [origemModal, setOrigemModal] = useState<"arquivo" | "qrcode" | "open_finance">("arquivo");
@@ -742,7 +745,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                       }
                     >
                       {item.tipo === "credito" ? "+" : "-"}
-                      {formatCurrency(Number(item.valor))}
+                      {formatCurrency(Number(item.valor), isObjetivo)}
                     </span>
                   </div>
                 </div>
@@ -775,7 +778,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                       }
                     >
                       {item.type === "entrada" ? "+" : "-"}
-                      {formatCurrency(item.amount)}
+                      {formatCurrency(item.amount, isObjetivo)}
                     </span>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openManualEdit(item)}>
                       <Pencil className="h-3.5 w-3.5" />
@@ -1013,7 +1016,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                       <TableCell className="text-xs text-muted-foreground">
                         {c.agency || "—"} / {c.account_number || "—"}{c.digito ? `-${c.digito}` : ""}
                       </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(Number(c.current_balance || 0))}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(Number(c.current_balance || 0), isObjetivo)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => handleOpenEditConta(c)}>

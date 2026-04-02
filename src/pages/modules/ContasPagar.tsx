@@ -552,9 +552,9 @@ const ContasPagar = () => {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
           <ModuleStatCard label="Total Contas" value={contasParaCards.length} icon={<ArrowDownCircle className="w-4 h-4" />} />
-          <ModuleStatCard label="Pendente" value={formatCurrency(totalPendente)} icon={<Clock className="w-4 h-4" />} />
-          <ModuleStatCard label="Pago" value={formatCurrency(totalPago)} icon={<CheckCircle2 className="w-4 h-4" />} />
-          <ModuleStatCard label="Vencido" value={formatCurrency(totalVencido)} icon={<AlertTriangle className="w-4 h-4" />} />
+          <ModuleStatCard label="Pendente" value={formatCurrency(totalPendente, isObjetivo)} icon={<Clock className="w-4 h-4" />} />
+          <ModuleStatCard label="Pago" value={formatCurrency(totalPago, isObjetivo)} icon={<CheckCircle2 className="w-4 h-4" />} />
+          <ModuleStatCard label="Vencido" value={formatCurrency(totalVencido, isObjetivo)} icon={<AlertTriangle className="w-4 h-4" />} />
         </div>
 
         <div className="module-toolbar">
@@ -640,7 +640,7 @@ const ContasPagar = () => {
 
                 {totalParcelas > 1 && form.amount && parseFloat(form.amount) > 0 && (
                   <div className="text-xs text-muted-foreground p-2 rounded-md bg-muted/50 border">
-                    {totalParcelas}x de {formatCurrency(parseFloat(form.amount))} · Total: {formatCurrency(parseFloat(form.amount) * totalParcelas)}
+                    {totalParcelas}x de {formatCurrency(parseFloat(form.amount), isObjetivo)} · Total: {formatCurrency(parseFloat(form.amount) * totalParcelas, isObjetivo)}
                   </div>
                 )}
 
@@ -738,7 +738,7 @@ const ContasPagar = () => {
                             <span className="ml-1.5 text-xs opacity-70">{labelParcela(c.parcela_atual, c.total_parcelas)}</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(Number(c.amount))}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(Number(c.amount), isObjetivo)}</TableCell>
                         <TableCell>{fmtDate(c.date)}</TableCell>
                         <TableCell>{c.payment_date ? fmtDate(c.payment_date) : "—"}</TableCell>
                         <TableCell><Badge variant="outline" className="text-[10px]">{c.payment_method || "—"}</Badge></TableCell>
@@ -787,7 +787,7 @@ const ContasPagar = () => {
                               {labelParcela(parcela.parcela_atual, parcela.total_parcelas)} — {parcela.description}
                             </TableCell>
                             <TableCell />
-                            <TableCell className="text-right text-xs">{formatCurrency(parcela.amount)}</TableCell>
+                            <TableCell className="text-right text-xs">{formatCurrency(parcela.amount, isObjetivo)}</TableCell>
                             <TableCell className="text-xs">{fmtDate(parcela.date)}</TableCell>
                             <TableCell className="text-xs">{parcela.payment_date ? fmtDate(parcela.payment_date) : "—"}</TableCell>
                             <TableCell />

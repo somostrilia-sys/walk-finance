@@ -1,9 +1,10 @@
-export function formatCurrency(value: number): string {
+export function formatCurrency(value: number, compact = false): string {
+  const decimals = compact ? 0 : 2;
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(value);
 }
 

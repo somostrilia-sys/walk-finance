@@ -420,7 +420,7 @@ const CadastroPessoas = () => {
                             <TableCell className="text-xs">{t.date}</TableCell>
                             <TableCell className="text-xs">{t.description}</TableCell>
                             <TableCell><Badge variant={t.type === "entrada" ? "default" : "secondary"} className="text-[10px]">{t.type}</Badge></TableCell>
-                            <TableCell className={`text-right text-xs font-medium ${t.type === "entrada" ? "text-emerald-600" : "text-destructive"}`}>{formatCurrency(Number(t.amount))}</TableCell>
+                            <TableCell className={`text-right text-xs font-medium ${t.type === "entrada" ? "text-emerald-600" : "text-destructive"}`}>{formatCurrency(Number(t.amount), isObjetivo)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

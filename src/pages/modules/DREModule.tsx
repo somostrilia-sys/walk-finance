@@ -87,6 +87,7 @@ const DREModule = () => {
   const { companyId } = useParams();
   const { data: companies } = useCompanies();
   const company = companies?.find(c => c.id === companyId);
+  const isObjetivo = !!company?.name?.toLowerCase().includes("objetivo");
 
   // UI filter state (controlled by user, applied on button click)
   const [mes, setMes] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
@@ -247,10 +248,10 @@ const DREModule = () => {
 
         {!isLoading && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <ModuleStatCard label="Total Receitas" value={formatCurrency(dreValues.receita_bruta)} icon={<DollarSign className="w-4 h-4" />} />
-            <ModuleStatCard label="Lucro Bruto" value={formatCurrency(dreValues.lucro_bruto)} icon={<TrendingUp className="w-4 h-4" />} />
-            <ModuleStatCard label="EBITDA" value={formatCurrency(dreValues.ebitda)} icon={<BarChart3 className="w-4 h-4" />} />
-            <ModuleStatCard label="Resultado do Período" value={formatCurrency(dreValues.resultado_periodo)} icon={<TrendingDown className="w-4 h-4" />} />
+            <ModuleStatCard label="Total Receitas" value={formatCurrency(dreValues.receita_bruta, isObjetivo)} icon={<DollarSign className="w-4 h-4" />} />
+            <ModuleStatCard label="Lucro Bruto" value={formatCurrency(dreValues.lucro_bruto, isObjetivo)} icon={<TrendingUp className="w-4 h-4" />} />
+            <ModuleStatCard label="EBITDA" value={formatCurrency(dreValues.ebitda, isObjetivo)} icon={<BarChart3 className="w-4 h-4" />} />
+            <ModuleStatCard label="Resultado do Período" value={formatCurrency(dreValues.resultado_periodo, isObjetivo)} icon={<TrendingDown className="w-4 h-4" />} />
           </div>
         )}
 
@@ -280,7 +281,7 @@ const DREModule = () => {
                           {line.label}
                         </TableCell>
                         <TableCell className={`text-right ${line.bold ? "font-bold" : ""} ${isSubtotal && isNegative ? "text-[hsl(var(--status-danger))]" : ""} ${isSubtotal && !isNegative ? "text-[hsl(var(--status-positive))]" : ""}`}>
-                          {formatCurrency(Math.abs(value))}
+                          {formatCurrency(Math.abs(value), isObjetivo)}
                           {isNegative && !line.label.startsWith("(") ? " (-)" : ""}
                         </TableCell>
                       </TableRow>
