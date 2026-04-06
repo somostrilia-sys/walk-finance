@@ -169,7 +169,7 @@ const ContasPagar = () => {
       valor_pago: c.valor_pago ? Number(c.valor_pago) : null,
       date: c.vencimento,
       payment_date: c.data_pagamento || null,
-      payment_method: null,
+      payment_method: c.payment_method || null,
       status: c.status === "a_vencer" ? "pendente" : c.status === "pago" ? "confirmado" : c.status,
       attachment_url: null,
       parcela_atual: c.parcela_atual || 1,
@@ -532,6 +532,7 @@ const ContasPagar = () => {
           valor: Number(editForm.amount),
           vencimento: editForm.date,
           status: editForm.status,
+          payment_method: editForm.payment_method,
         } as any).eq("id", editForm.id)
       : await supabase.from("financial_transactions").update({
           entity_name: editForm.entity_name,
