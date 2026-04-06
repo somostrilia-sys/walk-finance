@@ -932,22 +932,6 @@ export default function ModalConciliacaoV2({
                           O que fazer com este lançamento?
                         </p>
 
-                        {/* Opção 1 — Conciliar com existente */}
-                        <ActionCard
-                          n={1}
-                          active={activeAction === 1}
-                          icon="🟢"
-                          label="Conciliar com lançamento existente"
-                          onToggle={() => openAction(1)}
-                        >
-                          <SearchContas
-                            busca={busca}
-                            setBusca={setBusca}
-                            resultados={buscaResultados}
-                            onSelect={handleVincularConta}
-                          />
-                        </ActionCard>
-
                         {/* Opção 2 — Novo lançamento */}
                         <ActionCard
                           n={2}
