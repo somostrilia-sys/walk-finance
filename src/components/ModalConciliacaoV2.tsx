@@ -549,8 +549,8 @@ export default function ModalConciliacaoV2({
   // ─── Render ───────────────────────────────────────────────────────────────
 
   const panelBg = selectedItem?.status === "conciliado"
-    ? "bg-[#0f3320] border-green-700"
-    : "bg-yellow-50 border-yellow-200";
+    ? "bg-green-900/30 border-green-700/50"
+    : "bg-card border-border";
 
   function openAction(n: number) {
     if (activeAction === n) {
@@ -745,10 +745,10 @@ export default function ModalConciliacaoV2({
                   const isConciliado = item.status === "conciliado";
                   const isIgnorado = item.status === "ignorado";
 
-                  let rowBg = "bg-[#1e2a45] hover:bg-[#243050]";
-                  if (isSelected) rowBg = "bg-[#1a3a6c]";
-                  else if (isConciliado) rowBg = "bg-[#0f3320]";
-                  else if (isIgnorado) rowBg = "bg-[#1a2438] opacity-60";
+                  let rowBg = "bg-secondary/40 hover:bg-secondary/60";
+                  if (isSelected) rowBg = "bg-primary/20";
+                  else if (isConciliado) rowBg = "bg-green-900/30";
+                  else if (isIgnorado) rowBg = "bg-muted/40 opacity-60";
 
                   return (
                     <div
@@ -845,15 +845,15 @@ export default function ModalConciliacaoV2({
                     {/* ── CONCILIADO ── */}
                     {selectedItem.status === "conciliado" ? (
                       <div className="space-y-3">
-                        <div className="flex items-start gap-2 p-3 bg-green-100 rounded-lg border border-green-300">
-                          <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                        <div className="flex items-start gap-2 p-3 bg-green-900/30 rounded-lg border border-green-700/40">
+                          <CheckCircle2 className="h-4 w-4 text-green-400 mt-0.5 shrink-0" />
                           <div>
-                            <p className="text-xs font-semibold text-green-800">Conciliado com:</p>
-                            <p className="text-sm text-green-700 mt-0.5">
+                            <p className="text-xs font-semibold text-green-400">Conciliado com:</p>
+                            <p className="text-sm text-green-300 mt-0.5">
                               {selectedItem.match?.descricao ?? "Lançamento conciliado"}
                             </p>
                             {selectedItem.match?.tipo && (
-                              <Badge variant="outline" className="text-xs mt-1 text-green-700 border-green-400">
+                              <Badge variant="outline" className="text-xs mt-1 text-green-400 border-green-600/40">
                                 {selectedItem.match.tipo === "conta_pagar"
                                   ? "Conta a Pagar"
                                   : selectedItem.match.tipo === "conta_receber"
@@ -880,8 +880,8 @@ export default function ModalConciliacaoV2({
                       <div className="space-y-1.5">
                         {/* Sugestão automática */}
                         {suggestion && !suggestionDismissed && (
-                          <div className="mb-2 p-3 rounded-lg border border-blue-400 bg-[#1a2a50] space-y-2">
-                            <p className="text-xs font-semibold text-blue-300 flex items-center gap-1.5">
+                          <div className="mb-2 p-3 rounded-lg border border-primary/40 bg-primary/10 space-y-2">
+                            <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               Sugestão de conciliação
                             </p>
@@ -912,7 +912,7 @@ export default function ModalConciliacaoV2({
                             <div className="flex items-center gap-2 pt-1">
                               <Button
                                 size="sm"
-                                className="h-7 text-xs flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                                className="h-7 text-xs flex-1 bg-primary hover:bg-primary/80 text-primary-foreground gap-1"
                                 onClick={() => handleVincularConta(suggestion)}
                               >
                                 <CheckCircle2 className="h-3 w-3" />
@@ -963,8 +963,8 @@ export default function ModalConciliacaoV2({
                                 onClick={() => setNovoLancamentoTipo("pagar")}
                                 className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
                                   novoLancamentoTipo === "pagar"
-                                    ? "bg-red-50 border-red-400 text-red-700 font-semibold"
-                                    : "border-[#2a3a5c] hover:bg-[#243050]"
+                                    ? "bg-destructive/10 border-destructive/40 text-destructive font-semibold"
+                                    : "border-border hover:bg-secondary/60"
                                 }`}
                               >
                                 Contas a Pagar
@@ -973,8 +973,8 @@ export default function ModalConciliacaoV2({
                                 onClick={() => setNovoLancamentoTipo("receber")}
                                 className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
                                   novoLancamentoTipo === "receber"
-                                    ? "bg-[#0f3320] border-green-500 text-green-300 font-semibold"
-                                    : "border-[#2a3a5c] hover:bg-[#243050]"
+                                    ? "bg-green-900/30 border-green-500/40 text-green-400 font-semibold"
+                                    : "border-border hover:bg-secondary/60"
                                 }`}
                               >
                                 Contas a Receber
@@ -1255,9 +1255,9 @@ function ActionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-lg border text-sm transition-colors ${active ? "border-blue-300 bg-[#1e2a45] shadow-sm" : "border-[#2a3a5c] bg-[#1e2a45]/60"}`}>
+    <div className={`rounded-lg border text-sm transition-colors ${active ? "border-primary/40 bg-card shadow-sm" : "border-border bg-card/60"}`}>
       <button
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#243050] rounded-lg transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-secondary/60 rounded-lg transition-colors"
         onClick={onToggle}
       >
         <span className="text-base leading-none">{icon}</span>
@@ -1301,19 +1301,19 @@ function SearchContas({
           resultados.map((c) => (
             <div
               key={c.id}
-              className="flex items-center gap-2 px-2 py-1.5 rounded border border-transparent hover:bg-[#1a3a6c] hover:border-blue-600 transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 rounded border border-transparent hover:bg-primary/15 hover:border-primary/40 transition-colors"
             >
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium truncate">{c.descricao}</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="text-xs text-muted-foreground">{c.vencimento}</span>
-                  <span className="text-xs font-semibold text-gray-200">{formatCurrency(c.valor)}</span>
+                  <span className="text-xs font-semibold text-foreground">{formatCurrency(c.valor)}</span>
                   <Badge
                     variant="outline"
                     className={`text-xs py-0 px-1 ${
                       c._tipo === "conta_pagar"
-                        ? "border-red-300 text-red-600 bg-red-50"
-                        : "border-green-500 text-green-300 bg-[#0f3320]"
+                        ? "border-destructive/40 text-destructive bg-destructive/10"
+                        : "border-green-500/40 text-green-400 bg-green-900/30"
                     }`}
                   >
                     {c._tipo === "conta_pagar" ? "Pagar" : "Receber"}
