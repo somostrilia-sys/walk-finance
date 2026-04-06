@@ -588,24 +588,15 @@ export default function ModalConciliacaoV2({
   }
 
   async function fetchBankAccounts() {
-    const fallback = [
-      { id: "cc_principal", name: "Conta Corrente Principal" },
-      { id: "poupanca", name: "Conta Poupança" },
-      { id: "caixa", name: "Caixa" },
-      { id: "investimento", name: "Conta Investimento" },
-    ];
     try {
       const { data, error } = await supabase
         .from("bank_accounts")
         .select("id, name, bank_name")
         .eq("company_id", companyId);
-      if (error || !data || data.length === 0) {
-        setBankAccounts(fallback);
-      } else {
-        setBankAccounts(data);
-      }
+      if (error) throw error;
+      setBankAccounts(data || []);
     } catch {
-      setBankAccounts(fallback);
+      setBankAccounts([]);
     }
   }
 
