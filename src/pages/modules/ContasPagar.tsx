@@ -135,21 +135,29 @@ const ContasPagar = () => {
   const contas = useMemo(() => {
     const saidasFinanceiras = (transactions || [])
       .filter((t: any) => t.type === "saida")
-      .map((t: any) => ({
-        id: t.id,
-        source: "financial_transactions" as const,
-        entity_name: t.entity_name || "",
-        description: t.description || "",
-        amount: Number(t.amount),
-        date: t.date,
-        payment_date: t.payment_date,
-        payment_method: t.payment_method,
-        status: t.status,
-        attachment_url: t.attachment_url,
-        parcela_atual: t.parcela_atual || 1,
-        total_parcelas: t.total_parcelas || 1,
-        grupo_parcela: t.grupo_parcela || null,
-      }));
+      .map((t: any) => {
+        const juros = Number(t.juros || 0);
+        const multa = Number(t.multa || 0);
+        const desconto = Number(t.desconto || 0);
+        const amount = Number(t.amount);
+        const valorPago = (juros || multa || desconto) ? amount + juros + multa - desconto : null;
+        return {
+          id: t.id,
+          source: "financial_transactions" as const,
+          entity_name: t.entity_name || "",
+          description: t.description || "",
+          amount,
+          valor_pago: valorPago,
+          date: t.date,
+          payment_date: t.payment_date,
+          payment_method: t.payment_method,
+          status: t.status,
+          attachment_url: t.attachment_url,
+          parcela_atual: t.parcela_atual || 1,
+          total_parcelas: t.total_parcelas || 1,
+          grupo_parcela: t.grupo_parcela || null,
+        };
+      });
 
     const contasFolha = (lancamentosContasPagar || []).map((c: any) => ({
       id: c.id,
@@ -157,8 +165,9 @@ const ContasPagar = () => {
       entity_name: c.fornecedor || "",
       description: c.descricao || "",
       amount: Number(c.valor),
+      valor_pago: c.valor_pago ? Number(c.valor_pago) : null,
       date: c.vencimento,
-      payment_date: null,
+      payment_date: c.data_pagamento || null,
       payment_method: null,
       status: c.status === "a_vencer" ? "pendente" : c.status === "pago" ? "confirmado" : c.status,
       attachment_url: null,
@@ -740,7 +749,11 @@ const ContasPagar = () => {
                         </TableCell>
                         <TableCell className="text-right font-medium">{formatCurrency(Number(c.amount))}</TableCell>
                         <TableCell>{fmtDate(c.date)}</TableCell>
-                        <TableCell>{c.payment_date ? fmtDate(c.payment_date) : "—"}</TableCell>
+                        <TableCell>
+                          {c.status === "confirmado" || c.status === "pago"
+                            ? formatCurrency(c.valor_pago != null ? c.valor_pago : Number(c.amount))
+                            : "—"}
+                        </TableCell>
                         <TableCell><Badge variant="outline" className="text-[10px]">{c.payment_method || "—"}</Badge></TableCell>
                         <TableCell><Badge className={`${cfg.badge} text-[10px]`}>{cfg.icon}<span className="ml-1">{cfg.label}</span></Badge></TableCell>
                         <TableCell>
@@ -789,7 +802,11 @@ const ContasPagar = () => {
                             <TableCell />
                             <TableCell className="text-right text-xs">{formatCurrency(parcela.amount)}</TableCell>
                             <TableCell className="text-xs">{fmtDate(parcela.date)}</TableCell>
-                            <TableCell className="text-xs">{parcela.payment_date ? fmtDate(parcela.payment_date) : "—"}</TableCell>
+                            <TableCell className="text-xs">
+                              {parcela.status === "confirmado" || parcela.status === "pago"
+                                ? formatCurrency(parcela.valor_pago != null ? parcela.valor_pago : Number(parcela.amount))
+                                : "—"}
+                            </TableCell>
                             <TableCell />
                             <TableCell><Badge className={`${pCfg.badge} text-[10px]`}>{pCfg.icon}<span className="ml-1">{pCfg.label}</span></Badge></TableCell>
                             <TableCell />
