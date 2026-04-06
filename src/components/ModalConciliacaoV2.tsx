@@ -33,6 +33,7 @@ interface ExtratoItem {
     tipo: "conta_pagar" | "conta_receber" | "transferencia" | "novo";
     id?: string;
     descricao: string;
+    alreadySettled?: boolean;
   };
 }
 
@@ -44,6 +45,8 @@ interface ContaRow {
   fornecedor?: string;
   cliente?: string;
   _tipo: "conta_pagar" | "conta_receber";
+  status: string;
+  data_baixa?: string;
 }
 
 interface Props {
@@ -76,10 +79,72 @@ function autoMatch(item: ExtratoItem, contas: ContaRow[]): ExtratoItem["match"] 
         tipo: conta._tipo,
         id: conta.id,
         descricao: conta.descricao || conta.fornecedor || conta.cliente || "Conta encontrada",
+        alreadySettled: !!conta.data_baixa,
       };
     }
   }
   return undefined;
+}
+
+// ─── Sugestao inteligente para lancamentos ja baixados ───────────────────────
+
+function findBestSuggestion(
+  item: ExtratoItem,
+  settled: ContaRow[]
+): ContaRow | null {
+  const valorAbs = Math.abs(item.valor);
+  const dataItem = new Date(item.data);
+  let bestScore = 0;
+  let bestConta: ContaRow | null = null;
+
+  for (const conta of settled) {
+    let score = 0;
+    const valorConta = Number(conta.valor || 0);
+
+    // 1. Valor (max 50 pts)
+    const diffValor = Math.abs(valorAbs - valorConta);
+    if (diffValor <= 0.01) {
+      score += 50;
+    } else if (diffValor <= 1.0) {
+      score += 40;
+    } else if (valorAbs > 0 && diffValor / valorAbs <= 0.05) {
+      score += 20;
+    }
+
+    // 2. Data da baixa (max 30 pts)
+    const dataBaixa = conta.data_baixa ? new Date(conta.data_baixa) : null;
+    if (dataBaixa) {
+      const diffDias = Math.abs((dataItem.getTime() - dataBaixa.getTime()) / 86400000);
+      if (diffDias <= 1) score += 30;
+      else if (diffDias <= 3) score += 20;
+      else if (diffDias <= 5) score += 10;
+    }
+
+    // 3. Descricao (max 20 pts)
+    const descItem = item.descricao.toLowerCase();
+    const descConta = (conta.descricao || "").toLowerCase();
+    const fornCli = (conta.fornecedor || conta.cliente || "").toLowerCase();
+    if (descItem === descConta) {
+      score += 20;
+    } else if (descItem.includes(descConta) || descConta.includes(descItem)) {
+      score += 15;
+    } else {
+      const wordsItem = descItem.split(/\s+/).filter((w) => w.length > 2);
+      const wordsConta = descConta.split(/\s+/).filter((w) => w.length > 2);
+      const overlap = wordsItem.filter((w) => wordsConta.includes(w)).length;
+      score += Math.min(overlap * 5, 15);
+    }
+    if (fornCli && descItem.includes(fornCli)) {
+      score += 5;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestConta = conta;
+    }
+  }
+
+  return bestScore >= 50 ? bestConta : null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -110,6 +175,7 @@ export default function ModalConciliacaoV2({
     fornecedor: "",
   });
   const [savingAction, setSavingAction] = useState(false);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
 
   // Botão 2 — Novo lançamento
   const [novoLancamentoTipo, setNovoLancamentoTipo] = useState<"pagar" | "receber" | null>(null);
@@ -145,15 +211,15 @@ export default function ModalConciliacaoV2({
       const [{ data: cp }, { data: cr }] = await Promise.all([
         supabase
           .from("contas_pagar")
-          .select("id, descricao, valor, vencimento, fornecedor")
+          .select("id, descricao, valor, vencimento, fornecedor, status, data_pagamento")
           .eq("company_id", companyId)
-          .in("status", ["pendente", "pago"])
+          .in("status", ["pendente", "pago", "confirmado"])
           .or("conciliado.is.null,conciliado.eq.false"),
         supabase
           .from("contas_receber")
-          .select("id, descricao, valor, vencimento, cliente")
+          .select("id, descricao, valor, vencimento, cliente, status, data_recebimento")
           .eq("company_id", companyId)
-          .in("status", ["pendente", "recebido"])
+          .in("status", ["pendente", "recebido", "confirmado"])
           .or("conciliado.is.null,conciliado.eq.false"),
       ]);
 
@@ -165,6 +231,8 @@ export default function ModalConciliacaoV2({
           vencimento: c.vencimento || "",
           fornecedor: c.fornecedor,
           _tipo: "conta_pagar" as const,
+          status: c.status,
+          data_baixa: c.data_pagamento || undefined,
         })),
         ...(cr || []).map((c: any) => ({
           id: c.id,
@@ -173,6 +241,8 @@ export default function ModalConciliacaoV2({
           vencimento: c.vencimento || "",
           cliente: c.cliente,
           _tipo: "conta_receber" as const,
+          status: c.status,
+          data_baixa: c.data_recebimento || undefined,
         })),
       ];
 
@@ -219,6 +289,7 @@ export default function ModalConciliacaoV2({
     setSelectedId(id === selectedId ? null : id);
     setActiveAction(null);
     setBusca("");
+    setSuggestionDismissed(false);
     if (selectedItem) {
       setNovaContaForm({
         descricao: "",
@@ -254,13 +325,37 @@ export default function ModalConciliacaoV2({
       .slice(0, 20);
   }, [busca, contas]);
 
+  // ── Sugestão automática para lançamentos já baixados ───────────────────────
+
+  const settledContas = useMemo(() => {
+    return contas.filter((c) => {
+      if (c._tipo === "conta_pagar") {
+        return (c.status === "pago" || c.status === "confirmado") && !!c.data_baixa;
+      }
+      if (c._tipo === "conta_receber") {
+        return (c.status === "recebido" || c.status === "confirmado") && !!c.data_baixa;
+      }
+      return false;
+    });
+  }, [contas]);
+
+  const suggestion = useMemo(() => {
+    if (!selectedItem || selectedItem.status !== "nao_conciliado") return null;
+    return findBestSuggestion(selectedItem, settledContas);
+  }, [selectedItem, settledContas]);
+
   // ── Action handlers ─────────────────────────────────────────────────────────
 
   function handleVincularConta(conta: ContaRow) {
     if (!selectedId) return;
     updateItem(selectedId, {
       status: "conciliado",
-      match: { tipo: conta._tipo, id: conta.id, descricao: conta.descricao },
+      match: {
+        tipo: conta._tipo,
+        id: conta.id,
+        descricao: conta.descricao,
+        alreadySettled: !!conta.data_baixa,
+      },
     });
     setActiveAction(null);
     setBusca("");
@@ -382,19 +477,33 @@ export default function ModalConciliacaoV2({
         }
         if (item.match?.id) {
           if (item.match.tipo === "conta_pagar") {
-            // Conciliar + dar baixa na despesa
-            await supabase.from("contas_pagar").update({
-              conciliado: true,
-              status: "pago",
-              data_pagamento: item.data,
-            }).eq("id", item.match.id);
+            if (item.match.alreadySettled) {
+              // Já teve baixa manual — apenas marcar como conciliado
+              await supabase.from("contas_pagar").update({
+                conciliado: true,
+              }).eq("id", item.match.id);
+            } else {
+              // Conciliar + dar baixa na despesa
+              await supabase.from("contas_pagar").update({
+                conciliado: true,
+                status: "pago",
+                data_pagamento: item.data,
+              }).eq("id", item.match.id);
+            }
           } else if (item.match.tipo === "conta_receber") {
-            // Conciliar + dar baixa na receita
-            await supabase.from("contas_receber").update({
-              conciliado: true,
-              status: "recebido",
-              data_recebimento: item.data,
-            }).eq("id", item.match.id);
+            if (item.match.alreadySettled) {
+              // Já teve baixa manual — apenas marcar como conciliado
+              await supabase.from("contas_receber").update({
+                conciliado: true,
+              }).eq("id", item.match.id);
+            } else {
+              // Conciliar + dar baixa na receita
+              await supabase.from("contas_receber").update({
+                conciliado: true,
+                status: "recebido",
+                data_recebimento: item.data,
+              }).eq("id", item.match.id);
+            }
           }
         }
       }
@@ -738,8 +847,58 @@ export default function ModalConciliacaoV2({
                         </Button>
                       </div>
                     ) : (
-                      /* ── NÃO CONCILIADO — 6 opções ── */
+                      /* ── NÃO CONCILIADO — sugestão + 6 opções ── */
                       <div className="space-y-1.5">
+                        {/* Sugestão automática */}
+                        {suggestion && !suggestionDismissed && (
+                          <div className="mb-2 p-3 rounded-lg border border-blue-400 bg-[#1a2a50] space-y-2">
+                            <p className="text-xs font-semibold text-blue-300 flex items-center gap-1.5">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Sugestão de conciliação
+                            </p>
+                            <div className="text-xs space-y-1">
+                              <p className="font-medium">{suggestion.descricao}</p>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <span>{formatCurrency(suggestion.valor)}</span>
+                                <span>·</span>
+                                <span>{suggestion.data_baixa || suggestion.vencimento}</span>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs py-0 px-1 ${
+                                    suggestion._tipo === "conta_pagar"
+                                      ? "border-red-300 text-red-600"
+                                      : "border-green-500 text-green-300"
+                                  }`}
+                                >
+                                  {suggestion._tipo === "conta_pagar" ? "Pagar" : "Receber"}
+                                </Badge>
+                              </div>
+                              {(suggestion.fornecedor || suggestion.cliente) && (
+                                <p className="text-muted-foreground">
+                                  {suggestion._tipo === "conta_pagar" ? "Fornecedor" : "Cliente"}:{" "}
+                                  {suggestion.fornecedor || suggestion.cliente}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 pt-1">
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                                onClick={() => handleVincularConta(suggestion)}
+                              >
+                                <CheckCircle2 className="h-3 w-3" />
+                                Vincular
+                              </Button>
+                              <button
+                                className="text-xs text-muted-foreground hover:text-white underline"
+                                onClick={() => setSuggestionDismissed(true)}
+                              >
+                                Ignorar sugestão
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         <p className="text-xs font-semibold text-muted-foreground mb-2">
                           O que fazer com este lançamento?
                         </p>
