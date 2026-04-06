@@ -100,6 +100,7 @@ const ContasPagar = () => {
   const [baixaMulta, setBaixaMulta] = useState("");
   const [baixaDesconto, setBaixaDesconto] = useState("");
   const [baixaDataPagamento, setBaixaDataPagamento] = useState(new Date().toISOString().slice(0, 10));
+  const [baixaFormaPagamento, setBaixaFormaPagamento] = useState("PIX");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -329,13 +330,15 @@ const ContasPagar = () => {
     setBaixaMulta("");
     setBaixaDesconto("");
     setBaixaDataPagamento(new Date().toISOString().slice(0, 10));
+    setBaixaFormaPagamento(conta.payment_method || "PIX");
     setBaixaDialogOpen(true);
   };
 
   const executeBaixa = async (
     conta: any,
     accountId: string | null,
-    juros = 0, multa = 0, desconto = 0, dataPagamento?: string
+    juros = 0, multa = 0, desconto = 0, dataPagamento?: string,
+    formaPagamento?: string
   ) => {
     const valorOriginal = Number(conta.amount || conta.valor || 0);
     const valorFinal = valorOriginal + juros + multa - desconto;
@@ -351,6 +354,7 @@ const ContasPagar = () => {
       : await supabase.from("financial_transactions").update({
           status: "confirmado",
           payment_date: dataPag,
+          payment_method: formaPagamento || conta.payment_method || "PIX",
           juros, multa, desconto,
           valor_pago: valorFinal,
         } as any).eq("id", conta.id);
@@ -1020,6 +1024,19 @@ const ContasPagar = () => {
                     />
                   </div>
 
+                  {/* Forma de pagamento */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Forma de pagamento</Label>
+                    <Select value={baixaFormaPagamento} onValueChange={setBaixaFormaPagamento}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["PIX", "Transferência", "Boleto", "Dinheiro", "Cartão"].map(s => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Conta bancária (se houver) */}
                   {!isObjetivo && bankAccounts && bankAccounts.length > 0 && (
                     <div>
@@ -1053,7 +1070,7 @@ const ContasPagar = () => {
                         if (baixaIsBulk) {
                           await executeBulkBaixa(accId, j, m, d, baixaDataPagamento);
                         } else if (baixaConta) {
-                          await executeBaixa(baixaConta, accId, j, m, d, baixaDataPagamento);
+                          await executeBaixa(baixaConta, accId, j, m, d, baixaDataPagamento, baixaFormaPagamento);
                         }
                         setBaixaConta(null);
                         setBaixaIsBulk(false);
