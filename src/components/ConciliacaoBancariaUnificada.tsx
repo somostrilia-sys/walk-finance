@@ -866,6 +866,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
           itensExtrato={itensExtrato}
           companyId={companyId}
           origem={origemModal}
+          bankAccountId={bankAccountId}
         />
       )}
 

@@ -28,6 +28,8 @@ interface ExtratoItem {
   descricao: string;
   valor: number;
   tipo: "credito" | "debito";
+  fitid?: string;
+  _jaExistente?: boolean;
   status: "conciliado" | "nao_conciliado" | "ignorado";
   match?: {
     tipo: "conta_pagar" | "conta_receber" | "transferencia" | "novo";
@@ -61,6 +63,7 @@ interface Props {
   }>;
   companyId: string;
   origem: string;
+  bankAccountId?: string;
 }
 
 // ─── Auto-match ───────────────────────────────────────────────────────────────
@@ -157,6 +160,7 @@ export default function ModalConciliacaoV2({
   itensExtrato,
   companyId,
   origem,
+  bankAccountId,
 }: Props) {
   const [itens, setItens] = useState<ExtratoItem[]>([]);
   const [contas, setContas] = useState<ContaRow[]>([]);
@@ -248,6 +252,18 @@ export default function ModalConciliacaoV2({
 
       setContas(allContas);
 
+      // Buscar fitids já salvos no extrato para detectar duplicados
+      const fitidsImportados = itensExtrato.map((e) => e.fitid).filter(Boolean) as string[];
+      let fitidsExistentes: Set<string> = new Set();
+      if (fitidsImportados.length > 0) {
+        const { data: existentes } = await supabase
+          .from("extrato_bancario")
+          .select("fitid")
+          .eq("company_id", companyId)
+          .in("fitid", fitidsImportados);
+        fitidsExistentes = new Set((existentes || []).map((e: any) => e.fitid));
+      }
+
       const iniciais: ExtratoItem[] = itensExtrato.map((e, i) => {
         const tipo: "credito" | "debito" = e.tipo ?? (e.valor >= 0 ? "credito" : "debito");
         const base: ExtratoItem = {
@@ -256,8 +272,20 @@ export default function ModalConciliacaoV2({
           descricao: e.descricao,
           valor: e.valor,
           tipo,
+          fitid: e.fitid,
           status: "nao_conciliado",
         };
+
+        // Se o fitid já existe no extrato, marcar como já conciliado anteriormente
+        if (e.fitid && fitidsExistentes.has(e.fitid)) {
+          return {
+            ...base,
+            status: "conciliado" as const,
+            _jaExistente: true,
+            match: { tipo: "conta_pagar" as const, descricao: "Já conciliado anteriormente" },
+          };
+        }
+
         const match = autoMatch(base, allContas);
         if (match) {
           return { ...base, status: "conciliado", match };
@@ -448,7 +476,7 @@ export default function ModalConciliacaoV2({
   // ── Confirmar ───────────────────────────────────────────────────────────────
 
   async function handleConfirmar() {
-    const aConciliar = itens.filter((i) => i.status === "conciliado");
+    const aConciliar = itens.filter((i) => i.status === "conciliado" && !i._jaExistente);
     if (aConciliar.length === 0) {
       toast({ title: "Nenhum item conciliado para salvar" });
       onClose();
@@ -466,6 +494,8 @@ export default function ModalConciliacaoV2({
           status: "conciliado",
           arquivo_origem: origem,
           conciliado: true,
+          fitid: item.fitid || null,
+          bank_account_id: bankAccountId || null,
         });
         if (extratoErr) {
           toast({
