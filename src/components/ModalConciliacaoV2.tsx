@@ -493,7 +493,6 @@ export default function ModalConciliacaoV2({
           tipo: item.tipo === "credito" ? "credito" : "debito",
           status: "conciliado",
           arquivo_origem: origem,
-          conciliado: true,
           fitid: item.fitid || null,
           bank_account_id: bankAccountId || null,
         });
