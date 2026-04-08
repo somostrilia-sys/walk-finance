@@ -392,6 +392,10 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   });
   const [saving, setSaving] = useState(false);
 
+  // ── Seleção de conta antes de importar ────────────────────────────────────────
+  const [selectContaOpen, setSelectContaOpen] = useState(false);
+  const [selectedContaId, setSelectedContaId] = useState<string>("");
+
   // ── Period filter ────────────────────────────────────────────────────────────
   const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodValue>("ultimos-30");
 
@@ -808,7 +812,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
         <TabsContent value="importar" className="pt-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button
-              onClick={() => fileRef.current?.click()}
+              onClick={() => { setSelectedContaId(""); setSelectContaOpen(true); }}
               className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all text-center group"
             >
               <Upload className="h-8 w-8 text-gray-400 group-hover:text-blue-500 transition-colors" />
@@ -854,6 +858,47 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
         <QRCodeScanner onResult={handleQRResult} onClose={() => setQrScannerOpen(false)} />
       )}
 
+      {/* Dialog seleção de conta antes de importar */}
+      <Dialog open={selectContaOpen} onOpenChange={setSelectContaOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Selecione a conta bancária</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">De qual conta bancária é o extrato que será importado?</p>
+          <div className="space-y-2 py-2">
+            {contasBancarias.map((c: any) => (
+              <button
+                key={c.id}
+                onClick={() => setSelectedContaId(c.id)}
+                className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                  selectedContaId === c.id
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                    : "border-border hover:bg-secondary/60"
+                }`}
+              >
+                <p className="font-medium text-sm">{c.nome_conta || c.bank_name}</p>
+                {c.bank_name && c.nome_conta && (
+                  <p className="text-xs text-muted-foreground">{c.bank_name}</p>
+                )}
+              </button>
+            ))}
+            {contasBancarias.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma conta cadastrada.</p>
+            )}
+          </div>
+          <Button
+            className="w-full"
+            disabled={!selectedContaId}
+            onClick={() => {
+              setSelectContaOpen(false);
+              fileRef.current?.click();
+            }}
+          >
+            Selecionar arquivo
+          </Button>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal Conciliação V2 */}
       {conciliacaoOpen && itensExtrato.length > 0 && (
         <ModalConciliacaoV2
@@ -866,7 +911,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
           itensExtrato={itensExtrato}
           companyId={companyId}
           origem={origemModal}
-          bankAccountId={bankAccountId}
+          bankAccountId={selectedContaId || bankAccountId}
         />
       )}
 
