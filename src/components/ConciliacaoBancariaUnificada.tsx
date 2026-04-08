@@ -151,6 +151,7 @@ interface ExtratoRow {
   tipo: string;
   status: string;
   arquivo_origem: string | null;
+  bank_account_id: string | null;
 }
 
 interface TransacaoManual {
@@ -412,12 +413,11 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     queryFn: async () => {
       let q = supabase
         .from("extrato_bancario")
-        .select("id, data_lancamento, descricao, valor, tipo, status, arquivo_origem")
+        .select("id, data_lancamento, descricao, valor, tipo, status, arquivo_origem, bank_account_id")
         .eq("company_id", companyId)
         .eq("status", "conciliado")
-        .order("data_lancamento", { ascending: false });
+        .order("data_lancamento", { ascending: true });
       if (branchId) q = q.eq("branch_id", branchId);
-      if (bankAccountId) q = q.eq("bank_account_id", bankAccountId);
       const { data, error } = await q;
       if (error) throw error;
       return (data || []) as ExtratoRow[];
@@ -448,6 +448,67 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   // ── Filtered data ───────────────────────────────────────────────────────────
   const filteredExtrato = useMemo(() => filterByPeriod(extrato, filtroPeriodo, "data_lancamento"), [extrato, filtroPeriodo]);
   const filteredManuais = useMemo(() => filterByPeriod(manuais, filtroPeriodo, "date"), [manuais, filtroPeriodo]);
+
+  // ── Agrupamento por conta bancária com saldo acumulado ─────────────────────
+  const extratoAgrupado = useMemo(() => {
+    const grupos = new Map<string, { conta: any; itens: (ExtratoRow & { saldo: number })[] }>();
+
+    // Agrupar por bank_account_id
+    for (const item of filteredExtrato) {
+      const key = item.bank_account_id || "_sem_conta";
+      if (!grupos.has(key)) {
+        const conta = contasBancarias.find((c: any) => c.id === key);
+        grupos.set(key, { conta: conta || null, itens: [] });
+      }
+      grupos.get(key)!.itens.push({ ...item, saldo: 0 });
+    }
+
+    // Calcular saldo acumulado por conta
+    const result: Array<{
+      contaId: string;
+      contaNome: string;
+      bancoNome: string;
+      saldoInicial: number;
+      saldoFinal: number;
+      itens: Array<ExtratoRow & { saldo: number; fimDoDia?: boolean; saldoDia?: number }>;
+    }> = [];
+
+    for (const [key, grupo] of grupos) {
+      const saldoInicial = Number(grupo.conta?.saldo_inicial || 0);
+      let saldo = saldoInicial;
+
+      // Ordenar por data crescente
+      grupo.itens.sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento));
+
+      // Calcular saldo e marcar fim de dia
+      const itensComSaldo: Array<ExtratoRow & { saldo: number; fimDoDia?: boolean; saldoDia?: number }> = [];
+      for (let i = 0; i < grupo.itens.length; i++) {
+        const item = grupo.itens[i];
+        const valorComSinal = item.tipo === "credito" ? Number(item.valor) : -Number(item.valor);
+        saldo += valorComSinal;
+        const entry: ExtratoRow & { saldo: number; fimDoDia?: boolean; saldoDia?: number } = { ...item, saldo };
+
+        // Verificar se é o último item do dia
+        const nextItem = grupo.itens[i + 1];
+        if (!nextItem || nextItem.data_lancamento !== item.data_lancamento) {
+          entry.fimDoDia = true;
+          entry.saldoDia = saldo;
+        }
+        itensComSaldo.push(entry);
+      }
+
+      result.push({
+        contaId: key,
+        contaNome: grupo.conta?.nome_conta || "Sem conta",
+        bancoNome: grupo.conta?.bank_name || "",
+        saldoInicial,
+        saldoFinal: saldo,
+        itens: itensComSaldo,
+      });
+    }
+
+    return result;
+  }, [filteredExtrato, contasBancarias]);
 
   // ── File import ──────────────────────────────────────────────────────────────
 
@@ -695,7 +756,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
           {loadingExtrato || loadingManuais ? (
             <p className="text-sm text-muted-foreground py-8 text-center">Carregando...</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-6">
               {/* Header selecionar todos */}
               {allIds.length > 0 && (
                 <div className="flex items-center gap-2 px-3 py-1.5">
@@ -710,94 +771,159 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                 </div>
               )}
 
-              {filteredExtrato.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border text-sm transition-colors ${
-                    selectedIds.has(item.id) ? "bg-primary/5 border-primary/30" : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(item.id)}
-                      onChange={() => toggleOne(item.id)}
-                      className="h-4 w-4 rounded border-border cursor-pointer accent-primary shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{item.descricao}</p>
-                      <p className="text-xs text-muted-foreground">{item.data_lancamento}</p>
+              {/* Extrato agrupado por conta bancária */}
+              {extratoAgrupado.map((grupo) => (
+                <div key={grupo.contaId} className="border rounded-lg overflow-hidden">
+                  {/* Header da conta */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-secondary/50 border-b">
+                    <div className="flex items-center gap-2">
+                      <Landmark className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-semibold text-sm">{grupo.contaNome}</span>
+                      {grupo.bancoNome && (
+                        <span className="text-xs text-muted-foreground">— {grupo.bancoNome}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Saldo Inicial: <span className="font-medium">{formatCurrency(grupo.saldoInicial)}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <Badge variant={origemVariant(item.arquivo_origem)} className="text-xs">
-                      {origemLabel(item.arquivo_origem)}
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className={
-                        item.status === "conciliado"
-                          ? "text-green-700 border-green-300"
-                          : "text-orange-600 border-orange-300"
-                      }
-                    >
-                      {item.status === "conciliado" ? "Conciliado" : "Pendente"}
-                    </Badge>
-                    <span
-                      className={
-                        item.tipo === "credito" ? "text-green-600 font-semibold" : "text-red-600 font-semibold"
-                      }
-                    >
-                      {item.tipo === "credito" ? "+" : "-"}
-                      {formatCurrency(Number(item.valor))}
-                    </span>
+
+                  {/* Tabela de lançamentos */}
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead className="w-8" />
+                        <TableHead className="w-10">Situação</TableHead>
+                        <TableHead className="w-24">Data</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead className="w-24">Origem</TableHead>
+                        <TableHead className="text-right w-28">Valor (R$)</TableHead>
+                        <TableHead className="text-right w-28">Saldo (R$)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {/* Linha de saldo anterior */}
+                      <TableRow className="bg-muted/30 font-medium text-xs">
+                        <TableCell />
+                        <TableCell />
+                        <TableCell>{grupo.itens[0]?.data_lancamento || ""}</TableCell>
+                        <TableCell className="font-semibold">SALDO ANTERIOR</TableCell>
+                        <TableCell />
+                        <TableCell className="text-right">0,00</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(grupo.saldoInicial)}</TableCell>
+                      </TableRow>
+
+                      {grupo.itens.map((item) => (
+                        <>
+                          <TableRow key={item.id} className="text-xs">
+                            <TableCell className="px-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(item.id)}
+                                onChange={() => toggleOne(item.id)}
+                                className="h-3.5 w-3.5 rounded border-border cursor-pointer accent-primary"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  item.status === "conciliado"
+                                    ? "text-green-700 border-green-300 text-[10px] px-1 py-0"
+                                    : "text-orange-600 border-orange-300 text-[10px] px-1 py-0"
+                                }
+                              >
+                                {item.status === "conciliado" ? "Conciliado" : "Pendente"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{item.data_lancamento}</TableCell>
+                            <TableCell className="font-medium">{item.descricao}</TableCell>
+                            <TableCell>
+                              <Badge variant={origemVariant(item.arquivo_origem)} className="text-[10px] px-1 py-0">
+                                {origemLabel(item.arquivo_origem)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className={`text-right font-semibold ${item.tipo === "credito" ? "text-green-600" : "text-red-600"}`}>
+                              {item.tipo === "credito" ? "" : "-"}{formatCurrency(Number(item.valor))}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(item.saldo)}</TableCell>
+                          </TableRow>
+                          {/* Linha de saldo do dia */}
+                          {item.fimDoDia && (
+                            <TableRow key={`dia-${item.id}`} className="bg-muted/20 border-t">
+                              <TableCell colSpan={5} className="text-right text-xs text-muted-foreground py-1">
+                                Saldo em {item.data_lancamento}:
+                              </TableCell>
+                              <TableCell />
+                              <TableCell className="text-right text-xs font-bold py-1">
+                                {formatCurrency(item.saldoDia || 0)}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {/* Rodapé com saldo final */}
+                  <div className="flex items-center justify-between px-4 py-2 bg-secondary/30 border-t">
+                    <span className="text-xs text-muted-foreground">{grupo.itens.length} lançamento(s)</span>
+                    <div className="text-xs">
+                      Saldo Final: <span className={`font-bold ${grupo.saldoFinal >= 0 ? "text-green-600" : "text-red-600"}`}>{formatCurrency(grupo.saldoFinal)}</span>
+                    </div>
                   </div>
                 </div>
               ))}
 
-              {filteredManuais.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border text-sm transition-colors ${
-                    selectedIds.has(item.id) ? "bg-primary/5 border-primary/30" : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(item.id)}
-                      onChange={() => toggleOne(item.id)}
-                      className="h-4 w-4 rounded border-border cursor-pointer accent-primary shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{item.description}</p>
-                      <p className="text-xs text-muted-foreground">{item.date}</p>
-                    </div>
+              {/* Lançamentos manuais (sem conta) */}
+              {filteredManuais.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 bg-secondary/50 border-b">
+                    <Landmark className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-semibold text-sm">Lançamentos Manuais</span>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <Badge variant="outline" className="text-xs">Manual</Badge>
-                    <span
-                      className={
-                        item.type === "entrada" ? "text-green-600 font-semibold" : "text-red-600 font-semibold"
-                      }
-                    >
-                      {item.type === "entrada" ? "+" : "-"}
-                      {formatCurrency(item.amount)}
-                    </span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openManualEdit(item)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => setDeleteTarget(item.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead className="w-8" />
+                        <TableHead className="w-24">Data</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead className="text-right w-28">Valor (R$)</TableHead>
+                        <TableHead className="w-20" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredManuais.map((item) => (
+                        <TableRow key={item.id} className="text-xs">
+                          <TableCell className="px-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(item.id)}
+                              onChange={() => toggleOne(item.id)}
+                              className="h-3.5 w-3.5 rounded border-border cursor-pointer accent-primary"
+                            />
+                          </TableCell>
+                          <TableCell>{item.date}</TableCell>
+                          <TableCell className="font-medium">{item.description}</TableCell>
+                          <TableCell className={`text-right font-semibold ${item.type === "entrada" ? "text-green-600" : "text-red-600"}`}>
+                            {item.type === "entrada" ? "+" : "-"}{formatCurrency(item.amount)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openManualEdit(item)}>
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(item.id)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
-              ))}
+              )}
 
               {extrato.length === 0 && manuais.length === 0 && (
                 <p className="text-sm text-muted-foreground py-8 text-center">
