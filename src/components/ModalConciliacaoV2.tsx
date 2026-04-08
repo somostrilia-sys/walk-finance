@@ -182,7 +182,7 @@ export default function ModalConciliacaoV2({
   const [suggestionDismissed, setSuggestionDismissed] = useState(false);
 
   // Botão 2 — Novo lançamento
-  const [novoLancamentoTipo, setNovoLancamentoTipo] = useState<"pagar" | "receber" | null>(null);
+  const [novoLancamentoTipo, setNovoLancamentoTipo] = useState<"pagar" | "receber" | "direto" | null>(null);
   const [novoLancamentoForm, setNovoLancamentoForm] = useState({
     descricao: "",
     valor: "",
@@ -190,6 +190,7 @@ export default function ModalConciliacaoV2({
     fornecedorCliente: "",
     categoria: "",
   });
+  const [expenseCategories, setExpenseCategories] = useState<Array<{ id: string; name: string; grupo: string | null; type: string }>>([]);
 
   // Botão 3 — Transferência
   const [bankAccounts, setBankAccounts] = useState<Array<{ id: string; name: string; bank_name?: string }>>([]);
@@ -587,6 +588,21 @@ export default function ModalConciliacaoV2({
     }
   }
 
+  async function fetchExpenseCategories() {
+    try {
+      const { data, error } = await supabase
+        .from("expense_categories")
+        .select("id, name, grupo, type")
+        .eq("company_id", companyId)
+        .order("grupo")
+        .order("name");
+      if (error) throw error;
+      setExpenseCategories(data || []);
+    } catch {
+      setExpenseCategories([]);
+    }
+  }
+
   async function fetchBankAccounts() {
     try {
       const { data, error } = await supabase
@@ -607,11 +623,37 @@ export default function ModalConciliacaoV2({
       toast({ title: "Preencha descrição e valor", variant: "destructive" });
       return;
     }
+    if (novoLancamentoTipo === "direto" && !categoria) {
+      toast({ title: "Selecione uma categoria", variant: "destructive" });
+      return;
+    }
     setSavingAction(true);
     try {
       const valorNum = parseFloat(valor.replace(",", "."));
       const dataVenc = vencimento || selectedItem.data;
-      if (novoLancamentoTipo === "pagar") {
+      if (novoLancamentoTipo === "direto") {
+        const { data, error } = await supabase
+          .from("financial_transactions")
+          .insert({
+            company_id: companyId,
+            date: dataVenc,
+            description: descricao,
+            amount: Math.abs(valorNum),
+            type: selectedItem.tipo === "credito" ? "entrada" : "saida",
+            category_id: categoria,
+            entity_name: fornecedorCliente || null,
+            status: "confirmado",
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        updateItem(selectedId!, {
+          status: "conciliado",
+          match: { tipo: "novo", id: data.id, descricao },
+        });
+        toast({ title: "Lançamento direto criado e conciliado" });
+        logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Lançamento direto criado e conciliado: ${descricao} — R$ ${valorNum.toFixed(2)}` });
+      } else if (novoLancamentoTipo === "pagar") {
         const { data, error } = await supabase
           .from("contas_pagar")
           .insert({
@@ -955,6 +997,16 @@ export default function ModalConciliacaoV2({
                                 Contas a Receber
                               </button>
                             </div>
+                            <button
+                              onClick={() => { setNovoLancamentoTipo("direto"); fetchExpenseCategories(); }}
+                              className={`w-full py-1.5 text-xs rounded border transition-colors ${
+                                novoLancamentoTipo === "direto"
+                                  ? "bg-blue-900/30 border-blue-500/40 text-blue-400 font-semibold"
+                                  : "border-border hover:bg-secondary/60"
+                              }`}
+                            >
+                              Lançamento Direto (Conta Corrente)
+                            </button>
 
                             {novoLancamentoTipo && (
                               <div className="space-y-1.5">
@@ -986,7 +1038,7 @@ export default function ModalConciliacaoV2({
                                 </div>
                                 <Input
                                   className="h-7 text-xs"
-                                  placeholder={novoLancamentoTipo === "pagar" ? "Fornecedor (opcional)" : "Cliente (opcional)"}
+                                  placeholder={novoLancamentoTipo === "pagar" ? "Fornecedor (opcional)" : novoLancamentoTipo === "receber" ? "Cliente (opcional)" : "Favorecido / Cliente (opcional)"}
                                   value={novoLancamentoForm.fornecedorCliente}
                                   onChange={(e) =>
                                     setNovoLancamentoForm((p) => ({ ...p, fornecedorCliente: e.target.value }))
@@ -999,10 +1051,27 @@ export default function ModalConciliacaoV2({
                                   }
                                 >
                                   <SelectTrigger className="h-7 text-xs">
-                                    <SelectValue placeholder="Categoria (opcional)" />
+                                    <SelectValue placeholder={novoLancamentoTipo === "direto" ? "Categoria" : "Categoria (opcional)"} />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {novoLancamentoTipo === "pagar" ? (
+                                    {novoLancamentoTipo === "direto" ? (
+                                      (() => {
+                                        const grupos = new Map<string, typeof expenseCategories>();
+                                        for (const cat of expenseCategories) {
+                                          const g = cat.grupo || "Outras";
+                                          if (!grupos.has(g)) grupos.set(g, []);
+                                          grupos.get(g)!.push(cat);
+                                        }
+                                        return Array.from(grupos.entries()).map(([grupo, cats]) => (
+                                          <div key={grupo}>
+                                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{grupo}</div>
+                                            {cats.map((cat) => (
+                                              <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                            ))}
+                                          </div>
+                                        ));
+                                      })()
+                                    ) : novoLancamentoTipo === "pagar" ? (
                                       <>
                                         <SelectItem value="Aluguel">Aluguel</SelectItem>
                                         <SelectItem value="Serviços">Serviços</SelectItem>
