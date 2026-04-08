@@ -613,10 +613,10 @@ export default function ModalConciliacaoV2({
     try {
       const { data, error } = await supabase
         .from("bank_accounts")
-        .select("id, name, bank_name")
+        .select("id, nome_conta, bank_name")
         .eq("company_id", companyId);
       if (error) throw error;
-      setBankAccounts(data || []);
+      setBankAccounts((data || []).map((a: any) => ({ id: a.id, name: a.nome_conta, bank_name: a.bank_name })));
     } catch {
       setBankAccounts([]);
     }
