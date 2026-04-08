@@ -506,7 +506,13 @@ export default function ModalConciliacaoV2({
           continue;
         }
         if (item.match?.id) {
-          if (item.match.tipo === "conta_pagar") {
+          if (item.match.tipo === "novo") {
+            // Lançamento direto criado em financial_transactions — marcar como conciliado
+            // para não aparecer duplicado na lista de manuais
+            await supabase.from("financial_transactions").update({
+              status: "conciliado",
+            }).eq("id", item.match.id);
+          } else if (item.match.tipo === "conta_pagar") {
             if (item.match.alreadySettled) {
               // Já teve baixa manual — apenas marcar como conciliado
               await supabase.from("contas_pagar").update({
