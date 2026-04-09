@@ -482,7 +482,7 @@ export default function ModalConciliacaoV2({
           description: selectedItem.descricao,
           amount: Math.abs(selectedItem.valor),
           type: selectedItem.tipo === "credito" ? "entrada" : "saida",
-          status: "confirmado",
+          status: "conciliado",
         })
         .select("id")
         .single();
@@ -743,7 +743,7 @@ export default function ModalConciliacaoV2({
           description: descricao,
           amount: valorNum,
           type: "saida",
-          status: "confirmado",
+          status: "conciliado",
           entity_name: socio?.nome || null,
         })
         .select("id")
@@ -803,7 +803,7 @@ export default function ModalConciliacaoV2({
             type: selectedItem.tipo === "credito" ? "entrada" : "saida",
             category_id: categoria,
             entity_name: fornecedorCliente || null,
-            status: "confirmado",
+            status: "conciliado",
           })
           .select("id")
           .single();
