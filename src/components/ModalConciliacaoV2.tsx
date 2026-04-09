@@ -526,7 +526,7 @@ export default function ModalConciliacaoV2({
           descricao,
           valor: parseFloat(valor.replace(",", ".")),
           vencimento: vencimento || selectedItem.data,
-          fornecedor: fornecedor || null,
+          fornecedor: fornecedor || descricao,
           status: "pago",
           conciliado: true,
         })
@@ -822,7 +822,7 @@ export default function ModalConciliacaoV2({
             descricao,
             valor: valorNum,
             vencimento: dataVenc,
-            fornecedor: fornecedorCliente || null,
+            fornecedor: fornecedorCliente || descricao,
             categoria: categoria || null,
             status: "pago",
             conciliado: true,
