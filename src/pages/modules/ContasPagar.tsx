@@ -28,10 +28,11 @@ import {
 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 
-type StatusCP = "pendente" | "confirmado" | "cancelado";
+type StatusCP = "pendente" | "confirmado" | "cancelado" | "parcial";
 
 const statusConfig: Record<StatusCP, { label: string; badge: string; icon: React.ReactNode }> = {
   pendente: { label: "Pendente", badge: "status-badge-warning", icon: <Clock className="w-3.5 h-3.5" /> },
+  parcial: { label: "Parcial", badge: "status-badge-warning", icon: <Clock className="w-3.5 h-3.5" /> },
   confirmado: { label: "Pago", badge: "status-badge-positive", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   cancelado: { label: "Cancelado", badge: "status-badge-danger", icon: <AlertTriangle className="w-3.5 h-3.5" /> },
 };
@@ -101,6 +102,9 @@ const ContasPagar = () => {
   const [baixaDesconto, setBaixaDesconto] = useState("");
   const [baixaDataPagamento, setBaixaDataPagamento] = useState(new Date().toISOString().slice(0, 10));
   const [baixaFormaPagamento, setBaixaFormaPagamento] = useState("PIX");
+  const [baixaValorParcial, setBaixaValorParcial] = useState("");
+  const [baixaHistoricoOpen, setBaixaHistoricoOpen] = useState<string | null>(null);
+  const [baixasHistorico, setBaixasHistorico] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -322,6 +326,16 @@ const ContasPagar = () => {
     }
   };
 
+  const fetchBaixasParciais = async (contaId: string, contaTipo: string) => {
+    const { data } = await supabase
+      .from("baixas_parciais")
+      .select("*")
+      .eq("conta_id", contaId)
+      .eq("conta_tipo", contaTipo)
+      .order("created_at", { ascending: true });
+    return data || [];
+  };
+
   const handleBaixar = async (conta: any) => {
     setBaixaConta(conta);
     setBaixaIsBulk(false);
@@ -331,6 +345,13 @@ const ContasPagar = () => {
     setBaixaDesconto("");
     setBaixaDataPagamento(new Date().toISOString().slice(0, 10));
     setBaixaFormaPagamento(conta.payment_method || "PIX");
+    // Calcular valor restante se já teve baixas parciais
+    const contaTipo = conta.source === "contas_pagar" ? "contas_pagar" : "financial_transactions";
+    const baixas = await fetchBaixasParciais(conta.id, contaTipo);
+    const jaPago = baixas.reduce((s: number, b: any) => s + Number(b.valor), 0);
+    const valorOriginal = Number(conta.amount || conta.valor || 0);
+    const restante = valorOriginal - jaPago;
+    setBaixaValorParcial(restante > 0 ? restante.toFixed(2) : valorOriginal.toFixed(2));
     setBaixaDialogOpen(true);
   };
 
@@ -338,25 +359,49 @@ const ContasPagar = () => {
     conta: any,
     accountId: string | null,
     juros = 0, multa = 0, desconto = 0, dataPagamento?: string,
-    formaPagamento?: string
+    formaPagamento?: string,
+    valorParcialStr?: string
   ) => {
     const valorOriginal = Number(conta.amount || conta.valor || 0);
-    const valorFinal = valorOriginal + juros + multa - desconto;
     const dataPag = dataPagamento || new Date().toISOString().slice(0, 10);
+    const contaTipo = conta.source === "contas_pagar" ? "contas_pagar" : "financial_transactions";
 
+    // Verificar baixas anteriores
+    const baixasAnteriores = await fetchBaixasParciais(conta.id, contaTipo);
+    const jaPago = baixasAnteriores.reduce((s: number, b: any) => s + Number(b.valor), 0);
+
+    // Valor desta baixa
+    const valorEstaBaixa = valorParcialStr ? parseFloat(valorParcialStr.replace(",", ".")) : (valorOriginal - jaPago + juros + multa - desconto);
+    const totalPago = jaPago + valorEstaBaixa;
+    const isParcial = totalPago < valorOriginal;
+    const novoStatus = isParcial ? "parcial" : "confirmado";
+
+    // Registrar baixa parcial
+    if (companyId) {
+      await supabase.from("baixas_parciais").insert({
+        company_id: companyId,
+        conta_tipo: contaTipo,
+        conta_id: conta.id,
+        valor: valorEstaBaixa,
+        data_pagamento: dataPag,
+        payment_method: formaPagamento || "PIX",
+      } as any);
+    }
+
+    // Atualizar conta
     const { error } = conta.source === "contas_pagar"
       ? await supabase.from("contas_pagar").update({
-          status: "confirmado",
+          status: novoStatus,
           juros, multa, desconto,
-          valor_pago: valorFinal,
+          valor_pago: totalPago,
           data_pagamento: dataPag,
         } as any).eq("id", conta.id)
       : await supabase.from("financial_transactions").update({
-          status: "confirmado",
+          status: novoStatus,
           payment_date: dataPag,
           payment_method: formaPagamento || conta.payment_method || "PIX",
           juros, multa, desconto,
-          valor_pago: valorFinal,
+          valor_pago: totalPago,
         } as any).eq("id", conta.id);
 
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -367,7 +412,7 @@ const ContasPagar = () => {
         company_id: companyId,
         bank_account_id: accountId,
         external_description: conta.description || conta.entity_name || "Pagamento",
-        amount: -Math.abs(valorFinal),
+        amount: -Math.abs(valorEstaBaixa),
         date: dataPag,
         status: "pendente",
       } as any);
@@ -380,8 +425,11 @@ const ContasPagar = () => {
       queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     }
 
-    toast({ title: "Conta baixada como paga", description: `Valor pago: R$ ${valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` });
-    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Pagar", descricao: `Conta baixada: ${conta.description || conta.entity_name || conta.descricao || conta.id} — valor original R$ ${valorOriginal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}, pago R$ ${valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}${juros ? ` (juros R$ ${juros.toFixed(2)})` : ""}${multa ? ` (multa R$ ${multa.toFixed(2)})` : ""}${desconto ? ` (desconto R$ ${desconto.toFixed(2)})` : ""}` });
+    const msg = isParcial
+      ? `Baixa parcial: R$ ${valorEstaBaixa.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (restam R$ ${(valorOriginal - totalPago).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})`
+      : `Conta baixada como paga: R$ ${totalPago.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    toast({ title: isParcial ? "Baixa parcial registrada" : "Conta baixada como paga", description: msg });
+    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Pagar", descricao: `${isParcial ? "Baixa parcial" : "Conta baixada"}: ${conta.description || conta.entity_name || conta.descricao || conta.id} — valor original R$ ${valorOriginal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}, pago nesta baixa R$ ${valorEstaBaixa.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}, total pago R$ ${totalPago.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` });
   };
 
   const handleCancelar = async (conta: any) => {
@@ -774,8 +822,8 @@ const ContasPagar = () => {
                                 {grupoExpandido === c.grupo_parcela ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                               </Button>
                             )}
-                            {c.status === "pendente" && (
-                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => handleBaixar(c)} title="Baixar como pago">
+                            {(c.status === "pendente" || c.status === "parcial") && (
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => handleBaixar(c)} title={c.status === "parcial" ? "Continuar baixa" : "Baixar como pago"}>
                                 <Check className="w-3 h-3" />
                               </Button>
                             )}
@@ -961,12 +1009,13 @@ const ContasPagar = () => {
             </DialogHeader>
             {(() => {
               const valorOriginal = baixaIsBulk
-                ? filtered.filter((c: any) => selectedIds.has(c.id) && c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount || c.valor || 0), 0)
+                ? filtered.filter((c: any) => selectedIds.has(c.id) && (c.status === "pendente" || c.status === "parcial")).reduce((s: number, c: any) => s + Number(c.amount || c.valor || 0), 0)
                 : Number(baixaConta?.amount || baixaConta?.valor || 0);
               const j = parseFloat(baixaJuros) || 0;
               const m = parseFloat(baixaMulta) || 0;
               const d = parseFloat(baixaDesconto) || 0;
-              const valorFinal = valorOriginal + j + m - d;
+              const valorParcial = parseFloat(baixaValorParcial?.replace(",", ".") || "0") || 0;
+              const isParcial = !baixaIsBulk && valorParcial < (valorOriginal - Number(baixaConta?.valor_pago || 0) + j + m - d);
               return (
                 <div className="space-y-4 pt-1">
                   {/* Valor original */}
@@ -974,6 +1023,22 @@ const ContasPagar = () => {
                     <span className="text-sm text-muted-foreground">Valor original</span>
                     <span className="font-semibold text-sm">R$ {valorOriginal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                   </div>
+
+                  {/* Valor desta baixa (parcial) */}
+                  {!baixaIsBulk && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Valor desta baixa (R$)</Label>
+                      <Input
+                        type="number" min="0.01" step="0.01"
+                        value={baixaValorParcial}
+                        onChange={e => setBaixaValorParcial(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                      {isParcial && (
+                        <p className="text-[11px] text-amber-600 mt-1">Baixa parcial — valor inferior ao total pendente</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Juros / Multa / Desconto */}
                   <div className="grid grid-cols-3 gap-3">
@@ -1004,14 +1069,6 @@ const ContasPagar = () => {
                         className="h-8 text-sm"
                       />
                     </div>
-                  </div>
-
-                  {/* Valor final calculado */}
-                  <div className={`hub-card-base p-3 flex items-center justify-between ${(j > 0 || m > 0 || d > 0) ? "border-primary/30" : ""}`}>
-                    <span className="text-sm font-medium">Valor a pagar</span>
-                    <span className={`font-bold text-base ${valorFinal < valorOriginal ? "text-[hsl(var(--status-positive))]" : valorFinal > valorOriginal ? "text-[hsl(var(--status-danger))]" : ""}`}>
-                      R$ {valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                    </span>
                   </div>
 
                   {/* Data de pagamento */}
@@ -1064,14 +1121,14 @@ const ContasPagar = () => {
                     <Button variant="outline" size="sm" onClick={() => { setBaixaDialogOpen(false); setBaixaConta(null); setBaixaIsBulk(false); }}>Cancelar</Button>
                     <Button
                       size="sm"
-                      disabled={!isObjetivo && bankAccounts && bankAccounts.length > 0 && !baixaAccountId}
+                      disabled={(!isObjetivo && bankAccounts && bankAccounts.length > 0 && !baixaAccountId) || (!baixaIsBulk && valorParcial <= 0)}
                       onClick={async () => {
                         setBaixaDialogOpen(false);
                         const accId = (!isObjetivo && bankAccounts?.length > 0) ? baixaAccountId : null;
                         if (baixaIsBulk) {
                           await executeBulkBaixa(accId, j, m, d, baixaDataPagamento);
                         } else if (baixaConta) {
-                          await executeBaixa(baixaConta, accId, j, m, d, baixaDataPagamento, baixaFormaPagamento);
+                          await executeBaixa(baixaConta, accId, j, m, d, baixaDataPagamento, baixaFormaPagamento, baixaValorParcial);
                         }
                         setBaixaConta(null);
                         setBaixaIsBulk(false);
@@ -1079,9 +1136,10 @@ const ContasPagar = () => {
                         setBaixaJuros("");
                         setBaixaMulta("");
                         setBaixaDesconto("");
+                        setBaixaValorParcial("");
                       }}
                     >
-                      Confirmar Baixa
+                      {isParcial ? "Registrar Baixa Parcial" : "Confirmar Baixa"}
                     </Button>
                   </div>
                 </div>

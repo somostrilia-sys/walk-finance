@@ -25,10 +25,11 @@ import {
 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 
-type StatusCR = "pendente" | "confirmado" | "cancelado";
+type StatusCR = "pendente" | "confirmado" | "cancelado" | "parcial";
 
 const statusConfig: Record<StatusCR, { label: string; badge: string; icon: React.ReactNode }> = {
   pendente: { label: "Pendente", badge: "status-badge-warning", icon: <Clock className="w-3.5 h-3.5" /> },
+  parcial: { label: "Parcial", badge: "status-badge-warning", icon: <Clock className="w-3.5 h-3.5" /> },
   confirmado: { label: "Recebido", badge: "status-badge-positive", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   cancelado: { label: "Cancelado", badge: "status-badge-danger", icon: <AlertTriangle className="w-3.5 h-3.5" /> },
 };
@@ -88,6 +89,7 @@ const ContasReceber = () => {
   const [baixaMulta, setBaixaMulta] = useState("");
   const [baixaDesconto, setBaixaDesconto] = useState("");
   const [baixaDataRecebimento, setBaixaDataRecebimento] = useState(new Date().toISOString().slice(0, 10));
+  const [baixaValorParcial, setBaixaValorParcial] = useState("");
 
   const clienteSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
@@ -198,39 +200,76 @@ const ContasReceber = () => {
     if (companyId) logAudit({ companyId, acao: "editar", modulo: "Contas a Receber", descricao: `Conta a receber atualizada (id: ${editModal.id})` });
   };
 
-  const handleBaixar = (conta: any) => {
+  const fetchBaixasParciais = async (contaId: string, contaTipo: string) => {
+    const { data } = await supabase
+      .from("baixas_parciais")
+      .select("*")
+      .eq("conta_id", contaId)
+      .eq("conta_tipo", contaTipo)
+      .order("created_at", { ascending: true });
+    return data || [];
+  };
+
+  const handleBaixar = async (conta: any) => {
     setBaixaConta(conta);
     setBaixaJuros("");
     setBaixaMulta("");
     setBaixaDesconto("");
     setBaixaDataRecebimento(new Date().toISOString().slice(0, 10));
+    const contaTipo = conta.source === "contas_receber" ? "contas_receber" : "financial_transactions";
+    const baixas = await fetchBaixasParciais(conta.id, contaTipo);
+    const jaRecebido = baixas.reduce((s: number, b: any) => s + Number(b.valor), 0);
+    const valorOriginal = Number(conta.amount || conta.valor || 0);
+    const restante = valorOriginal - jaRecebido;
+    setBaixaValorParcial(restante > 0 ? restante.toFixed(2) : valorOriginal.toFixed(2));
     setBaixaDialogOpen(true);
   };
 
-  const executeBaixaReceber = async (conta: any, juros = 0, multa = 0, desconto = 0, dataRecebimento?: string) => {
+  const executeBaixaReceber = async (conta: any, juros = 0, multa = 0, desconto = 0, dataRecebimento?: string, valorParcialStr?: string) => {
     const valorOriginal = Number(conta.amount || conta.valor || 0);
-    const valorFinal = valorOriginal + juros + multa - desconto;
     const dataRec = dataRecebimento || new Date().toISOString().slice(0, 10);
+    const contaTipo = conta.source === "contas_receber" ? "contas_receber" : "financial_transactions";
+
+    const baixasAnteriores = await fetchBaixasParciais(conta.id, contaTipo);
+    const jaRecebido = baixasAnteriores.reduce((s: number, b: any) => s + Number(b.valor), 0);
+    const valorEstaBaixa = valorParcialStr ? parseFloat(valorParcialStr.replace(",", ".")) : (valorOriginal - jaRecebido + juros + multa - desconto);
+    const totalRecebido = jaRecebido + valorEstaBaixa;
+    const isParcial = totalRecebido < valorOriginal;
+    const novoStatus = isParcial ? "parcial" : (conta.source === "contas_receber" ? "recebido" : "confirmado");
+
+    if (companyId) {
+      await supabase.from("baixas_parciais").insert({
+        company_id: companyId,
+        conta_tipo: contaTipo,
+        conta_id: conta.id,
+        valor: valorEstaBaixa,
+        data_pagamento: dataRec,
+      } as any);
+    }
 
     const { error } = conta.source === "contas_receber"
       ? await supabase.from("contas_receber").update({
-          status: "recebido",
+          status: novoStatus,
           data_recebimento: dataRec,
           juros, multa, desconto,
-          valor_recebido: valorFinal,
+          valor_recebido: totalRecebido,
         } as any).eq("id", conta.id)
       : await supabase.from("financial_transactions").update({
-          status: "confirmado",
+          status: novoStatus,
           payment_date: dataRec,
           juros, multa, desconto,
-          valor_pago: valorFinal,
+          valor_pago: totalRecebido,
         } as any).eq("id", conta.id);
 
     if (error) return toast({ title: "Erro", description: error.message, variant: "destructive" });
     queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
     queryClient.invalidateQueries({ queryKey: ["contas_receber", companyId] });
-    toast({ title: "Receita baixada como recebida", description: `Valor recebido: R$ ${valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` });
-    if (companyId) logAudit({ companyId, acao: "pagar", modulo: "Contas a Receber", descricao: `Receita baixada: ${conta.entity_name || conta.description || conta.descricao} — original R$ ${valorOriginal.toFixed(2)}, recebido R$ ${valorFinal.toFixed(2)}${juros ? ` (juros R$${juros.toFixed(2)})` : ""}${multa ? ` (multa R$${multa.toFixed(2)})` : ""}${desconto ? ` (desconto R$${desconto.toFixed(2)})` : ""}` });
+
+    const msg = isParcial
+      ? `Baixa parcial: R$ ${valorEstaBaixa.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (restam R$ ${(valorOriginal - totalRecebido).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})`
+      : `Valor recebido: R$ ${totalRecebido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    toast({ title: isParcial ? "Baixa parcial registrada" : "Receita baixada como recebida", description: msg });
+    if (companyId) logAudit({ companyId, acao: "receber", modulo: "Contas a Receber", descricao: `${isParcial ? "Baixa parcial" : "Receita baixada"}: ${conta.entity_name || conta.description || conta.descricao} — original R$ ${valorOriginal.toFixed(2)}, nesta baixa R$ ${valorEstaBaixa.toFixed(2)}, total R$ ${totalRecebido.toFixed(2)}` });
   };
 
   const handleDelete = async (conta: any) => {
@@ -358,8 +397,8 @@ const ContasReceber = () => {
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditModal(c)} title="Editar">
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
-                          {c.status === "pendente" && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => handleBaixar(c)} title="Dar baixa">
+                          {(c.status === "pendente" || c.status === "parcial") && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => handleBaixar(c)} title={c.status === "parcial" ? "Continuar baixa" : "Dar baixa"}>
                               <Check className="w-3.5 h-3.5" />
                             </Button>
                           )}
@@ -423,12 +462,27 @@ const ContasReceber = () => {
             const j = parseFloat(baixaJuros) || 0;
             const m = parseFloat(baixaMulta) || 0;
             const d = parseFloat(baixaDesconto) || 0;
-            const valorFinal = valorOriginal + j + m - d;
+            const valorParcial = parseFloat(baixaValorParcial?.replace(",", ".") || "0") || 0;
+            const isParcial = valorParcial < (valorOriginal - Number(baixaConta?.valor_recebido || baixaConta?.valor_pago || 0) + j + m - d);
             return (
               <div className="space-y-4 pt-1">
                 <div className="hub-card-base p-3 flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Valor original</span>
                   <span className="font-semibold text-sm">R$ {valorOriginal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                {/* Valor desta baixa */}
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Valor desta baixa (R$)</Label>
+                  <Input
+                    type="number" min="0.01" step="0.01"
+                    value={baixaValorParcial}
+                    onChange={e => setBaixaValorParcial(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                  {isParcial && (
+                    <p className="text-[11px] text-amber-600 mt-1">Baixa parcial — valor inferior ao total pendente</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
@@ -461,13 +515,6 @@ const ContasReceber = () => {
                   </div>
                 </div>
 
-                <div className={`hub-card-base p-3 flex items-center justify-between ${(j > 0 || m > 0 || d > 0) ? "border-primary/30" : ""}`}>
-                  <span className="text-sm font-medium">Valor a receber</span>
-                  <span className={`font-bold text-base ${valorFinal < valorOriginal ? "text-[hsl(var(--status-positive))]" : valorFinal > valorOriginal ? "text-[hsl(var(--status-danger))]" : ""}`}>
-                    R$ {valorFinal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Data de recebimento</Label>
                   <Input
@@ -482,16 +529,18 @@ const ContasReceber = () => {
                   <Button variant="outline" size="sm" onClick={() => { setBaixaDialogOpen(false); setBaixaConta(null); }}>Cancelar</Button>
                   <Button
                     size="sm"
+                    disabled={valorParcial <= 0}
                     onClick={async () => {
                       setBaixaDialogOpen(false);
-                      if (baixaConta) await executeBaixaReceber(baixaConta, j, m, d, baixaDataRecebimento);
+                      if (baixaConta) await executeBaixaReceber(baixaConta, j, m, d, baixaDataRecebimento, baixaValorParcial);
                       setBaixaConta(null);
                       setBaixaJuros("");
                       setBaixaMulta("");
                       setBaixaDesconto("");
+                      setBaixaValorParcial("");
                     }}
                   >
-                    Confirmar Recebimento
+                    {isParcial ? "Registrar Baixa Parcial" : "Confirmar Recebimento"}
                   </Button>
                 </div>
               </div>

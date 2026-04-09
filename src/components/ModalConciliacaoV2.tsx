@@ -192,6 +192,9 @@ export default function ModalConciliacaoV2({
   });
   const [expenseCategories, setExpenseCategories] = useState<Array<{ id: string; name: string; grupo: string | null; type: string }>>([]);
 
+  // Botão 5 — Seleção múltipla de contas
+  const [multiSelectedContas, setMultiSelectedContas] = useState<ContaRow[]>([]);
+
   // Botão 3 — Transferência
   const [bankAccounts, setBankAccounts] = useState<Array<{ id: string; name: string; bank_name?: string }>>([]);
   const [transferenciaForm, setTransferenciaForm] = useState({
@@ -388,6 +391,77 @@ export default function ModalConciliacaoV2({
     });
     setActiveAction(null);
     setBusca("");
+    setMultiSelectedContas([]);
+  }
+
+  function toggleMultiConta(conta: ContaRow) {
+    setMultiSelectedContas(prev => {
+      const exists = prev.find(c => c.id === conta.id);
+      if (exists) return prev.filter(c => c.id !== conta.id);
+      return [...prev, conta];
+    });
+  }
+
+  async function handleVincularMultiplas() {
+    if (!selectedItem || !selectedId || multiSelectedContas.length === 0) return;
+    setSavingAction(true);
+    try {
+      const valorExtrato = Math.abs(selectedItem.valor);
+      let restante = valorExtrato;
+
+      for (const conta of multiSelectedContas) {
+        const valorConta = conta.valor;
+        const valorBaixa = Math.min(restante, valorConta);
+        restante -= valorBaixa;
+        const isParcial = valorBaixa < valorConta;
+
+        // Registrar baixa parcial
+        await supabase.from("baixas_parciais").insert({
+          company_id: companyId,
+          conta_tipo: conta._tipo,
+          conta_id: conta.id,
+          valor: valorBaixa,
+          data_pagamento: selectedItem.data,
+        } as any);
+
+        // Atualizar conta
+        if (conta._tipo === "conta_pagar") {
+          await supabase.from("contas_pagar").update({
+            status: isParcial ? "parcial" : "pago",
+            conciliado: true,
+            valor_pago: isParcial ? valorBaixa : valorConta,
+            data_pagamento: selectedItem.data,
+          } as any).eq("id", conta.id);
+        } else {
+          await supabase.from("contas_receber").update({
+            status: isParcial ? "parcial" : "recebido",
+            conciliado: true,
+            valor_recebido: isParcial ? valorBaixa : valorConta,
+            data_recebimento: selectedItem.data,
+          } as any).eq("id", conta.id);
+        }
+      }
+
+      updateItem(selectedId, {
+        status: "conciliado",
+        match: {
+          tipo: multiSelectedContas[0]._tipo,
+          id: multiSelectedContas[0].id,
+          descricao: `${multiSelectedContas.length} conta(s) vinculada(s)`,
+          alreadySettled: true,
+        },
+      });
+
+      setActiveAction(null);
+      setBusca("");
+      setMultiSelectedContas([]);
+      toast({ title: `${multiSelectedContas.length} conta(s) conciliada(s)` });
+      logAudit({ companyId, acao: "conciliar", modulo: "Conciliação Bancária", descricao: `Conciliação múltipla: ${multiSelectedContas.length} contas vinculadas ao lançamento ${selectedItem.descricao} — R$ ${valorExtrato.toFixed(2)}` });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingAction(false);
+    }
   }
 
   async function handleAdicionarLancamento() {
@@ -565,6 +639,7 @@ export default function ModalConciliacaoV2({
       return;
     }
     setActiveAction(n);
+    setMultiSelectedContas([]);
     setBusca("");
     if (selectedItem && n === 2) {
       setNovoLancamentoTipo(null);
@@ -1243,12 +1318,67 @@ export default function ModalConciliacaoV2({
                           label="Buscar e associar a lançamento existente"
                           onToggle={() => openAction(5)}
                         >
-                          <SearchContas
-                            busca={busca}
-                            setBusca={setBusca}
-                            resultados={buscaResultados}
-                            onSelect={handleVincularConta}
-                          />
+                          <div className="space-y-1.5 pt-1">
+                            <div className="relative">
+                              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                              <Input
+                                className="h-7 text-xs pl-6"
+                                placeholder="Buscar por descrição, valor ou fornecedor..."
+                                value={busca}
+                                onChange={(e) => setBusca(e.target.value)}
+                                autoFocus
+                              />
+                            </div>
+                            {multiSelectedContas.length > 0 && (
+                              <div className="bg-primary/5 border border-primary/20 rounded p-2 text-xs space-y-1">
+                                <div className="flex justify-between">
+                                  <span>{multiSelectedContas.length} conta(s) selecionada(s)</span>
+                                  <span className="font-semibold">
+                                    Total: {formatCurrency(multiSelectedContas.reduce((s, c) => s + c.valor, 0))}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Valor do extrato:</span>
+                                  <span>{formatCurrency(Math.abs(selectedItem?.valor || 0))}</span>
+                                </div>
+                                <Button size="sm" className="w-full h-6 text-xs mt-1" onClick={handleVincularMultiplas} disabled={savingAction}>
+                                  {savingAction ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                                  Conciliar {multiSelectedContas.length} conta(s)
+                                </Button>
+                              </div>
+                            )}
+                            <div className="max-h-48 overflow-y-auto space-y-0.5">
+                              {buscaResultados.length === 0 ? (
+                                <p className="text-xs text-muted-foreground text-center py-3">Nenhum lançamento encontrado.</p>
+                              ) : (
+                                buscaResultados.map((c) => {
+                                  const isSelected = multiSelectedContas.some(s => s.id === c.id);
+                                  return (
+                                    <div
+                                      key={c.id}
+                                      className={`flex items-center gap-2 px-2 py-1.5 rounded border transition-colors cursor-pointer ${isSelected ? "border-primary/40 bg-primary/10" : "border-transparent hover:bg-primary/15 hover:border-primary/40"}`}
+                                      onClick={() => toggleMultiConta(c)}
+                                    >
+                                      <input type="checkbox" checked={isSelected} readOnly className="h-3.5 w-3.5 accent-primary shrink-0" />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-medium truncate">{c.descricao}</p>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                          <span className="text-xs text-muted-foreground">{c.vencimento}</span>
+                                          <span className="text-xs font-semibold">{formatCurrency(c.valor)}</span>
+                                          <Badge variant="outline" className={`text-xs py-0 px-1 ${c._tipo === "conta_pagar" ? "border-destructive/40 text-destructive bg-destructive/10" : "border-green-500/40 text-green-400 bg-green-900/30"}`}>
+                                            {c._tipo === "conta_pagar" ? "Pagar" : "Receber"}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                      <Button size="sm" variant="outline" className="h-6 px-2 text-xs shrink-0" onClick={(e) => { e.stopPropagation(); handleVincularConta(c); }}>
+                                        Vincular
+                                      </Button>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
                         </ActionCard>
 
                         {/* Opção 6 — Ignorar */}
