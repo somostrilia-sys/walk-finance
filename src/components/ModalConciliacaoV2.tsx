@@ -579,6 +579,20 @@ export default function ModalConciliacaoV2({
           });
           continue;
         }
+        if (item.match?.tipo === "transferencia" && item.match.id) {
+          // Criar registro espelho na conta contrapartida, já como conciliado
+          const tipoContrapartida = item.tipo === "credito" ? "debito" : "credito";
+          await supabase.from("extrato_bancario").insert({
+            company_id: companyId,
+            data_lancamento: item.data,
+            descricao: item.descricao,
+            valor: Math.abs(item.valor),
+            tipo: tipoContrapartida,
+            status: "conciliado",
+            arquivo_origem: "transferencia",
+            bank_account_id: item.match.id,
+          });
+        }
         if (item.match?.id) {
           if (item.match.tipo === "novo") {
             // Lançamento direto criado em financial_transactions — marcar como conciliado
@@ -788,15 +802,20 @@ export default function ModalConciliacaoV2({
   }
 
   function handleConfirmarTransferencia() {
-    if (!selectedId) return;
+    if (!selectedId || !selectedItem) return;
     const origem = bankAccounts.find((a) => a.id === transferenciaForm.contaOrigemId);
     const destino = bankAccounts.find((a) => a.id === transferenciaForm.contaDestinoId);
     const origemNome = origem?.name ?? transferenciaForm.contaOrigemId;
     const destinoNome = destino?.name ?? transferenciaForm.contaDestinoId;
+    // Identificar a conta contrapartida (a que NÃO é a conta sendo conciliada)
+    const contaContrapartidaId = transferenciaForm.contaOrigemId === bankAccountId
+      ? transferenciaForm.contaDestinoId
+      : transferenciaForm.contaOrigemId;
     updateItem(selectedId, {
       status: "conciliado",
       match: {
         tipo: "transferencia",
+        id: contaContrapartidaId,
         descricao: `Transferência: ${origemNome} → ${destinoNome}`,
       },
     });
