@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
+import * as pdfjsLib from "pdfjs-dist";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/hooks/useFinancialData";
 import { supabase } from "@/integrations/supabase/client";
@@ -127,6 +128,55 @@ function parseXLSX(buffer: ArrayBuffer): ParsedEntry[] {
     }
     entries.push({ date: isoDate, description: desc, amount });
   }
+  return entries;
+}
+
+async function parsePDF(buffer: ArrayBuffer): Promise<ParsedEntry[]> {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  let fullText = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const lines = content.items.map((item: any) => item.str).join(" ");
+    fullText += lines + "\n";
+  }
+
+  const entries: ParsedEntry[] = [];
+  // Padrão: data (DD/MM/YYYY ou DD/MM/YY), seguida de descrição e valor
+  const dateRegex = /(\d{2}\/\d{2}\/\d{2,4})/g;
+  const valorRegex = /(-?\d{1,3}(?:\.\d{3})*,\d{2})/g;
+
+  const lines = fullText.split("\n");
+  for (const line of lines) {
+    const dateMatches = line.match(dateRegex);
+    const valorMatches = line.match(valorRegex);
+    if (!dateMatches || !valorMatches) continue;
+
+    const rawDate = dateMatches[0];
+    const parts = rawDate.split("/");
+    if (parts.length < 3) continue;
+    const day = parts[0];
+    const month = parts[1];
+    let year = parts[2];
+    if (year.length === 2) year = "20" + year;
+    const isoDate = `${year}-${month}-${day}`;
+
+    // Pegar o último valor da linha como o valor da transação
+    const rawVal = valorMatches[valorMatches.length - 1];
+    const amount = parseFloat(rawVal.replace(/\./g, "").replace(",", "."));
+    if (isNaN(amount)) continue;
+
+    // Descrição: remover datas e valores da linha
+    let desc = line;
+    for (const d of dateMatches) desc = desc.replace(d, "");
+    for (const v of valorMatches) desc = desc.replace(v, "");
+    desc = desc.replace(/\s+/g, " ").trim();
+    if (!desc || desc.length < 3) desc = "Lançamento";
+
+    entries.push({ date: isoDate, description: desc, amount });
+  }
+
   return entries;
 }
 
@@ -541,8 +591,11 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       } else if (ext === "xlsx" || ext === "xls") {
         const buffer = await file.arrayBuffer();
         entries = parseXLSX(buffer);
+      } else if (ext === "pdf") {
+        const buffer = await file.arrayBuffer();
+        entries = await parsePDF(buffer);
       } else {
-        toast({ title: "Formato não suportado", description: "Use OFX, CSV ou XLSX", variant: "destructive" });
+        toast({ title: "Formato não suportado", description: "Use OFX, CSV, XLSX ou PDF", variant: "destructive" });
         return;
       }
       if (entries.length === 0) {
@@ -957,8 +1010,8 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
             >
               <Upload className="h-8 w-8 text-gray-400 group-hover:text-blue-500 transition-colors" />
               <div>
-                <p className="font-semibold text-sm">Importar OFX/CSV</p>
-                <p className="text-xs text-muted-foreground mt-1">Arquivo do seu banco</p>
+                <p className="font-semibold text-sm">Importar Extrato</p>
+                <p className="text-xs text-muted-foreground mt-1">OFX, CSV, XLSX ou PDF</p>
               </div>
             </button>
 
@@ -988,7 +1041,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       <input
         ref={fileRef}
         type="file"
-        accept=".ofx,.qfx,.csv,.txt,.xlsx,.xls"
+        accept=".ofx,.qfx,.csv,.txt,.xlsx,.xls,.pdf"
         className="hidden"
         onChange={handleFileChange}
       />
