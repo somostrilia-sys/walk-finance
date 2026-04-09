@@ -447,6 +447,9 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   const [selectContaOpen, setSelectContaOpen] = useState(false);
   const [selectedContaId, setSelectedContaId] = useState<string>("");
 
+  // ── Filtro por conta no extrato ─────────────────────────────────────────────
+  const [filtroContaExtrato, setFiltroContaExtrato] = useState<string>("todas");
+
   // ── Period filter ────────────────────────────────────────────────────────────
   const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodValue>("ultimos-30");
 
@@ -789,6 +792,15 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
               {filteredExtrato.length + filteredManuais.length} lançamento(s)
             </p>
             <div className="flex items-center gap-2">
+              <Select value={filtroContaExtrato} onValueChange={setFiltroContaExtrato}>
+                <SelectTrigger className="w-[200px] h-8 text-xs"><Landmark className="w-3.5 h-3.5 mr-1 text-muted-foreground" /><SelectValue placeholder="Todas as contas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as contas</SelectItem>
+                  {contasBancarias.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome_conta || c.bank_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={filtroPeriodo} onValueChange={(v) => setFiltroPeriodo(v as PeriodValue)}>
                 <SelectTrigger className="w-[180px] h-8 text-xs"><Calendar className="w-3.5 h-3.5 mr-1 text-muted-foreground" /><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -839,7 +851,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
               )}
 
               {/* Extrato agrupado por conta bancária */}
-              {extratoAgrupado.map((grupo) => (
+              {extratoAgrupado.filter(g => filtroContaExtrato === "todas" || g.contaId === filtroContaExtrato).map((grupo) => (
                 <div key={grupo.contaId} className="border rounded-lg overflow-hidden">
                   {/* Header da conta */}
                   <div className="flex items-center justify-between px-4 py-3 bg-secondary/50 border-b">
@@ -943,7 +955,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
               ))}
 
               {/* Lançamentos manuais (sem conta) */}
-              {filteredManuais.length > 0 && (
+              {filteredManuais.length > 0 && filtroContaExtrato === "todas" && (
                 <div className="border rounded-lg overflow-hidden">
                   <div className="flex items-center gap-2 px-4 py-3 bg-secondary/50 border-b">
                     <Landmark className="h-4 w-4 text-muted-foreground" />
