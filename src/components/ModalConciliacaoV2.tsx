@@ -668,9 +668,11 @@ export default function ModalConciliacaoV2({
       });
     }
     if (selectedItem && n === 3) {
+      // Se é débito (saída), a conta atual é a origem. Se é crédito (entrada), é o destino.
+      const isDebito = selectedItem.tipo === "debito";
       setTransferenciaForm({
-        contaOrigemId: "",
-        contaDestinoId: "",
+        contaOrigemId: isDebito && bankAccountId ? bankAccountId : "",
+        contaDestinoId: !isDebito && bankAccountId ? bankAccountId : "",
         descricao: `Transferência entre contas - ${selectedItem.descricao}`,
       });
       fetchBankAccounts();
