@@ -195,6 +195,9 @@ export default function ModalConciliacaoV2({
   // Botão 5 — Seleção múltipla de contas
   const [multiSelectedContas, setMultiSelectedContas] = useState<ContaRow[]>([]);
 
+  // Pessoas cadastradas (fornecedores/clientes)
+  const [pessoas, setPessoas] = useState<Array<{ id: string; razao_social: string; nome_fantasia: string | null; tipo: string }>>([]);
+
   // Botão 7 — Retirada de lucro
   const [socios, setSocios] = useState<Array<{ id: string; nome: string; cpf: string; percentual: number }>>([]);
   const [retiradaForm, setRetiradaForm] = useState({ socioId: "", observacao: "" });
@@ -517,6 +520,10 @@ export default function ModalConciliacaoV2({
       toast({ title: "Preencha descrição e valor", variant: "destructive" });
       return;
     }
+    if (!fornecedor) {
+      toast({ title: "Selecione o fornecedor", variant: "destructive" });
+      return;
+    }
     setSavingAction(true);
     try {
       const { data, error } = await supabase
@@ -526,7 +533,7 @@ export default function ModalConciliacaoV2({
           descricao,
           valor: parseFloat(valor.replace(",", ".")),
           vencimento: vencimento || selectedItem.data,
-          fornecedor: fornecedor || descricao,
+          fornecedor,
           status: "pago",
           conciliado: true,
         })
@@ -670,6 +677,7 @@ export default function ModalConciliacaoV2({
         fornecedorCliente: "",
         categoria: "",
       });
+      fetchPessoas();
     }
     if (selectedItem && n === 3) {
       // Se é débito (saída), a conta atual é a origem. Se é crédito (entrada), é o destino.
@@ -688,6 +696,7 @@ export default function ModalConciliacaoV2({
         vencimento: selectedItem.data,
         fornecedor: "",
       });
+      fetchPessoas();
     }
     if (n === 7) {
       setRetiradaForm({ socioId: "", observacao: "" });
@@ -707,6 +716,20 @@ export default function ModalConciliacaoV2({
       setExpenseCategories(data || []);
     } catch {
       setExpenseCategories([]);
+    }
+  }
+
+  async function fetchPessoas() {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("pessoas")
+        .select("id, razao_social, nome_fantasia, tipo")
+        .eq("company_id", companyId)
+        .order("razao_social");
+      if (error) throw error;
+      setPessoas(data || []);
+    } catch {
+      setPessoas([]);
     }
   }
 
@@ -815,6 +838,11 @@ export default function ModalConciliacaoV2({
         toast({ title: "Lançamento direto criado e conciliado" });
         logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Lançamento direto criado e conciliado: ${descricao} — R$ ${valorNum.toFixed(2)}` });
       } else if (novoLancamentoTipo === "pagar") {
+        if (!fornecedorCliente) {
+          toast({ title: "Selecione o fornecedor", variant: "destructive" });
+          setSavingAction(false);
+          return;
+        }
         const { data, error } = await supabase
           .from("contas_pagar")
           .insert({
@@ -822,7 +850,7 @@ export default function ModalConciliacaoV2({
             descricao,
             valor: valorNum,
             vencimento: dataVenc,
-            fornecedor: fornecedorCliente || descricao,
+            fornecedor: fornecedorCliente,
             categoria: categoria || null,
             status: "pago",
             conciliado: true,
@@ -1202,14 +1230,32 @@ export default function ModalConciliacaoV2({
                                     }
                                   />
                                 </div>
-                                <Input
-                                  className="h-7 text-xs"
-                                  placeholder={novoLancamentoTipo === "pagar" ? "Fornecedor (opcional)" : novoLancamentoTipo === "receber" ? "Cliente (opcional)" : "Favorecido / Cliente (opcional)"}
-                                  value={novoLancamentoForm.fornecedorCliente}
-                                  onChange={(e) =>
-                                    setNovoLancamentoForm((p) => ({ ...p, fornecedorCliente: e.target.value }))
-                                  }
-                                />
+                                {(novoLancamentoTipo === "pagar" || novoLancamentoTipo === "receber") && pessoas.length > 0 ? (
+                                  <Select
+                                    value={novoLancamentoForm.fornecedorCliente}
+                                    onValueChange={(v) => setNovoLancamentoForm((p) => ({ ...p, fornecedorCliente: v }))}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={novoLancamentoTipo === "pagar" ? "Selecione o fornecedor" : "Selecione o cliente"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {pessoas.map((p) => (
+                                        <SelectItem key={p.id} value={p.razao_social}>
+                                          {p.nome_fantasia || p.razao_social}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder={novoLancamentoTipo === "direto" ? "Favorecido / Cliente (opcional)" : novoLancamentoTipo === "pagar" ? "Fornecedor" : "Cliente"}
+                                    value={novoLancamentoForm.fornecedorCliente}
+                                    onChange={(e) =>
+                                      setNovoLancamentoForm((p) => ({ ...p, fornecedorCliente: e.target.value }))
+                                    }
+                                  />
+                                )}
                                 <Select
                                   value={novoLancamentoForm.categoria}
                                   onValueChange={(v) =>
@@ -1373,19 +1419,37 @@ export default function ModalConciliacaoV2({
                                 }
                               />
                             </div>
-                            <Input
-                              className="h-7 text-xs"
-                              placeholder="Fornecedor (opcional)"
-                              value={novaContaForm.fornecedor}
-                              onChange={(e) =>
-                                setNovaContaForm((p) => ({ ...p, fornecedor: e.target.value }))
-                              }
-                            />
+                            {pessoas.length > 0 ? (
+                              <Select
+                                value={novaContaForm.fornecedor}
+                                onValueChange={(v) => setNovaContaForm((p) => ({ ...p, fornecedor: v }))}
+                              >
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue placeholder="Selecione o fornecedor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {pessoas.map((p) => (
+                                    <SelectItem key={p.id} value={p.razao_social}>
+                                      {p.nome_fantasia || p.razao_social}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input
+                                className="h-7 text-xs"
+                                placeholder="Fornecedor"
+                                value={novaContaForm.fornecedor}
+                                onChange={(e) =>
+                                  setNovaContaForm((p) => ({ ...p, fornecedor: e.target.value }))
+                                }
+                              />
+                            )}
                             <Button
                               size="sm"
                               className="w-full h-7 text-xs"
                               onClick={handleCriarContaPagar}
-                              disabled={savingAction}
+                              disabled={savingAction || !novaContaForm.fornecedor}
                             >
                               {savingAction ? (
                                 <Loader2 className="h-3 w-3 animate-spin mr-1" />
