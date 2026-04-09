@@ -195,6 +195,10 @@ export default function ModalConciliacaoV2({
   // Botão 5 — Seleção múltipla de contas
   const [multiSelectedContas, setMultiSelectedContas] = useState<ContaRow[]>([]);
 
+  // Botão 7 — Retirada de lucro
+  const [socios, setSocios] = useState<Array<{ id: string; nome: string; cpf: string; percentual: number }>>([]);
+  const [retiradaForm, setRetiradaForm] = useState({ socioId: "", observacao: "" });
+
   // Botão 3 — Transferência
   const [bankAccounts, setBankAccounts] = useState<Array<{ id: string; name: string; bank_name?: string }>>([]);
   const [transferenciaForm, setTransferenciaForm] = useState({
@@ -685,6 +689,10 @@ export default function ModalConciliacaoV2({
         fornecedor: "",
       });
     }
+    if (n === 7) {
+      setRetiradaForm({ socioId: "", observacao: "" });
+      fetchSocios();
+    }
   }
 
   async function fetchExpenseCategories() {
@@ -699,6 +707,60 @@ export default function ModalConciliacaoV2({
       setExpenseCategories(data || []);
     } catch {
       setExpenseCategories([]);
+    }
+  }
+
+  async function fetchSocios() {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("empresa_socios")
+        .select("id, nome, cpf, percentual")
+        .eq("company_id", companyId)
+        .order("nome");
+      if (error) throw error;
+      setSocios(data || []);
+    } catch {
+      setSocios([]);
+    }
+  }
+
+  async function handleRegistrarRetirada() {
+    if (!selectedItem || !retiradaForm.socioId) {
+      toast({ title: "Selecione o sócio", variant: "destructive" });
+      return;
+    }
+    setSavingAction(true);
+    try {
+      const socio = socios.find(s => s.id === retiradaForm.socioId);
+      const valorNum = Math.abs(selectedItem.valor);
+      const descricao = `Retirada de Lucro - ${socio?.nome || "Sócio"}`;
+
+      const { data, error } = await supabase
+        .from("financial_transactions")
+        .insert({
+          company_id: companyId,
+          date: selectedItem.data,
+          description: descricao,
+          amount: valorNum,
+          type: "saida",
+          status: "confirmado",
+          entity_name: socio?.nome || null,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+
+      updateItem(selectedId!, {
+        status: "conciliado",
+        match: { tipo: "novo", id: data.id, descricao },
+      });
+      setActiveAction(null);
+      toast({ title: "Retirada de lucro registrada e conciliada" });
+      logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Retirada de lucro registrada: ${socio?.nome} — R$ ${valorNum.toFixed(2)}${retiradaForm.observacao ? ` (${retiradaForm.observacao})` : ""}` });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingAction(false);
     }
   }
 
@@ -1401,6 +1463,65 @@ export default function ModalConciliacaoV2({
                                 })
                               )}
                             </div>
+                          </div>
+                        </ActionCard>
+
+                        {/* Opção 7 — Retirada de lucro */}
+                        <ActionCard
+                          n={7}
+                          active={activeAction === 7}
+                          icon="💰"
+                          label="Registrar retirada de lucro (sócio)"
+                          onToggle={() => openAction(7)}
+                        >
+                          <div className="pt-1 space-y-1.5">
+                            <Select
+                              value={retiradaForm.socioId}
+                              onValueChange={(v) => setRetiradaForm(p => ({ ...p, socioId: v }))}
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder="Selecione o sócio" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {socios.map((s) => (
+                                  <SelectItem key={s.id} value={s.id}>
+                                    {s.nome}{s.percentual ? ` (${s.percentual}%)` : ""}
+                                  </SelectItem>
+                                ))}
+                                {socios.length === 0 && (
+                                  <SelectItem value="_none" disabled>Nenhum sócio cadastrado</SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div className="hub-card-base p-2 text-center">
+                                <p className="text-[10px] text-muted-foreground">Valor</p>
+                                <p className="text-xs font-semibold">{formatCurrency(Math.abs(selectedItem?.valor || 0))}</p>
+                              </div>
+                              <div className="hub-card-base p-2 text-center">
+                                <p className="text-[10px] text-muted-foreground">Data</p>
+                                <p className="text-xs font-semibold">{selectedItem?.data || ""}</p>
+                              </div>
+                            </div>
+                            <Input
+                              className="h-7 text-xs"
+                              placeholder="Observação (opcional)"
+                              value={retiradaForm.observacao}
+                              onChange={(e) => setRetiradaForm(p => ({ ...p, observacao: e.target.value }))}
+                            />
+                            <Button
+                              size="sm"
+                              className="w-full h-7 text-xs gap-1"
+                              onClick={handleRegistrarRetirada}
+                              disabled={savingAction || !retiradaForm.socioId}
+                            >
+                              {savingAction ? (
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              ) : (
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                              )}
+                              Registrar Retirada e Conciliar
+                            </Button>
                           </div>
                         </ActionCard>
 
