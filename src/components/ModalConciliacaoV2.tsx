@@ -189,6 +189,7 @@ export default function ModalConciliacaoV2({
     vencimento: "",
     fornecedorCliente: "",
     categoria: "",
+    observacao: "",
   });
   const [expenseCategories, setExpenseCategories] = useState<Array<{ id: string; name: string; grupo: string | null; type: string }>>([]);
 
@@ -703,6 +704,7 @@ export default function ModalConciliacaoV2({
         vencimento: selectedItem.data,
         fornecedorCliente: "",
         categoria: "",
+        observacao: "",
       });
       fetchPessoas();
     }
@@ -843,12 +845,14 @@ export default function ModalConciliacaoV2({
       const valorNum = parseFloat(valor.replace(",", "."));
       const dataVenc = vencimento || selectedItem.data;
       if (novoLancamentoTipo === "direto") {
+        const obs = novoLancamentoForm.observacao?.trim();
+        const descFinal = obs ? `${descricao} — ${obs}` : descricao;
         const { data, error } = await supabase
           .from("financial_transactions")
           .insert({
             company_id: companyId,
             date: dataVenc,
-            description: descricao,
+            description: descFinal,
             amount: Math.abs(valorNum),
             type: selectedItem.tipo === "credito" ? "entrada" : "saida",
             category_id: categoria,
@@ -1329,6 +1333,16 @@ export default function ModalConciliacaoV2({
                                     )}
                                   </SelectContent>
                                 </Select>
+                                {novoLancamentoTipo === "direto" && (
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="Observação (opcional)"
+                                    value={novoLancamentoForm.observacao || ""}
+                                    onChange={(e) =>
+                                      setNovoLancamentoForm((p) => ({ ...p, observacao: e.target.value }))
+                                    }
+                                  />
+                                )}
                                 <Button
                                   size="sm"
                                   className="w-full h-7 text-xs"
