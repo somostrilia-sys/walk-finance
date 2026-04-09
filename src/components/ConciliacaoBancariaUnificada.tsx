@@ -451,24 +451,27 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
 
   // ── Agrupamento por conta bancária com saldo acumulado ─────────────────────
   const extratoAgrupado = useMemo(() => {
-    const grupos = new Map<string, { conta: any; itens: (ExtratoRow & { saldo: number })[] }>();
+    // Usar TODOS os lançamentos (não filtrados) para calcular saldo correto
+    const todosOrdenados = [...extrato].sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento));
+    const filteredIds = new Set(filteredExtrato.map(i => i.id));
 
-    // Agrupar por bank_account_id
-    for (const item of filteredExtrato) {
+    // Agrupar todos os lançamentos por conta
+    const grupos = new Map<string, { conta: any; todos: ExtratoRow[]; }>();
+    for (const item of todosOrdenados) {
       const key = item.bank_account_id || "_sem_conta";
       if (!grupos.has(key)) {
         const conta = contasBancarias.find((c: any) => c.id === key);
-        grupos.set(key, { conta: conta || null, itens: [] });
+        grupos.set(key, { conta: conta || null, todos: [] });
       }
-      grupos.get(key)!.itens.push({ ...item, saldo: 0 });
+      grupos.get(key)!.todos.push(item);
     }
 
-    // Calcular saldo acumulado por conta
     const result: Array<{
       contaId: string;
       contaNome: string;
       bancoNome: string;
       saldoInicial: number;
+      saldoInicialPeriodo: number;
       saldoFinal: number;
       itens: Array<ExtratoRow & { saldo: number; fimDoDia?: boolean; saldoDia?: number }>;
     }> = [];
@@ -477,38 +480,49 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
       const saldoInicial = Number(grupo.conta?.saldo_inicial || 0);
       let saldo = saldoInicial;
 
-      // Ordenar por data crescente
-      grupo.itens.sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento));
+      // Calcular saldo acumulado sobre TODOS os lançamentos,
+      // mas só incluir nos itens visíveis os que estão no filtro
+      const itensVisiveis: Array<ExtratoRow & { saldo: number; fimDoDia?: boolean; saldoDia?: number }> = [];
+      let saldoInicialPeriodo = saldoInicial;
+      let encontrouPrimeiro = false;
 
-      // Calcular saldo e marcar fim de dia
-      const itensComSaldo: Array<ExtratoRow & { saldo: number; fimDoDia?: boolean; saldoDia?: number }> = [];
-      for (let i = 0; i < grupo.itens.length; i++) {
-        const item = grupo.itens[i];
+      for (let i = 0; i < grupo.todos.length; i++) {
+        const item = grupo.todos[i];
         const valorComSinal = item.tipo === "credito" ? Number(item.valor) : -Number(item.valor);
         saldo += valorComSinal;
-        const entry: ExtratoRow & { saldo: number; fimDoDia?: boolean; saldoDia?: number } = { ...item, saldo };
 
-        // Verificar se é o último item do dia
-        const nextItem = grupo.itens[i + 1];
-        if (!nextItem || nextItem.data_lancamento !== item.data_lancamento) {
-          entry.fimDoDia = true;
-          entry.saldoDia = saldo;
+        if (filteredIds.has(item.id)) {
+          if (!encontrouPrimeiro) {
+            saldoInicialPeriodo = saldo - valorComSinal;
+            encontrouPrimeiro = true;
+          }
+          const entry: ExtratoRow & { saldo: number; fimDoDia?: boolean; saldoDia?: number } = { ...item, saldo };
+
+          // Verificar se é o último item visível do dia
+          const nextVisible = grupo.todos.slice(i + 1).find(x => filteredIds.has(x.id));
+          if (!nextVisible || nextVisible.data_lancamento !== item.data_lancamento) {
+            entry.fimDoDia = true;
+            entry.saldoDia = saldo;
+          }
+          itensVisiveis.push(entry);
         }
-        itensComSaldo.push(entry);
       }
 
-      result.push({
-        contaId: key,
-        contaNome: grupo.conta?.nome_conta || "Sem conta",
-        bancoNome: grupo.conta?.bank_name || "",
-        saldoInicial,
-        saldoFinal: saldo,
-        itens: itensComSaldo,
-      });
+      if (itensVisiveis.length > 0) {
+        result.push({
+          contaId: key,
+          contaNome: grupo.conta?.nome_conta || "Sem conta",
+          bancoNome: grupo.conta?.bank_name || "",
+          saldoInicial,
+          saldoInicialPeriodo,
+          saldoFinal: saldo,
+          itens: itensVisiveis,
+        });
+      }
     }
 
     return result;
-  }, [filteredExtrato, contasBancarias]);
+  }, [extrato, filteredExtrato, contasBancarias]);
 
   // ── File import ──────────────────────────────────────────────────────────────
 
@@ -784,7 +798,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Saldo Inicial: <span className="font-medium">{formatCurrency(grupo.saldoInicial)}</span>
+                      Saldo Inicial (cadastro): <span className="font-medium">{formatCurrency(grupo.saldoInicial)}</span>
                     </div>
                   </div>
 
@@ -810,7 +824,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                         <TableCell className="font-semibold">SALDO ANTERIOR</TableCell>
                         <TableCell />
                         <TableCell className="text-right">0,00</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(grupo.saldoInicial)}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(grupo.saldoInicialPeriodo)}</TableCell>
                       </TableRow>
 
                       {grupo.itens.map((item) => (
