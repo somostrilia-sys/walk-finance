@@ -297,6 +297,8 @@ export default function ModalConciliacaoV2({
         return base;
       });
 
+      // Ordenar por data crescente (mais antigo primeiro)
+      iniciais.sort((a, b) => a.data.localeCompare(b.data));
       setItens(iniciais);
     } catch (err: any) {
       toast({ title: "Erro ao buscar contas", description: err.message, variant: "destructive" });
