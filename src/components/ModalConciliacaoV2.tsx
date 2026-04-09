@@ -513,42 +513,69 @@ export default function ModalConciliacaoV2({
     setActiveAction(null);
   }
 
-  async function handleCriarContaPagar() {
+  async function handleCriarContaPagarReceber() {
     if (!selectedItem) return;
     const { descricao, valor, vencimento, fornecedor } = novaContaForm;
+    const isEntrada = selectedItem.tipo === "credito";
     if (!descricao || !valor) {
       toast({ title: "Preencha descrição e valor", variant: "destructive" });
       return;
     }
     if (!fornecedor) {
-      toast({ title: "Selecione o fornecedor", variant: "destructive" });
+      toast({ title: isEntrada ? "Selecione o cliente" : "Selecione o fornecedor", variant: "destructive" });
       return;
     }
     setSavingAction(true);
     try {
-      const { data, error } = await supabase
-        .from("contas_pagar")
-        .insert({
-          company_id: companyId,
-          descricao,
-          valor: parseFloat(valor.replace(",", ".")),
-          vencimento: vencimento || selectedItem.data,
-          fornecedor,
-          status: "pago",
-          conciliado: true,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      updateItem(selectedId!, {
-        status: "conciliado",
-        match: { tipo: "conta_pagar", id: data.id, descricao },
-      });
+      const valorNum = parseFloat(valor.replace(",", "."));
+      const dataVenc = vencimento || selectedItem.data;
+
+      if (isEntrada) {
+        const { data, error } = await supabase
+          .from("contas_receber")
+          .insert({
+            company_id: companyId,
+            descricao,
+            valor: valorNum,
+            vencimento: dataVenc,
+            cliente: fornecedor,
+            status: "recebido",
+            conciliado: true,
+          } as any)
+          .select("id")
+          .single();
+        if (error) throw error;
+        updateItem(selectedId!, {
+          status: "conciliado",
+          match: { tipo: "conta_receber", id: data.id, descricao },
+        });
+        toast({ title: "Conta a receber criada e conciliada" });
+        logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta a receber criada e conciliada: ${descricao} — R$ ${valorNum.toFixed(2)}` });
+      } else {
+        const { data, error } = await supabase
+          .from("contas_pagar")
+          .insert({
+            company_id: companyId,
+            descricao,
+            valor: valorNum,
+            vencimento: dataVenc,
+            fornecedor,
+            status: "pago",
+            conciliado: true,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        updateItem(selectedId!, {
+          status: "conciliado",
+          match: { tipo: "conta_pagar", id: data.id, descricao },
+        });
+        toast({ title: "Conta a pagar criada e conciliada" });
+        logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta a pagar criada e conciliada: ${descricao} — R$ ${valorNum.toFixed(2)}` });
+      }
       setActiveAction(null);
-      toast({ title: "Conta a pagar criada e conciliada" });
-      logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Conta a pagar criada e conciliada: ${descricao} — R$ ${parseFloat(valor.replace(",", ".")).toFixed(2)}` });
     } catch (err: any) {
-      toast({ title: "Erro ao criar conta a pagar", description: err.message, variant: "destructive" });
+      toast({ title: "Erro ao criar conta", description: err.message, variant: "destructive" });
     } finally {
       setSavingAction(false);
     }
@@ -1384,12 +1411,12 @@ export default function ModalConciliacaoV2({
                           </div>
                         </ActionCard>
 
-                        {/* Opção 4 — Nova conta a pagar */}
+                        {/* Opção 4 — Nova conta a pagar / receber */}
                         <ActionCard
                           n={4}
                           active={activeAction === 4}
                           icon="📋"
-                          label="Adicionar como nova conta a pagar"
+                          label={selectedItem?.tipo === "credito" ? "Adicionar como nova conta a receber" : "Adicionar como nova conta a pagar"}
                           onToggle={() => openAction(4)}
                         >
                           <div className="space-y-1.5 pt-1">
@@ -1425,7 +1452,7 @@ export default function ModalConciliacaoV2({
                                 onValueChange={(v) => setNovaContaForm((p) => ({ ...p, fornecedor: v }))}
                               >
                                 <SelectTrigger className="h-7 text-xs">
-                                  <SelectValue placeholder="Selecione o fornecedor" />
+                                  <SelectValue placeholder={selectedItem?.tipo === "credito" ? "Selecione o cliente" : "Selecione o fornecedor"} />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {pessoas.map((p) => (
@@ -1438,7 +1465,7 @@ export default function ModalConciliacaoV2({
                             ) : (
                               <Input
                                 className="h-7 text-xs"
-                                placeholder="Fornecedor"
+                                placeholder={selectedItem?.tipo === "credito" ? "Cliente" : "Fornecedor"}
                                 value={novaContaForm.fornecedor}
                                 onChange={(e) =>
                                   setNovaContaForm((p) => ({ ...p, fornecedor: e.target.value }))
@@ -1448,7 +1475,7 @@ export default function ModalConciliacaoV2({
                             <Button
                               size="sm"
                               className="w-full h-7 text-xs"
-                              onClick={handleCriarContaPagar}
+                              onClick={handleCriarContaPagarReceber}
                               disabled={savingAction || !novaContaForm.fornecedor}
                             >
                               {savingAction ? (
