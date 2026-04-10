@@ -1255,7 +1255,7 @@ export default function ModalConciliacaoV2({
                           onToggle={() => {
                             openAction(2);
                             if (selectedItem) {
-                              setNovoLancamentoTipo(selectedItem.tipo === "debito" ? "pagar" : "receber");
+                              setNovoLancamentoTipo(selectedItem.tipo === "debito" ? "pagar" : "direto");
                               fetchExpenseCategories();
                             }
                           }}
