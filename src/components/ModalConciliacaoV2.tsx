@@ -205,7 +205,7 @@ export default function ModalConciliacaoV2({
 
   // Botão 7 — Retirada de lucro
   const [socios, setSocios] = useState<Array<{ id: string; nome: string; cpf: string; percentual: number }>>([]);
-  const [retiradaForm, setRetiradaForm] = useState({ socioId: "", observacao: "" });
+  const [retiradaForm, setRetiradaForm] = useState({ socioId: "", observacao: "", tipoMovimento: "" as "retirada" | "aporte" | "" });
 
   // Botão 3 — Transferência
   const [bankAccounts, setBankAccounts] = useState<Array<{ id: string; name: string; bank_name?: string }>>([]);
@@ -833,11 +833,15 @@ export default function ModalConciliacaoV2({
       toast({ title: "Selecione o sócio", variant: "destructive" });
       return;
     }
+    const tipoMov = retiradaForm.tipoMovimento || (selectedItem.tipo === "credito" ? "aporte" : "retirada");
     setSavingAction(true);
     try {
       const socio = socios.find(s => s.id === retiradaForm.socioId);
       const valorNum = Math.abs(selectedItem.valor);
-      const descricao = `Retirada de Lucro - ${socio?.nome || "Sócio"}`;
+      const isAporte = tipoMov === "aporte";
+      const descricao = isAporte
+        ? `Aporte de Capital - ${socio?.nome || "Sócio"}`
+        : `Retirada de Lucro - ${socio?.nome || "Sócio"}`;
 
       const { data, error } = await supabase
         .from("financial_transactions")
@@ -846,7 +850,7 @@ export default function ModalConciliacaoV2({
           date: selectedItem.data,
           description: descricao,
           amount: valorNum,
-          type: "saida",
+          type: isAporte ? "entrada" : "saida",
           status: "conciliado",
           entity_name: socio?.nome || null,
         })
@@ -859,8 +863,8 @@ export default function ModalConciliacaoV2({
         match: { tipo: "novo", id: data.id, descricao },
       });
       setActiveAction(null);
-      toast({ title: "Retirada de lucro registrada e conciliada" });
-      logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `Retirada de lucro registrada: ${socio?.nome} — R$ ${valorNum.toFixed(2)}${retiradaForm.observacao ? ` (${retiradaForm.observacao})` : ""}` });
+      toast({ title: isAporte ? "Aporte de capital registrado e conciliado" : "Retirada de lucro registrada e conciliada" });
+      logAudit({ companyId, acao: "criar", modulo: "Conciliação Bancária", descricao: `${isAporte ? "Aporte de capital" : "Retirada de lucro"} registrado: ${socio?.nome} — R$ ${valorNum.toFixed(2)}${retiradaForm.observacao ? ` (${retiradaForm.observacao})` : ""}` });
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     } finally {
@@ -1677,15 +1681,46 @@ export default function ModalConciliacaoV2({
                           </div>
                         </ActionCard>
 
-                        {/* Opção 7 — Retirada de lucro */}
+                        {/* Opção 7 — Retirada de lucro / Aporte de sócio */}
                         <ActionCard
                           n={7}
                           active={activeAction === 7}
                           icon="💰"
-                          label="Registrar retirada de lucro (sócio)"
-                          onToggle={() => openAction(7)}
+                          label="Retirada de lucro / Aporte de sócio"
+                          onToggle={() => {
+                            openAction(7);
+                            if (selectedItem) {
+                              setRetiradaForm(p => ({
+                                ...p,
+                                tipoMovimento: selectedItem.tipo === "credito" ? "aporte" : "retirada",
+                              }));
+                            }
+                          }}
                         >
                           <div className="pt-1 space-y-1.5">
+                            {/* Tipo: Retirada ou Aporte */}
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setRetiradaForm(p => ({ ...p, tipoMovimento: "retirada" }))}
+                                className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                                  (retiradaForm.tipoMovimento || (selectedItem?.tipo === "credito" ? "aporte" : "retirada")) === "retirada"
+                                    ? "bg-destructive/10 border-destructive/40 text-destructive font-semibold"
+                                    : "border-border hover:bg-secondary/60"
+                                }`}
+                              >
+                                Retirada de Lucro
+                              </button>
+                              <button
+                                onClick={() => setRetiradaForm(p => ({ ...p, tipoMovimento: "aporte" }))}
+                                className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                                  (retiradaForm.tipoMovimento || (selectedItem?.tipo === "credito" ? "aporte" : "retirada")) === "aporte"
+                                    ? "bg-green-900/30 border-green-500/40 text-green-400 font-semibold"
+                                    : "border-border hover:bg-secondary/60"
+                                }`}
+                              >
+                                Aporte de Capital
+                              </button>
+                            </div>
                             <Select
                               value={retiradaForm.socioId}
                               onValueChange={(v) => setRetiradaForm(p => ({ ...p, socioId: v }))}
@@ -1731,7 +1766,9 @@ export default function ModalConciliacaoV2({
                               ) : (
                                 <CheckCircle2 className="h-3 w-3 mr-1" />
                               )}
-                              Registrar Retirada e Conciliar
+                              {(retiradaForm.tipoMovimento || (selectedItem?.tipo === "credito" ? "aporte" : "retirada")) === "aporte"
+                                ? "Registrar Aporte e Conciliar"
+                                : "Registrar Retirada e Conciliar"}
                             </Button>
                           </div>
                         </ActionCard>
