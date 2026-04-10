@@ -72,21 +72,42 @@ interface Props {
 
 // ─── Auto-match ───────────────────────────────────────────────────────────────
 
-function autoMatch(item: ExtratoItem, contas: ContaRow[]): ExtratoItem["match"] | undefined {
+function autoMatch(
+  item: ExtratoItem,
+  contas: ContaRow[],
+  baixasParciais: Array<{ id: string; conta_id: string; conta_tipo: string; valor: number; data_pagamento: string }> = []
+): ExtratoItem["match"] | undefined {
   const valorAbs = Math.abs(item.valor);
   const dataItem = new Date(item.data);
 
+  // 1. Tentar match com valores individuais de baixas parciais
+  for (const baixa of baixasParciais) {
+    if (Math.abs(valorAbs - baixa.valor) > 0.01) continue;
+    const dataBaixa = new Date(baixa.data_pagamento);
+    const diffDias = Math.abs((dataItem.getTime() - dataBaixa.getTime()) / 86400000);
+    if (diffDias <= 5) {
+      const conta = contas.find(c => c.id === baixa.conta_id);
+      if (conta) {
+        return {
+          tipo: conta._tipo,
+          id: conta.id,
+          descricao: conta.descricao || conta.fornecedor || conta.cliente || "Conta encontrada",
+          alreadySettled: true,
+        };
+      }
+    }
+  }
+
+  // 2. Tentar match com valor original ou valor total pago da conta
   for (const conta of contas) {
     const valorConta = Number(conta.valor || 0);
     const valorPago = conta.valor_pago ? Number(conta.valor_pago) : undefined;
 
-    // Comparar com valor original OU valor pago (para baixas com juros/multa/desconto)
     const matchValorOriginal = Math.abs(valorAbs - valorConta) <= 0.01;
     const matchValorPago = valorPago != null && Math.abs(valorAbs - valorPago) <= 0.01;
 
     if (!matchValorOriginal && !matchValorPago) continue;
 
-    // Comparar data: vencimento para pendentes, data_baixa para contas já pagas
     const dataConta = new Date(conta.vencimento || "");
     const dataBaixa = conta.data_baixa ? new Date(conta.data_baixa) : null;
     const diffVencimento = Math.abs((dataItem.getTime() - dataConta.getTime()) / 86400000);
@@ -283,6 +304,24 @@ export default function ModalConciliacaoV2({
 
       setContas(allContas);
 
+      // Buscar baixas parciais para match com valores individuais do extrato
+      const contaIds = allContas.filter(c => c.data_baixa).map(c => c.id);
+      let baixasParciais: Array<{ id: string; conta_id: string; conta_tipo: string; valor: number; data_pagamento: string }> = [];
+      if (contaIds.length > 0) {
+        const { data: bp } = await supabase
+          .from("baixas_parciais")
+          .select("id, conta_id, conta_tipo, valor, data_pagamento")
+          .eq("company_id", companyId)
+          .in("conta_id", contaIds);
+        baixasParciais = (bp || []).map((b: any) => ({
+          id: b.id,
+          conta_id: b.conta_id,
+          conta_tipo: b.conta_tipo,
+          valor: Number(b.valor),
+          data_pagamento: b.data_pagamento,
+        }));
+      }
+
       // Buscar fitids já salvos no extrato para detectar duplicados
       const fitidsImportados = itensExtrato.map((e) => e.fitid).filter(Boolean) as string[];
       let fitidsExistentes: Set<string> = new Set();
@@ -317,7 +356,7 @@ export default function ModalConciliacaoV2({
           };
         }
 
-        const match = autoMatch(base, allContas);
+        const match = autoMatch(base, allContas, baixasParciais);
         if (match) {
           return { ...base, status: "conciliado", match };
         }
