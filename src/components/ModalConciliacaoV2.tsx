@@ -87,14 +87,13 @@ function autoMatch(
     const diffDias = Math.abs((dataItem.getTime() - dataBaixa.getTime()) / 86400000);
     if (diffDias <= 5) {
       const conta = contas.find(c => c.id === baixa.conta_id);
-      if (conta) {
-        return {
-          tipo: conta._tipo,
-          id: conta.id,
-          descricao: conta.descricao || conta.fornecedor || conta.cliente || "Conta encontrada",
-          alreadySettled: true,
-        };
-      }
+      const tipo = conta?._tipo || (baixa.conta_tipo === "contas_pagar" ? "conta_pagar" : "conta_receber") as "conta_pagar" | "conta_receber";
+      return {
+        tipo,
+        id: baixa.conta_id,
+        descricao: conta?.descricao || conta?.fornecedor || conta?.cliente || "Baixa parcial encontrada",
+        alreadySettled: true,
+      };
     }
   }
 
@@ -304,15 +303,13 @@ export default function ModalConciliacaoV2({
 
       setContas(allContas);
 
-      // Buscar baixas parciais para match com valores individuais do extrato
-      const contaIds = allContas.filter(c => c.data_baixa).map(c => c.id);
+      // Buscar TODAS as baixas parciais da empresa para match com valores individuais do extrato
       let baixasParciais: Array<{ id: string; conta_id: string; conta_tipo: string; valor: number; data_pagamento: string }> = [];
-      if (contaIds.length > 0) {
+      {
         const { data: bp } = await supabase
           .from("baixas_parciais")
           .select("id, conta_id, conta_tipo, valor, data_pagamento")
-          .eq("company_id", companyId)
-          .in("conta_id", contaIds);
+          .eq("company_id", companyId);
         baixasParciais = (bp || []).map((b: any) => ({
           id: b.id,
           conta_id: b.conta_id,
