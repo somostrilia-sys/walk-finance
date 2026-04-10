@@ -337,9 +337,26 @@ export default function ModalConciliacaoV2({
         fitidsExistentes = new Set((existentes || []).map((e: any) => e.fitid));
       }
 
+      // Buscar lançamentos já conciliados nesta conta bancária (para detectar transferências espelho)
+      let extratosConciliados: Array<{ valor: number; data_lancamento: string; tipo: string }> = [];
+      if (bankAccountId) {
+        const { data: ec } = await supabase
+          .from("extrato_bancario")
+          .select("valor, data_lancamento, tipo")
+          .eq("company_id", companyId)
+          .eq("bank_account_id", bankAccountId)
+          .eq("status", "conciliado");
+        extratosConciliados = (ec || []).map((e: any) => ({
+          valor: Number(e.valor),
+          data_lancamento: e.data_lancamento,
+          tipo: e.tipo,
+        }));
+      }
+
       // Rastrear baixas e contas já usadas para evitar duplicidade
       const usedBaixaIds = new Set<string>();
       const usedContaIds = new Set<string>();
+      const usedExtratoIndices = new Set<number>();
 
       const iniciais: ExtratoItem[] = itensExtrato.map((e, i) => {
         const tipo: "credito" | "debito" = e.tipo ?? (e.valor >= 0 ? "credito" : "debito");
@@ -355,6 +372,25 @@ export default function ModalConciliacaoV2({
 
         // Se o fitid já existe no extrato, marcar como já conciliado anteriormente
         if (e.fitid && fitidsExistentes.has(e.fitid)) {
+          return {
+            ...base,
+            status: "conciliado" as const,
+            _jaExistente: true,
+            match: { tipo: "conta_pagar" as const, descricao: "Já conciliado anteriormente" },
+          };
+        }
+
+        // Verificar se já existe registro conciliado nesta conta (transferência espelho, etc.)
+        const valorAbs = Math.abs(e.valor);
+        const tipoExtrato = tipo === "credito" ? "credito" : "debito";
+        const idxConciliado = extratosConciliados.findIndex((ec, idx) =>
+          !usedExtratoIndices.has(idx) &&
+          Math.abs(ec.valor - valorAbs) <= 0.01 &&
+          ec.data_lancamento === e.data &&
+          ec.tipo === tipoExtrato
+        );
+        if (idxConciliado >= 0) {
+          usedExtratoIndices.add(idxConciliado);
           return {
             ...base,
             status: "conciliado" as const,
