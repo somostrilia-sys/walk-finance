@@ -326,15 +326,16 @@ export default function ModalConciliacaoV2({
       }
 
       // Buscar lançamentos já conciliados nesta conta bancária (por fitid + valor/data/tipo)
-      let extratosConciliados: Array<{ fitid: string | null; valor: number; data_lancamento: string; tipo: string }> = [];
+      let extratosConciliados: Array<{ id: string; fitid: string | null; valor: number; data_lancamento: string; tipo: string }> = [];
       if (bankAccountId) {
         const { data: ec } = await supabase
           .from("extrato_bancario")
-          .select("fitid, valor, data_lancamento, tipo")
+          .select("id, fitid, valor, data_lancamento, tipo")
           .eq("company_id", companyId)
           .eq("bank_account_id", bankAccountId)
           .eq("status", "conciliado");
         extratosConciliados = (ec || []).map((e: any) => ({
+          id: e.id,
           fitid: e.fitid || null,
           valor: Number(e.valor),
           data_lancamento: e.data_lancamento,
@@ -346,10 +347,11 @@ export default function ModalConciliacaoV2({
         if (fitidsImportados.length > 0) {
           const { data: ec } = await supabase
             .from("extrato_bancario")
-            .select("fitid, valor, data_lancamento, tipo")
+            .select("id, fitid, valor, data_lancamento, tipo")
             .eq("company_id", companyId)
             .in("fitid", fitidsImportados);
           extratosConciliados = (ec || []).map((e: any) => ({
+            id: e.id,
             fitid: e.fitid || null,
             valor: Number(e.valor),
             data_lancamento: e.data_lancamento,
@@ -761,18 +763,30 @@ export default function ModalConciliacaoV2({
           continue;
         }
         if (item.match?.tipo === "transferencia" && item.match.id) {
-          // Criar registro espelho na conta contrapartida, já como conciliado
+          // Criar registro espelho na conta contrapartida, apenas se não existir
           const tipoContrapartida = item.tipo === "credito" ? "debito" : "credito";
-          await supabase.from("extrato_bancario").insert({
-            company_id: companyId,
-            data_lancamento: item.data,
-            descricao: item.descricao,
-            valor: Math.abs(item.valor),
-            tipo: tipoContrapartida,
-            status: "conciliado",
-            arquivo_origem: "transferencia",
-            bank_account_id: item.match.id,
-          });
+          const valorEspelho = Math.abs(item.valor);
+          const { data: espelhoExistente } = await supabase
+            .from("extrato_bancario")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("bank_account_id", item.match.id)
+            .eq("data_lancamento", item.data)
+            .eq("valor", valorEspelho)
+            .eq("tipo", tipoContrapartida)
+            .limit(1);
+          if (!espelhoExistente || espelhoExistente.length === 0) {
+            await supabase.from("extrato_bancario").insert({
+              company_id: companyId,
+              data_lancamento: item.data,
+              descricao: item.descricao,
+              valor: valorEspelho,
+              tipo: tipoContrapartida,
+              status: "conciliado",
+              arquivo_origem: "transferencia",
+              bank_account_id: item.match.id,
+            });
+          }
         }
         if (item.match?.id) {
           if (item.match.tipo === "novo") {
