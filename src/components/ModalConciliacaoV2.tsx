@@ -36,6 +36,9 @@ interface ExtratoItem {
     id?: string;
     descricao: string;
     alreadySettled?: boolean;
+    juros?: number;
+    multa?: number;
+    desconto?: number;
   };
 }
 
@@ -195,6 +198,7 @@ export default function ModalConciliacaoV2({
 
   // Botão 5 — Seleção múltipla de contas
   const [multiSelectedContas, setMultiSelectedContas] = useState<ContaRow[]>([]);
+  const [encargosForm, setEncargosForm] = useState({ juros: "", multa: "", desconto: "" });
 
   // Pessoas cadastradas (fornecedores/clientes)
   const [pessoas, setPessoas] = useState<Array<{ id: string; razao_social: string; nome_fantasia: string | null; tipo: string }>>([]);
@@ -340,6 +344,8 @@ export default function ModalConciliacaoV2({
         fornecedor: "",
       });
     }
+    setMultiSelectedContas([]);
+    setEncargosForm({ juros: "", multa: "", desconto: "" });
   }
 
   function updateItem(id: string, patch: Partial<ExtratoItem>) {
@@ -407,8 +413,26 @@ export default function ModalConciliacaoV2({
   function toggleMultiConta(conta: ContaRow) {
     setMultiSelectedContas(prev => {
       const exists = prev.find(c => c.id === conta.id);
-      if (exists) return prev.filter(c => c.id !== conta.id);
-      return [...prev, conta];
+      if (exists) {
+        const next = prev.filter(c => c.id !== conta.id);
+        if (next.length === 0) setEncargosForm({ juros: "", multa: "", desconto: "" });
+        return next;
+      }
+      const next = [...prev, conta];
+      // Pré-preencher encargos com a diferença de valor
+      if (selectedItem) {
+        const valorExtrato = Math.abs(selectedItem.valor);
+        const totalContas = next.reduce((s, c) => s + c.valor, 0);
+        const diff = +(valorExtrato - totalContas).toFixed(2);
+        if (diff > 0.01) {
+          setEncargosForm({ juros: "", multa: diff.toFixed(2).replace(".", ","), desconto: "" });
+        } else if (diff < -0.01) {
+          setEncargosForm({ juros: "", multa: "", desconto: Math.abs(diff).toFixed(2).replace(".", ",") });
+        } else {
+          setEncargosForm({ juros: "", multa: "", desconto: "" });
+        }
+      }
+      return next;
     });
   }
 
@@ -417,6 +441,9 @@ export default function ModalConciliacaoV2({
     setSavingAction(true);
     try {
       const valorExtrato = Math.abs(selectedItem.valor);
+      const jurosNum = parseFloat(encargosForm.juros.replace(",", ".")) || 0;
+      const multaNum = parseFloat(encargosForm.multa.replace(",", ".")) || 0;
+      const descontoNum = parseFloat(encargosForm.desconto.replace(",", ".")) || 0;
       let restante = valorExtrato;
 
       for (const conta of multiSelectedContas) {
@@ -424,6 +451,12 @@ export default function ModalConciliacaoV2({
         const valorBaixa = Math.min(restante, valorConta);
         restante -= valorBaixa;
         const isParcial = valorBaixa < valorConta;
+        // Distribuir encargos apenas na primeira conta (ou única)
+        const isFirst = conta === multiSelectedContas[0];
+        const contaJuros = isFirst ? jurosNum : 0;
+        const contaMulta = isFirst ? multaNum : 0;
+        const contaDesconto = isFirst ? descontoNum : 0;
+        const valorPagoComEncargos = valorConta + contaJuros + contaMulta - contaDesconto;
 
         // Registrar baixa parcial
         await supabase.from("baixas_parciais").insert({
@@ -439,15 +472,21 @@ export default function ModalConciliacaoV2({
           await supabase.from("contas_pagar").update({
             status: isParcial ? "parcial" : "pago",
             conciliado: true,
-            valor_pago: isParcial ? valorBaixa : valorConta,
+            valor_pago: isParcial ? valorBaixa : valorPagoComEncargos,
             data_pagamento: selectedItem.data,
+            juros: contaJuros,
+            multa: contaMulta,
+            desconto: contaDesconto,
           } as any).eq("id", conta.id);
         } else {
           await supabase.from("contas_receber").update({
             status: isParcial ? "parcial" : "recebido",
             conciliado: true,
-            valor_recebido: isParcial ? valorBaixa : valorConta,
+            valor_recebido: isParcial ? valorBaixa : valorPagoComEncargos,
             data_recebimento: selectedItem.data,
+            juros: contaJuros,
+            multa: contaMulta,
+            desconto: contaDesconto,
           } as any).eq("id", conta.id);
         }
       }
@@ -457,12 +496,16 @@ export default function ModalConciliacaoV2({
         match: {
           tipo: multiSelectedContas[0]._tipo,
           id: multiSelectedContas[0].id,
-          descricao: `${multiSelectedContas.length} conta(s) vinculada(s)`,
+          descricao: multiSelectedContas.length > 1 ? `${multiSelectedContas.length} conta(s) vinculada(s)` : multiSelectedContas[0].descricao,
           alreadySettled: true,
+          juros: jurosNum,
+          multa: multaNum,
+          desconto: descontoNum,
         },
       });
 
       setActiveAction(null);
+      setEncargosForm({ juros: "", multa: "", desconto: "" });
       setBusca("");
       setMultiSelectedContas([]);
       toast({ title: `${multiSelectedContas.length} conta(s) conciliada(s)` });
@@ -643,31 +686,37 @@ export default function ModalConciliacaoV2({
             }).eq("id", item.match.id);
           } else if (item.match.tipo === "conta_pagar") {
             if (item.match.alreadySettled) {
-              // Já teve baixa manual — apenas marcar como conciliado
+              // Já teve baixa manual/conciliação — apenas marcar como conciliado
               await supabase.from("contas_pagar").update({
                 conciliado: true,
               }).eq("id", item.match.id);
             } else {
-              // Conciliar + dar baixa na despesa
+              // Conciliar + dar baixa na despesa com encargos
               await supabase.from("contas_pagar").update({
                 conciliado: true,
                 status: "pago",
                 data_pagamento: item.data,
-              }).eq("id", item.match.id);
+                ...(item.match.juros ? { juros: item.match.juros } : {}),
+                ...(item.match.multa ? { multa: item.match.multa } : {}),
+                ...(item.match.desconto ? { desconto: item.match.desconto } : {}),
+              } as any).eq("id", item.match.id);
             }
           } else if (item.match.tipo === "conta_receber") {
             if (item.match.alreadySettled) {
-              // Já teve baixa manual — apenas marcar como conciliado
+              // Já teve baixa manual/conciliação — apenas marcar como conciliado
               await supabase.from("contas_receber").update({
                 conciliado: true,
               }).eq("id", item.match.id);
             } else {
-              // Conciliar + dar baixa na receita
+              // Conciliar + dar baixa na receita com encargos
               await supabase.from("contas_receber").update({
                 conciliado: true,
                 status: "recebido",
                 data_recebimento: item.data,
-              }).eq("id", item.match.id);
+                ...(item.match.juros ? { juros: item.match.juros } : {}),
+                ...(item.match.multa ? { multa: item.match.multa } : {}),
+                ...(item.match.desconto ? { desconto: item.match.desconto } : {}),
+              } as any).eq("id", item.match.id);
             }
           }
         }
@@ -1532,24 +1581,65 @@ export default function ModalConciliacaoV2({
                                 autoFocus
                               />
                             </div>
-                            {multiSelectedContas.length > 0 && (
-                              <div className="bg-primary/5 border border-primary/20 rounded p-2 text-xs space-y-1">
-                                <div className="flex justify-between">
-                                  <span>{multiSelectedContas.length} conta(s) selecionada(s)</span>
-                                  <span className="font-semibold">
-                                    Total: {formatCurrency(multiSelectedContas.reduce((s, c) => s + c.valor, 0))}
-                                  </span>
+                            {multiSelectedContas.length > 0 && (() => {
+                              const totalContas = multiSelectedContas.reduce((s, c) => s + c.valor, 0);
+                              const valorExtrato = Math.abs(selectedItem?.valor || 0);
+                              const diferenca = +(valorExtrato - totalContas).toFixed(2);
+                              return (
+                                <div className="bg-primary/5 border border-primary/20 rounded p-2 text-xs space-y-1.5">
+                                  <div className="flex justify-between">
+                                    <span>{multiSelectedContas.length} conta(s) selecionada(s)</span>
+                                    <span className="font-semibold">
+                                      Total: {formatCurrency(totalContas)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-muted-foreground">
+                                    <span>Valor do extrato:</span>
+                                    <span>{formatCurrency(valorExtrato)}</span>
+                                  </div>
+                                  {diferenca !== 0 && (
+                                    <div className={`flex justify-between font-semibold ${diferenca > 0 ? "text-destructive" : "text-green-400"}`}>
+                                      <span>Diferença:</span>
+                                      <span>{diferenca > 0 ? "+" : ""}{formatCurrency(Math.abs(diferenca))}</span>
+                                    </div>
+                                  )}
+                                  {/* Campos de Juros, Multa e Desconto */}
+                                  <div className="grid grid-cols-3 gap-1.5 pt-1">
+                                    <div>
+                                      <label className="text-[10px] text-muted-foreground">Juros</label>
+                                      <Input
+                                        className="h-6 text-xs"
+                                        placeholder="0,00"
+                                        value={encargosForm.juros}
+                                        onChange={(e) => setEncargosForm(p => ({ ...p, juros: e.target.value }))}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] text-muted-foreground">Multa</label>
+                                      <Input
+                                        className="h-6 text-xs"
+                                        placeholder="0,00"
+                                        value={encargosForm.multa}
+                                        onChange={(e) => setEncargosForm(p => ({ ...p, multa: e.target.value }))}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] text-muted-foreground">Desconto</label>
+                                      <Input
+                                        className="h-6 text-xs"
+                                        placeholder="0,00"
+                                        value={encargosForm.desconto}
+                                        onChange={(e) => setEncargosForm(p => ({ ...p, desconto: e.target.value }))}
+                                      />
+                                    </div>
+                                  </div>
+                                  <Button size="sm" className="w-full h-6 text-xs mt-1" onClick={handleVincularMultiplas} disabled={savingAction}>
+                                    {savingAction ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                                    Conciliar {multiSelectedContas.length} conta(s)
+                                  </Button>
                                 </div>
-                                <div className="flex justify-between text-muted-foreground">
-                                  <span>Valor do extrato:</span>
-                                  <span>{formatCurrency(Math.abs(selectedItem?.valor || 0))}</span>
-                                </div>
-                                <Button size="sm" className="w-full h-6 text-xs mt-1" onClick={handleVincularMultiplas} disabled={savingAction}>
-                                  {savingAction ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                                  Conciliar {multiSelectedContas.length} conta(s)
-                                </Button>
-                              </div>
-                            )}
+                              );
+                            })()}
                             <div className="max-h-48 overflow-y-auto space-y-0.5">
                               {buscaResultados.length === 0 ? (
                                 <p className="text-xs text-muted-foreground text-center py-3">Nenhum lançamento encontrado.</p>
@@ -1573,8 +1663,8 @@ export default function ModalConciliacaoV2({
                                           </Badge>
                                         </div>
                                       </div>
-                                      <Button size="sm" variant="outline" className="h-6 px-2 text-xs shrink-0" onClick={(e) => { e.stopPropagation(); handleVincularConta(c); }}>
-                                        Vincular
+                                      <Button size="sm" variant="outline" className="h-6 px-2 text-xs shrink-0" onClick={(e) => { e.stopPropagation(); toggleMultiConta(c); }}>
+                                        {isSelected ? "Remover" : "Selecionar"}
                                       </Button>
                                     </div>
                                   );
