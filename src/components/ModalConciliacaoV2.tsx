@@ -46,6 +46,7 @@ interface ContaRow {
   id: string;
   descricao: string;
   valor: number;
+  valor_pago?: number;
   vencimento: string;
   fornecedor?: string;
   cliente?: string;
@@ -77,10 +78,22 @@ function autoMatch(item: ExtratoItem, contas: ContaRow[]): ExtratoItem["match"] 
 
   for (const conta of contas) {
     const valorConta = Number(conta.valor || 0);
-    const dataConta = new Date(conta.vencimento || "");
-    const diffDias = Math.abs((dataItem.getTime() - dataConta.getTime()) / 86400000);
+    const valorPago = conta.valor_pago ? Number(conta.valor_pago) : undefined;
 
-    if (Math.abs(valorAbs - valorConta) <= 0.01 && diffDias <= 3) {
+    // Comparar com valor original OU valor pago (para baixas com juros/multa/desconto)
+    const matchValorOriginal = Math.abs(valorAbs - valorConta) <= 0.01;
+    const matchValorPago = valorPago != null && Math.abs(valorAbs - valorPago) <= 0.01;
+
+    if (!matchValorOriginal && !matchValorPago) continue;
+
+    // Comparar data: vencimento para pendentes, data_baixa para contas já pagas
+    const dataConta = new Date(conta.vencimento || "");
+    const dataBaixa = conta.data_baixa ? new Date(conta.data_baixa) : null;
+    const diffVencimento = Math.abs((dataItem.getTime() - dataConta.getTime()) / 86400000);
+    const diffBaixa = dataBaixa ? Math.abs((dataItem.getTime() - dataBaixa.getTime()) / 86400000) : Infinity;
+    const melhorDiff = Math.min(diffVencimento, diffBaixa);
+
+    if (melhorDiff <= 5) {
       return {
         tipo: conta._tipo,
         id: conta.id,
@@ -231,15 +244,15 @@ export default function ModalConciliacaoV2({
       const [{ data: cp }, { data: cr }] = await Promise.all([
         supabase
           .from("contas_pagar")
-          .select("id, descricao, valor, vencimento, fornecedor, status, data_pagamento")
+          .select("id, descricao, valor, valor_pago, vencimento, fornecedor, status, data_pagamento")
           .eq("company_id", companyId)
-          .in("status", ["pendente", "pago", "confirmado"])
+          .in("status", ["pendente", "parcial", "pago", "confirmado"])
           .or("conciliado.is.null,conciliado.eq.false"),
         supabase
           .from("contas_receber")
-          .select("id, descricao, valor, vencimento, cliente, status, data_recebimento")
+          .select("id, descricao, valor, valor_recebido, vencimento, cliente, status, data_recebimento")
           .eq("company_id", companyId)
-          .in("status", ["pendente", "recebido", "confirmado"])
+          .in("status", ["pendente", "parcial", "recebido", "confirmado"])
           .or("conciliado.is.null,conciliado.eq.false"),
       ]);
 
@@ -248,6 +261,7 @@ export default function ModalConciliacaoV2({
           id: c.id,
           descricao: c.descricao || c.fornecedor || "Conta a pagar",
           valor: Number(c.valor),
+          valor_pago: c.valor_pago ? Number(c.valor_pago) : undefined,
           vencimento: c.vencimento || "",
           fornecedor: c.fornecedor,
           _tipo: "conta_pagar" as const,
@@ -258,6 +272,7 @@ export default function ModalConciliacaoV2({
           id: c.id,
           descricao: c.descricao || c.cliente || "Conta a receber",
           valor: Number(c.valor),
+          valor_pago: c.valor_recebido ? Number(c.valor_recebido) : undefined,
           vencimento: c.vencimento || "",
           cliente: c.cliente,
           _tipo: "conta_receber" as const,
@@ -381,10 +396,10 @@ export default function ModalConciliacaoV2({
   const settledContas = useMemo(() => {
     return contas.filter((c) => {
       if (c._tipo === "conta_pagar") {
-        return (c.status === "pago" || c.status === "confirmado") && !!c.data_baixa;
+        return (c.status === "pago" || c.status === "confirmado" || c.status === "parcial") && !!c.data_baixa;
       }
       if (c._tipo === "conta_receber") {
-        return (c.status === "recebido" || c.status === "confirmado") && !!c.data_baixa;
+        return (c.status === "recebido" || c.status === "confirmado" || c.status === "parcial") && !!c.data_baixa;
       }
       return false;
     });
