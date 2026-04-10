@@ -336,6 +336,41 @@ const ContasPagar = () => {
     return data || [];
   };
 
+  const handleExcluirBaixa = async (baixaId: string) => {
+    if (!baixaConta) return;
+    try {
+      const { error } = await supabase.from("baixas_parciais").delete().eq("id", baixaId);
+      if (error) throw error;
+      // Recarregar histórico
+      const contaTipo = baixaConta.source === "contas_pagar" ? "contas_pagar" : "financial_transactions";
+      const baixas = await fetchBaixasParciais(baixaConta.id, contaTipo);
+      setBaixasHistorico(baixas);
+      const totalPago = baixas.reduce((s: number, b: any) => s + Number(b.valor), 0);
+      const valorOriginal = Number(baixaConta.amount || baixaConta.valor || 0);
+      const restante = valorOriginal - totalPago;
+      setBaixaValorParcial(restante > 0 ? restante.toFixed(2) : valorOriginal.toFixed(2));
+      // Atualizar status da conta
+      const novoStatus = totalPago <= 0 ? "pendente" : "parcial";
+      if (baixaConta.source === "contas_pagar") {
+        await supabase.from("contas_pagar").update({
+          status: novoStatus,
+          valor_pago: totalPago > 0 ? totalPago : null,
+        } as any).eq("id", baixaConta.id);
+      } else {
+        await supabase.from("financial_transactions").update({
+          status: novoStatus,
+          valor_pago: totalPago > 0 ? totalPago : null,
+        } as any).eq("id", baixaConta.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["contas_pagar", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      toast({ title: "Baixa excluída com sucesso" });
+      if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Contas a Pagar", descricao: `Baixa parcial excluída da conta: ${baixaConta.description || baixaConta.descricao}` });
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir baixa", description: err.message, variant: "destructive" });
+    }
+  };
+
   const handleBaixar = async (conta: any) => {
     setBaixaConta(conta);
     setBaixaIsBulk(false);
@@ -1035,7 +1070,16 @@ const ContasPagar = () => {
                             <span className="text-muted-foreground">
                               {b.data_pagamento ? new Date(b.data_pagamento + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
                             </span>
-                            <span className="font-medium">R$ {Number(b.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">R$ {Number(b.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                              <button
+                                onClick={() => handleExcluirBaixa(b.id)}
+                                className="text-destructive hover:text-destructive/80 transition-colors p-0.5"
+                                title="Excluir esta baixa"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>

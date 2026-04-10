@@ -211,6 +211,39 @@ const ContasReceber = () => {
     return data || [];
   };
 
+  const handleExcluirBaixa = async (baixaId: string) => {
+    if (!baixaConta) return;
+    try {
+      const { error } = await supabase.from("baixas_parciais").delete().eq("id", baixaId);
+      if (error) throw error;
+      const contaTipo = baixaConta.source === "contas_receber" ? "contas_receber" : "financial_transactions";
+      const baixas = await fetchBaixasParciais(baixaConta.id, contaTipo);
+      setBaixasHistorico(baixas);
+      const totalRecebido = baixas.reduce((s: number, b: any) => s + Number(b.valor), 0);
+      const valorOriginal = Number(baixaConta.amount || baixaConta.valor || 0);
+      const restante = valorOriginal - totalRecebido;
+      setBaixaValorParcial(restante > 0 ? restante.toFixed(2) : valorOriginal.toFixed(2));
+      const novoStatus = totalRecebido <= 0 ? "pendente" : "parcial";
+      if (baixaConta.source === "contas_receber") {
+        await supabase.from("contas_receber").update({
+          status: novoStatus,
+          valor_recebido: totalRecebido > 0 ? totalRecebido : null,
+        } as any).eq("id", baixaConta.id);
+      } else {
+        await supabase.from("financial_transactions").update({
+          status: novoStatus,
+          valor_pago: totalRecebido > 0 ? totalRecebido : null,
+        } as any).eq("id", baixaConta.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["contas_receber", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["financial_transactions", companyId] });
+      toast({ title: "Baixa excluída com sucesso" });
+      if (companyId) logAudit({ companyId, acao: "excluir", modulo: "Contas a Receber", descricao: `Baixa parcial excluída da conta: ${baixaConta.description || baixaConta.descricao}` });
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir baixa", description: err.message, variant: "destructive" });
+    }
+  };
+
   const handleBaixar = async (conta: any) => {
     setBaixaConta(conta);
     setBaixaJuros("");
@@ -483,7 +516,16 @@ const ContasReceber = () => {
                           <span className="text-muted-foreground">
                             {b.data_pagamento ? new Date(b.data_pagamento + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
                           </span>
-                          <span className="font-medium">R$ {Number(b.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">R$ {Number(b.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                            <button
+                              onClick={() => handleExcluirBaixa(b.id)}
+                              className="text-destructive hover:text-destructive/80 transition-colors p-0.5"
+                              title="Excluir esta baixa"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
