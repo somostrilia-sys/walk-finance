@@ -325,32 +325,37 @@ export default function ModalConciliacaoV2({
         }));
       }
 
-      // Buscar fitids já salvos no extrato para detectar duplicados
-      const fitidsImportados = itensExtrato.map((e) => e.fitid).filter(Boolean) as string[];
-      let fitidsExistentes: Set<string> = new Set();
-      if (fitidsImportados.length > 0) {
-        const { data: existentes } = await supabase
-          .from("extrato_bancario")
-          .select("fitid")
-          .eq("company_id", companyId)
-          .in("fitid", fitidsImportados);
-        fitidsExistentes = new Set((existentes || []).map((e: any) => e.fitid));
-      }
-
-      // Buscar lançamentos já conciliados nesta conta bancária (para detectar transferências espelho)
-      let extratosConciliados: Array<{ valor: number; data_lancamento: string; tipo: string }> = [];
+      // Buscar lançamentos já conciliados nesta conta bancária (por fitid + valor/data/tipo)
+      let extratosConciliados: Array<{ fitid: string | null; valor: number; data_lancamento: string; tipo: string }> = [];
       if (bankAccountId) {
         const { data: ec } = await supabase
           .from("extrato_bancario")
-          .select("valor, data_lancamento, tipo")
+          .select("fitid, valor, data_lancamento, tipo")
           .eq("company_id", companyId)
           .eq("bank_account_id", bankAccountId)
           .eq("status", "conciliado");
         extratosConciliados = (ec || []).map((e: any) => ({
+          fitid: e.fitid || null,
           valor: Number(e.valor),
           data_lancamento: e.data_lancamento,
           tipo: e.tipo,
         }));
+      } else {
+        // Sem bank_account_id, buscar por fitid apenas
+        const fitidsImportados = itensExtrato.map((e) => e.fitid).filter(Boolean) as string[];
+        if (fitidsImportados.length > 0) {
+          const { data: ec } = await supabase
+            .from("extrato_bancario")
+            .select("fitid, valor, data_lancamento, tipo")
+            .eq("company_id", companyId)
+            .in("fitid", fitidsImportados);
+          extratosConciliados = (ec || []).map((e: any) => ({
+            fitid: e.fitid || null,
+            valor: Number(e.valor),
+            data_lancamento: e.data_lancamento,
+            tipo: e.tipo,
+          }));
+        }
       }
 
       // Rastrear baixas e contas já usadas para evitar duplicidade
@@ -370,25 +375,17 @@ export default function ModalConciliacaoV2({
           status: "nao_conciliado",
         };
 
-        // Se o fitid já existe no extrato, marcar como já conciliado anteriormente
-        if (e.fitid && fitidsExistentes.has(e.fitid)) {
-          return {
-            ...base,
-            status: "conciliado" as const,
-            _jaExistente: true,
-            match: { tipo: "conta_pagar" as const, descricao: "Já conciliado anteriormente" },
-          };
-        }
-
-        // Verificar se já existe registro conciliado nesta conta (transferência espelho, etc.)
+        // Verificar se já existe registro conciliado correspondente (match por fitid+valor OU valor+data+tipo)
         const valorAbs = Math.abs(e.valor);
         const tipoExtrato = tipo === "credito" ? "credito" : "debito";
-        const idxConciliado = extratosConciliados.findIndex((ec, idx) =>
-          !usedExtratoIndices.has(idx) &&
-          Math.abs(ec.valor - valorAbs) <= 0.01 &&
-          ec.data_lancamento === e.data &&
-          ec.tipo === tipoExtrato
-        );
+        const idxConciliado = extratosConciliados.findIndex((ec, idx) => {
+          if (usedExtratoIndices.has(idx)) return false;
+          // Match exato por fitid + valor (evita confusão com FITIDs duplicados)
+          if (e.fitid && ec.fitid === e.fitid && Math.abs(ec.valor - valorAbs) <= 0.01) return true;
+          // Match por valor + data + tipo (para transferências espelho sem fitid)
+          if (!ec.fitid && Math.abs(ec.valor - valorAbs) <= 0.01 && ec.data_lancamento === e.data && ec.tipo === tipoExtrato) return true;
+          return false;
+        });
         if (idxConciliado >= 0) {
           usedExtratoIndices.add(idxConciliado);
           return {
