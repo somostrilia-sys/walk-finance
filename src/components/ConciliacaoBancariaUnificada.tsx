@@ -132,7 +132,7 @@ function parseXLSX(buffer: ArrayBuffer): ParsedEntry[] {
 }
 
 async function parsePDF(buffer: ArrayBuffer): Promise<ParsedEntry[]> {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   let fullText = "";
   for (let i = 1; i <= pdf.numPages; i++) {
