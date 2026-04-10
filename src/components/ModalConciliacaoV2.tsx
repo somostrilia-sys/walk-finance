@@ -360,9 +360,12 @@ export default function ModalConciliacaoV2({
   // ── Search results for options 1 & 5 ───────────────────────────────────────
 
   const buscaResultados = useMemo(() => {
-    if (!busca.trim()) return contas.slice(0, 20);
+    // Filtrar por tipo: débito → contas a pagar, crédito → contas a receber
+    const tipoFiltro = selectedItem?.tipo === "debito" ? "conta_pagar" : selectedItem?.tipo === "credito" ? "conta_receber" : null;
+    const base = tipoFiltro ? contas.filter(c => c._tipo === tipoFiltro) : contas;
+    if (!busca.trim()) return base.slice(0, 20);
     const q = busca.toLowerCase();
-    return contas
+    return base
       .filter(
         (c) =>
           c.descricao.toLowerCase().includes(q) ||
@@ -371,7 +374,7 @@ export default function ModalConciliacaoV2({
           String(c.valor).includes(q)
       )
       .slice(0, 20);
-  }, [busca, contas]);
+  }, [busca, contas, selectedItem]);
 
   // ── Sugestão automática para lançamentos já baixados ───────────────────────
 
