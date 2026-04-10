@@ -348,6 +348,7 @@ const ContasPagar = () => {
     // Calcular valor restante se já teve baixas parciais
     const contaTipo = conta.source === "contas_pagar" ? "contas_pagar" : "financial_transactions";
     const baixas = await fetchBaixasParciais(conta.id, contaTipo);
+    setBaixasHistorico(baixas);
     const jaPago = baixas.reduce((s: number, b: any) => s + Number(b.valor), 0);
     const valorOriginal = Number(conta.amount || conta.valor || 0);
     const restante = valorOriginal - jaPago;
@@ -1023,6 +1024,31 @@ const ContasPagar = () => {
                     <span className="text-sm text-muted-foreground">Valor original</span>
                     <span className="font-semibold text-sm">R$ {valorOriginal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                   </div>
+
+                  {/* Histórico de pagamentos realizados */}
+                  {baixasHistorico.length > 0 && (
+                    <div className="border rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">Pagamentos Realizados</p>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {baixasHistorico.map((b: any, idx: number) => (
+                          <div key={b.id || idx} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0">
+                            <span className="text-muted-foreground">
+                              {b.data_pagamento ? new Date(b.data_pagamento + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
+                            </span>
+                            <span className="font-medium">R$ {Number(b.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-border font-semibold">
+                        <span>Total já pago</span>
+                        <span>R$ {baixasHistorico.reduce((s: number, b: any) => s + Number(b.valor), 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Restante</span>
+                        <span>R$ {(valorOriginal - baixasHistorico.reduce((s: number, b: any) => s + Number(b.valor), 0)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Valor desta baixa (parcial) */}
                   {!baixaIsBulk && (

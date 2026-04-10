@@ -90,6 +90,7 @@ const ContasReceber = () => {
   const [baixaDesconto, setBaixaDesconto] = useState("");
   const [baixaDataRecebimento, setBaixaDataRecebimento] = useState(new Date().toISOString().slice(0, 10));
   const [baixaValorParcial, setBaixaValorParcial] = useState("");
+  const [baixasHistorico, setBaixasHistorico] = useState<any[]>([]);
 
   const clienteSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
@@ -218,6 +219,7 @@ const ContasReceber = () => {
     setBaixaDataRecebimento(new Date().toISOString().slice(0, 10));
     const contaTipo = conta.source === "contas_receber" ? "contas_receber" : "financial_transactions";
     const baixas = await fetchBaixasParciais(conta.id, contaTipo);
+    setBaixasHistorico(baixas);
     const jaRecebido = baixas.reduce((s: number, b: any) => s + Number(b.valor), 0);
     const valorOriginal = Number(conta.amount || conta.valor || 0);
     const restante = valorOriginal - jaRecebido;
@@ -470,6 +472,31 @@ const ContasReceber = () => {
                   <span className="text-sm text-muted-foreground">Valor original</span>
                   <span className="font-semibold text-sm">R$ {valorOriginal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                 </div>
+
+                {/* Histórico de recebimentos realizados */}
+                {baixasHistorico.length > 0 && (
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground">Recebimentos Realizados</p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {baixasHistorico.map((b: any, idx: number) => (
+                        <div key={b.id || idx} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0">
+                          <span className="text-muted-foreground">
+                            {b.data_pagamento ? new Date(b.data_pagamento + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
+                          </span>
+                          <span className="font-medium">R$ {Number(b.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-border font-semibold">
+                      <span>Total já recebido</span>
+                      <span>R$ {baixasHistorico.reduce((s: number, b: any) => s + Number(b.valor), 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Restante</span>
+                      <span>R$ {(valorOriginal - baixasHistorico.reduce((s: number, b: any) => s + Number(b.valor), 0)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Valor desta baixa */}
                 <div>
