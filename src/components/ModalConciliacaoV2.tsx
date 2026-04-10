@@ -75,19 +75,23 @@ interface Props {
 function autoMatch(
   item: ExtratoItem,
   contas: ContaRow[],
-  baixasParciais: Array<{ id: string; conta_id: string; conta_tipo: string; valor: number; data_pagamento: string }> = []
+  baixasParciais: Array<{ id: string; conta_id: string; conta_tipo: string; valor: number; data_pagamento: string }> = [],
+  usedBaixaIds: Set<string> = new Set(),
+  usedContaIds: Set<string> = new Set(),
 ): ExtratoItem["match"] | undefined {
   const valorAbs = Math.abs(item.valor);
   const dataItem = new Date(item.data);
 
-  // 1. Tentar match com valores individuais de baixas parciais
+  // 1. Tentar match com valores individuais de baixas parciais (cada baixa usada apenas 1 vez)
   for (const baixa of baixasParciais) {
+    if (usedBaixaIds.has(baixa.id)) continue;
     if (Math.abs(valorAbs - baixa.valor) > 0.01) continue;
     const dataBaixa = new Date(baixa.data_pagamento);
     const diffDias = Math.abs((dataItem.getTime() - dataBaixa.getTime()) / 86400000);
     if (diffDias <= 5) {
       const conta = contas.find(c => c.id === baixa.conta_id);
       const tipo = conta?._tipo || (baixa.conta_tipo === "contas_pagar" ? "conta_pagar" : "conta_receber") as "conta_pagar" | "conta_receber";
+      usedBaixaIds.add(baixa.id);
       return {
         tipo,
         id: baixa.conta_id,
@@ -97,8 +101,9 @@ function autoMatch(
     }
   }
 
-  // 2. Tentar match com valor original ou valor total pago da conta
+  // 2. Tentar match com valor original ou valor total pago da conta (cada conta usada apenas 1 vez)
   for (const conta of contas) {
+    if (usedContaIds.has(conta.id)) continue;
     const valorConta = Number(conta.valor || 0);
     const valorPago = conta.valor_pago ? Number(conta.valor_pago) : undefined;
 
@@ -114,6 +119,7 @@ function autoMatch(
     const melhorDiff = Math.min(diffVencimento, diffBaixa);
 
     if (melhorDiff <= 5) {
+      usedContaIds.add(conta.id);
       return {
         tipo: conta._tipo,
         id: conta.id,
@@ -331,6 +337,10 @@ export default function ModalConciliacaoV2({
         fitidsExistentes = new Set((existentes || []).map((e: any) => e.fitid));
       }
 
+      // Rastrear baixas e contas já usadas para evitar duplicidade
+      const usedBaixaIds = new Set<string>();
+      const usedContaIds = new Set<string>();
+
       const iniciais: ExtratoItem[] = itensExtrato.map((e, i) => {
         const tipo: "credito" | "debito" = e.tipo ?? (e.valor >= 0 ? "credito" : "debito");
         const base: ExtratoItem = {
@@ -353,7 +363,7 @@ export default function ModalConciliacaoV2({
           };
         }
 
-        const match = autoMatch(base, allContas, baixasParciais);
+        const match = autoMatch(base, allContas, baixasParciais, usedBaixaIds, usedContaIds);
         if (match) {
           return { ...base, status: "conciliado", match };
         }
