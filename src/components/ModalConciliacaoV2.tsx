@@ -1196,34 +1196,44 @@ export default function ModalConciliacaoV2({
                           active={activeAction === 2}
                           icon="➕"
                           label="Adicionar como novo lançamento"
-                          onToggle={() => openAction(2)}
+                          onToggle={() => {
+                            openAction(2);
+                            if (selectedItem) {
+                              setNovoLancamentoTipo(selectedItem.tipo === "debito" ? "pagar" : "receber");
+                              fetchExpenseCategories();
+                            }
+                          }}
                         >
                           <div className="pt-1 space-y-2">
-                            {/* Escolha do tipo */}
+                            {/* Escolha do tipo — filtrado pelo tipo da movimentação */}
                             <div className="flex gap-2">
-                              <button
-                                onClick={() => setNovoLancamentoTipo("pagar")}
-                                className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
-                                  novoLancamentoTipo === "pagar"
-                                    ? "bg-destructive/10 border-destructive/40 text-destructive font-semibold"
-                                    : "border-border hover:bg-secondary/60"
-                                }`}
-                              >
-                                Contas a Pagar
-                              </button>
-                              <button
-                                onClick={() => setNovoLancamentoTipo("receber")}
-                                className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
-                                  novoLancamentoTipo === "receber"
-                                    ? "bg-green-900/30 border-green-500/40 text-green-400 font-semibold"
-                                    : "border-border hover:bg-secondary/60"
-                                }`}
-                              >
-                                Contas a Receber
-                              </button>
+                              {selectedItem?.tipo === "debito" && (
+                                <button
+                                  onClick={() => setNovoLancamentoTipo("pagar")}
+                                  className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                                    novoLancamentoTipo === "pagar"
+                                      ? "bg-destructive/10 border-destructive/40 text-destructive font-semibold"
+                                      : "border-border hover:bg-secondary/60"
+                                  }`}
+                                >
+                                  Contas a Pagar
+                                </button>
+                              )}
+                              {selectedItem?.tipo === "credito" && (
+                                <button
+                                  onClick={() => setNovoLancamentoTipo("receber")}
+                                  className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                                    novoLancamentoTipo === "receber"
+                                      ? "bg-green-900/30 border-green-500/40 text-green-400 font-semibold"
+                                      : "border-border hover:bg-secondary/60"
+                                  }`}
+                                >
+                                  Contas a Receber
+                                </button>
+                              )}
                             </div>
                             <button
-                              onClick={() => { setNovoLancamentoTipo("direto"); fetchExpenseCategories(); }}
+                              onClick={() => { setNovoLancamentoTipo("direto"); }}
                               className={`w-full py-1.5 text-xs rounded border transition-colors ${
                                 novoLancamentoTipo === "direto"
                                   ? "bg-blue-900/30 border-blue-500/40 text-blue-400 font-semibold"
@@ -1299,8 +1309,11 @@ export default function ModalConciliacaoV2({
                                   <SelectContent>
                                     {novoLancamentoTipo === "direto" ? (
                                       (() => {
+                                        const categsFiltradas = expenseCategories.filter(cat =>
+                                          selectedItem?.tipo === "debito" ? cat.type === "despesa" : cat.type === "receita"
+                                        );
                                         const grupos = new Map<string, typeof expenseCategories>();
-                                        for (const cat of expenseCategories) {
+                                        for (const cat of categsFiltradas) {
                                           const g = cat.grupo || "Outras";
                                           if (!grupos.has(g)) grupos.set(g, []);
                                           grupos.get(g)!.push(cat);
