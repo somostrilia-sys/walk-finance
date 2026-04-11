@@ -269,19 +269,35 @@ const ContasPagar = () => {
 
       const dados: { fornecedor?: string; cnpj?: string; valor?: string; vencimento?: string; descricao?: string } = {};
 
+      console.log("[PDF Extract] Texto extraído:", fullText.substring(0, 2000));
+
       // CNPJ (XX.XXX.XXX/XXXX-XX)
       const cnpjMatch = fullText.match(/(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/);
       if (cnpjMatch) dados.cnpj = cnpjMatch[1];
 
-      // Valor - padrões comuns em boletos e NFs
+      // Valor - padrões comuns em boletos e NFs (ordem de prioridade)
       const valorPatterns = [
-        /(?:valor\s*(?:do\s*)?(?:documento|cobran[çc]a|total|pagar|l[íi]quido|nf))[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i,
-        /(?:total\s*(?:da\s*)?(?:nota|nf|fatura))[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i,
-        /R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})/,
+        // Campos rotulados com valor monetário
+        /(?:valor\s*(?:do\s*)?(?:documento|cobran[çc]a|total|a?\s*pagar|l[íi]quido|nf|boleto|fatura))[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
+        /(?:total\s*(?:da?\s*)?(?:nota|nf|fatura|cobran[çc]a))[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
+        /(?:vlr?\.?\s*(?:doc|cobr|total|pagar))[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
+        // Valor com R$ (qualquer formato brasileiro)
+        /R\$\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/,
+        // Valor sem R$ mas com formato brasileiro (1234,56 ou 1.234,56)
+        /(?:valor|total)[:\s]*(\d{1,3}(?:\.\d{3})*,\d{2})/i,
+        /(?:valor|total)[:\s]*(\d+,\d{2})/i,
       ];
       for (const pat of valorPatterns) {
         const m = fullText.match(pat);
-        if (m) { dados.valor = m[1].replace(/\./g, "").replace(",", "."); break; }
+        if (m) {
+          const raw = m[1].replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+          const num = parseFloat(raw);
+          if (!isNaN(num) && num > 0) {
+            dados.valor = num.toFixed(2);
+            console.log("[PDF Extract] Valor encontrado:", m[1], "→", dados.valor, "pattern:", pat.source.substring(0, 40));
+            break;
+          }
+        }
       }
 
       // Vencimento
@@ -298,16 +314,30 @@ const ContasPagar = () => {
         }
       }
 
-      // Razão social / nome do fornecedor (geralmente perto do CNPJ)
-      if (cnpjMatch) {
+      // Razão social / nome do fornecedor
+      // Tentar campo rotulado primeiro
+      const razaoMatch = fullText.match(/(?:raz[ãa]o\s*social|benefici[áa]rio|cedente|favorecido|nome)[:\s]*([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ][A-Za-záéíóúâêîôûãõç\s.&\-]{4,80})/);
+      if (razaoMatch) {
+        dados.fornecedor = razaoMatch[1].replace(/\s+/g, " ").trim();
+      } else if (cnpjMatch) {
+        // Tentar pegar texto perto do CNPJ
         const idx = fullText.indexOf(cnpjMatch[1]);
         const antes = fullText.substring(Math.max(0, idx - 200), idx);
-        // Pegar a última linha com texto significativo antes do CNPJ
-        const linhas = antes.split(/[\n]/).map(l => l.trim()).filter(l => l.length > 5);
-        if (linhas.length > 0) {
-          const candidato = linhas[linhas.length - 1].replace(/\s+/g, " ").trim();
+        const depois = fullText.substring(idx + cnpjMatch[1].length, idx + cnpjMatch[1].length + 200);
+        // Tentar antes do CNPJ
+        const linhasAntes = antes.split(/[\n]/).map(l => l.trim()).filter(l => l.length > 5);
+        if (linhasAntes.length > 0) {
+          const candidato = linhasAntes[linhasAntes.length - 1].replace(/\s+/g, " ").trim();
           if (candidato.length >= 5 && candidato.length <= 120) {
             dados.fornecedor = candidato;
+          }
+        }
+        // Se não achou antes, tentar depois
+        if (!dados.fornecedor) {
+          const depoisLimpo = depois.replace(/\s+/g, " ").trim();
+          const palavras = depoisLimpo.split(/\s+/).slice(0, 10).join(" ");
+          if (palavras.length >= 5 && palavras.length <= 120) {
+            dados.fornecedor = palavras;
           }
         }
       }
