@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
+import * as pdfjsLib from "pdfjs-dist";
 import { useParams } from "react-router-dom";
 import { useCompanies, useFinancialTransactions, usePessoas, useExpenseCategories, useBankAccounts } from "@/hooks/useFinancialData";
 import { useAuth } from "@/hooks/useAuth";
@@ -108,6 +109,10 @@ const ContasPagar = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Categoria search state
+  const [categoriaBusca, setCategoriaBusca] = useState("");
+  const [showCategorias, setShowCategorias] = useState(false);
+
   // Parcelas state
   const [totalParcelas, setTotalParcelas] = useState(1);
 
@@ -116,6 +121,18 @@ const ContasPagar = () => {
 
   // Group expansion state
   const [grupoExpandido, setGrupoExpandido] = useState<string | null>(null);
+
+  const categoriasFiltradas = useMemo(() => {
+    const despesas = (categorias || []).filter((c: any) => c.type === "despesa" || c.type === "ambos");
+    if (!categoriaBusca.trim()) return despesas;
+    const q = categoriaBusca.toLowerCase();
+    return despesas.filter((c: any) => c.name?.toLowerCase().includes(q));
+  }, [categorias, categoriaBusca]);
+
+  const categoriaSelecionada = useMemo(() => {
+    if (!form.category_id) return null;
+    return (categorias || []).find((c: any) => c.id === form.category_id);
+  }, [form.category_id, categorias]);
 
   const fornecedorSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
@@ -236,24 +253,114 @@ const ContasPagar = () => {
     return data.publicUrl;
   };
 
+  const extrairDadosPDF = useCallback(async (file: File) => {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+      const buffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+      let fullText = "";
+      for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        fullText += content.items.map((item: any) => item.str).join(" ") + "\n";
+      }
+
+      const dados: { fornecedor?: string; cnpj?: string; valor?: string; vencimento?: string; descricao?: string } = {};
+
+      // CNPJ (XX.XXX.XXX/XXXX-XX)
+      const cnpjMatch = fullText.match(/(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/);
+      if (cnpjMatch) dados.cnpj = cnpjMatch[1];
+
+      // Valor - padrões comuns em boletos e NFs
+      const valorPatterns = [
+        /(?:valor\s*(?:do\s*)?(?:documento|cobran[çc]a|total|pagar|l[íi]quido|nf))[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i,
+        /(?:total\s*(?:da\s*)?(?:nota|nf|fatura))[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i,
+        /R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})/,
+      ];
+      for (const pat of valorPatterns) {
+        const m = fullText.match(pat);
+        if (m) { dados.valor = m[1].replace(/\./g, "").replace(",", "."); break; }
+      }
+
+      // Vencimento
+      const vencPatterns = [
+        /(?:vencimento|venc\.?|data\s*venc)[:\s]*(\d{2}\/\d{2}\/\d{4})/i,
+        /(\d{2}\/\d{2}\/\d{4})/,
+      ];
+      for (const pat of vencPatterns) {
+        const m = fullText.match(pat);
+        if (m) {
+          const [d, mo, y] = m[1].split("/");
+          dados.vencimento = `${y}-${mo}-${d}`;
+          break;
+        }
+      }
+
+      // Razão social / nome do fornecedor (geralmente perto do CNPJ)
+      if (cnpjMatch) {
+        const idx = fullText.indexOf(cnpjMatch[1]);
+        const antes = fullText.substring(Math.max(0, idx - 200), idx);
+        // Pegar a última linha com texto significativo antes do CNPJ
+        const linhas = antes.split(/[\n]/).map(l => l.trim()).filter(l => l.length > 5);
+        if (linhas.length > 0) {
+          const candidato = linhas[linhas.length - 1].replace(/\s+/g, " ").trim();
+          if (candidato.length >= 5 && candidato.length <= 120) {
+            dados.fornecedor = candidato;
+          }
+        }
+      }
+
+      // Descrição - tentar pegar do campo de descrição/histórico
+      const descMatch = fullText.match(/(?:descri[çc][ãa]o|hist[óo]rico|referente)[:\s]*([^\n]{5,80})/i);
+      if (descMatch) dados.descricao = descMatch[1].trim();
+
+      return dados;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: "new" | "edit") => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+
+    // Tentar extrair dados do PDF automaticamente
+    const isPdf = file.name.toLowerCase().endsWith(".pdf");
+    let dadosExtraidos: any = null;
+    if (isPdf && target === "new") {
+      dadosExtraidos = await extrairDadosPDF(file);
+    }
+
     const url = await uploadFile(file);
     setUploading(false);
     if (!url) return;
 
     if (target === "new") {
-      setForm(f => ({ ...f, attachment_url: url } as any));
-      const name = file.name.toLowerCase();
-      if (name.includes("boleto") || name.includes("bol")) {
-        toast({ title: "Arquivo de boleto detectado", description: "Preencha os dados do boleto nos campos do formulário." });
+      setForm(f => {
+        const updated = { ...f, attachment_url: url } as any;
+        if (dadosExtraidos) {
+          if (dadosExtraidos.valor && !f.amount) updated.amount = dadosExtraidos.valor;
+          if (dadosExtraidos.vencimento && !f.date) updated.date = dadosExtraidos.vencimento;
+          if (dadosExtraidos.fornecedor && !f.entity_name) updated.entity_name = dadosExtraidos.fornecedor;
+          if (dadosExtraidos.descricao && !f.description) updated.description = dadosExtraidos.descricao;
+        }
+        return updated;
+      });
+      if (dadosExtraidos && (dadosExtraidos.valor || dadosExtraidos.vencimento || dadosExtraidos.fornecedor)) {
+        const campos: string[] = [];
+        if (dadosExtraidos.fornecedor) campos.push("fornecedor");
+        if (dadosExtraidos.valor) campos.push("valor");
+        if (dadosExtraidos.vencimento) campos.push("vencimento");
+        if (dadosExtraidos.descricao) campos.push("descrição");
+        toast({ title: "Dados extraídos do arquivo", description: `Preenchido: ${campos.join(", ")}. Confira os dados.` });
+      } else {
+        toast({ title: "Arquivo anexado com sucesso" });
       }
     } else {
       setEditForm((f: any) => ({ ...f, attachment_url: url }));
+      toast({ title: "Arquivo anexado com sucesso" });
     }
-    toast({ title: "Arquivo anexado com sucesso" });
   };
 
   const handleAdd = async () => {
@@ -701,16 +808,40 @@ const ContasPagar = () => {
                   )}
                 </div>
                 <div><label className="text-sm font-medium">Descrição</label><Input className="mt-1" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
-                <div>
+                <div className="relative">
                   <label className="text-sm font-medium">Categoria</label>
-                  <Select value={form.category_id} onValueChange={v => setForm(f => ({ ...f, category_id: v }))}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
-                    <SelectContent>
-                      {categorias?.filter((c: any) => c.type === "despesa" || c.type === "ambos").map((cat: any) => (
-                        <SelectItem key={cat.id} value={cat.id}>{cat.icon} {cat.name}</SelectItem>
+                  <Input
+                    className="mt-1"
+                    placeholder="Digite para buscar categoria..."
+                    value={showCategorias ? categoriaBusca : (categoriaSelecionada ? `${categoriaSelecionada.icon || ""} ${categoriaSelecionada.name}`.trim() : "")}
+                    onChange={e => { setCategoriaBusca(e.target.value); setShowCategorias(true); }}
+                    onFocus={() => { setShowCategorias(true); setCategoriaBusca(""); }}
+                    onBlur={() => setTimeout(() => setShowCategorias(false), 200)}
+                  />
+                  {showCategorias && categoriasFiltradas.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {categoriasFiltradas.map((cat: any) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => {
+                            setForm(f => ({ ...f, category_id: cat.id }));
+                            setCategoriaBusca("");
+                            setShowCategorias(false);
+                          }}
+                        >
+                          {cat.icon} {cat.name}
+                        </button>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </div>
+                  )}
+                  {showCategorias && categoriasFiltradas.length === 0 && categoriaBusca && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg p-3 text-sm text-muted-foreground">
+                      Nenhuma categoria encontrada
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-sm font-medium">Valor da Parcela *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
