@@ -275,20 +275,47 @@ const ContasPagar = () => {
 
       console.log("[PDF Extract] Texto extraído:", fullText.substring(0, 2000));
 
-      // CNPJ (XX.XXX.XXX/XXXX-XX)
-      const cnpjMatch = fullText.match(/(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/);
-      if (cnpjMatch) dados.cnpj = cnpjMatch[1];
+      // Todos os CNPJs encontrados no documento
+      const allCnpjs = [...fullText.matchAll(/(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/g)].map(m => m[1]);
 
-      // Valor - padrões comuns em boletos e NFs (ordem de prioridade)
+      // ── BENEFICIÁRIO (quem recebe = fornecedor) ──
+      const benefMatch = fullText.match(/(?:benefici[áa]rio|cedente)[:\s]*([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ][A-Za-záéíóúâêîôûãõçÇ\s.&\-/()]+?)(?:\s{2,}|Ag[êe]ncia|CNPJ|CPF|\d{2}\.\d{3}|$)/i);
+      if (benefMatch) {
+        dados.fornecedor = benefMatch[1].replace(/\s+/g, " ").trim();
+        // Limpar trailing de campos
+        dados.fornecedor = dados.fornecedor.replace(/\s*(Ag[êe]ncia|Código|Número|Local|Data|CNPJ).*$/i, "").trim();
+      }
+
+      // CNPJ do beneficiário
+      if (allCnpjs.length > 0) {
+        if (allCnpjs.length === 1) {
+          dados.cnpj = allCnpjs[0];
+        } else {
+          // Em boletos, o CNPJ do beneficiário geralmente aparece perto de "CNPJ/CPF" + "Endereço Beneficiário"
+          // ou é o CNPJ que NÃO pertence ao pagador
+          // Buscar CNPJ perto de "Endereço Beneficiário" ou "CNPJ/CPF" após o beneficiário
+          const cnpjBenefMatch = fullText.match(/(?:CNPJ\/CPF|CNPJ)\s*(?:Endere[çc]o\s*Benefici[áa]rio)?[:\s]*(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/i);
+          if (cnpjBenefMatch) {
+            dados.cnpj = cnpjBenefMatch[1];
+          } else {
+            // Usar o primeiro CNPJ como fallback
+            dados.cnpj = allCnpjs[0];
+          }
+        }
+      }
+
+      // ── VALOR DO DOCUMENTO ──
       const valorPatterns = [
-        // Campos rotulados com valor monetário
-        /(?:valor\s*(?:do\s*)?(?:documento|cobran[çc]a|total|a?\s*pagar|l[íi]quido|nf|boleto|fatura))[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
+        // "Valor do Documento" ou "(=) Valor do Documento" seguido de valor
+        /(?:\(=\)\s*)?valor\s*(?:do\s*)?documento[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
+        // "Valor Cobrado"
+        /(?:\(=\)\s*)?valor\s*cobrado[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
+        // Campos rotulados genéricos
+        /(?:valor\s*(?:do\s*)?(?:cobran[çc]a|total|a?\s*pagar|l[íi]quido|boleto|fatura))[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
         /(?:total\s*(?:da?\s*)?(?:nota|nf|fatura|cobran[çc]a))[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
-        /(?:vlr?\.?\s*(?:doc|cobr|total|pagar))[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
-        // Valor com R$ (qualquer formato brasileiro)
+        // R$ valor
         /R\$\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/,
-        // Valor sem R$ mas com formato brasileiro (1234,56 ou 1.234,56)
-        /(?:valor|total)[:\s]*(\d{1,3}(?:\.\d{3})*,\d{2})/i,
+        // Valor genérico
         /(?:valor|total)[:\s]*(\d+,\d{2})/i,
       ];
       for (const pat of valorPatterns) {
@@ -298,57 +325,68 @@ const ContasPagar = () => {
           const num = parseFloat(raw);
           if (!isNaN(num) && num > 0) {
             dados.valor = num.toFixed(2);
-            console.log("[PDF Extract] Valor encontrado:", m[1], "→", dados.valor, "pattern:", pat.source.substring(0, 40));
+            console.log("[PDF Extract] Valor encontrado:", m[1], "→", dados.valor);
             break;
           }
         }
       }
 
-      // Vencimento
+      // Se não achou valor rotulado, tentar linha digitável do boleto
+      if (!dados.valor) {
+        // Formato: XXXXX.XXXXX XXXXX.XXXXXX XXXXX.XXXXXX X XXXXXXXXXXXXXX
+        const linhaDigitavel = fullText.match(/(\d{5}[.\s]\d{5}\s+\d{5}[.\s]\d{6}\s+\d{5}[.\s]\d{6}\s+\d\s+\d{14})/);
+        if (linhaDigitavel) {
+          const ultimos10 = linhaDigitavel[1].replace(/\D/g, "").slice(-10);
+          const val = parseInt(ultimos10, 10) / 100;
+          if (val > 0) {
+            dados.valor = val.toFixed(2);
+            console.log("[PDF Extract] Valor via linha digitável:", dados.valor);
+          }
+        }
+      }
+      // Fallback: qualquer valor no formato XXX,XX próximo de "115,00" standalone
+      if (!dados.valor) {
+        const allValores = [...fullText.matchAll(/(?<!\d)(\d{1,3}(?:\.\d{3})*,\d{2})(?!\d)/g)].map(m => {
+          const raw = m[1].replace(/\./g, "").replace(",", ".");
+          return { original: m[1], num: parseFloat(raw), index: m.index || 0 };
+        }).filter(v => !isNaN(v.num) && v.num > 0);
+        // Pegar o valor que mais aparece (geralmente o valor do doc aparece 2-3 vezes)
+        if (allValores.length > 0) {
+          const contagem = new Map<string, number>();
+          allValores.forEach(v => contagem.set(v.original, (contagem.get(v.original) || 0) + 1));
+          const maisFrequente = [...contagem.entries()].sort((a, b) => b[1] - a[1])[0];
+          if (maisFrequente && maisFrequente[1] >= 2) {
+            const v = allValores.find(v => v.original === maisFrequente[0]);
+            if (v) {
+              dados.valor = v.num.toFixed(2);
+              console.log("[PDF Extract] Valor mais frequente:", v.original, "→", dados.valor, "(aparece", maisFrequente[1], "vezes)");
+            }
+          }
+        }
+      }
+
+      // ── VENCIMENTO ──
       const vencPatterns = [
-        /(?:vencimento|venc\.?|data\s*venc)[:\s]*(\d{2}\/\d{2}\/\d{4})/i,
-        /(\d{2}\/\d{2}\/\d{4})/,
+        /vencimento[:\s]*(\d{2}\/\d{2}\/\d{4})/i,
+        /venc\.?[:\s]*(\d{2}\/\d{2}\/\d{4})/i,
+        /data\s*venc[:\s]*(\d{2}\/\d{2}\/\d{4})/i,
       ];
       for (const pat of vencPatterns) {
         const m = fullText.match(pat);
         if (m) {
           const [d, mo, y] = m[1].split("/");
-          dados.vencimento = `${y}-${mo}-${d}`;
-          break;
-        }
-      }
-
-      // Razão social / nome do fornecedor
-      // Tentar campo rotulado primeiro
-      const razaoMatch = fullText.match(/(?:raz[ãa]o\s*social|benefici[áa]rio|cedente|favorecido|nome)[:\s]*([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ][A-Za-záéíóúâêîôûãõç\s.&\-]{4,80})/);
-      if (razaoMatch) {
-        dados.fornecedor = razaoMatch[1].replace(/\s+/g, " ").trim();
-      } else if (cnpjMatch) {
-        // Tentar pegar texto perto do CNPJ
-        const idx = fullText.indexOf(cnpjMatch[1]);
-        const antes = fullText.substring(Math.max(0, idx - 200), idx);
-        const depois = fullText.substring(idx + cnpjMatch[1].length, idx + cnpjMatch[1].length + 200);
-        // Tentar antes do CNPJ
-        const linhasAntes = antes.split(/[\n]/).map(l => l.trim()).filter(l => l.length > 5);
-        if (linhasAntes.length > 0) {
-          const candidato = linhasAntes[linhasAntes.length - 1].replace(/\s+/g, " ").trim();
-          if (candidato.length >= 5 && candidato.length <= 120) {
-            dados.fornecedor = candidato;
-          }
-        }
-        // Se não achou antes, tentar depois
-        if (!dados.fornecedor) {
-          const depoisLimpo = depois.replace(/\s+/g, " ").trim();
-          const palavras = depoisLimpo.split(/\s+/).slice(0, 10).join(" ");
-          if (palavras.length >= 5 && palavras.length <= 120) {
-            dados.fornecedor = palavras;
+          if (parseInt(mo) >= 1 && parseInt(mo) <= 12 && parseInt(d) >= 1 && parseInt(d) <= 31) {
+            dados.vencimento = `${y}-${mo}-${d}`;
+            break;
           }
         }
       }
 
-      // Descrição - tentar pegar do campo de descrição/histórico
-      const descMatch = fullText.match(/(?:descri[çc][ãa]o|hist[óo]rico|referente)[:\s]*([^\n]{5,80})/i);
+      // ── DESCRIÇÃO ──
+      const descMatch = fullText.match(/(?:descri[çc][ãa]o|hist[óo]rico|referente\s*a?|instru[çc][õo]es)[:\s]*([^\n]{5,80})/i);
       if (descMatch) dados.descricao = descMatch[1].trim();
+
+      console.log("[PDF Extract] Dados:", JSON.stringify(dados));
 
       return dados;
     } catch {
