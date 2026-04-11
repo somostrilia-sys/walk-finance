@@ -113,6 +113,10 @@ const ContasPagar = () => {
   const [categoriaBusca, setCategoriaBusca] = useState("");
   const [showCategorias, setShowCategorias] = useState(false);
 
+  // Alerta fornecedor não cadastrado
+  const [alertaCadastro, setAlertaCadastro] = useState<{ cnpj: string; fornecedor?: string; pendingFile?: File; pendingUrl?: string; pendingDados?: any } | null>(null);
+  const [cadastrando, setCadastrando] = useState(false);
+
   // Parcelas state
   const [totalParcelas, setTotalParcelas] = useState(1);
 
@@ -352,6 +356,81 @@ const ContasPagar = () => {
     }
   }, []);
 
+  const aplicarDadosExtraidos = (dadosExtraidos: any, url: string) => {
+    setForm(f => {
+      const updated = { ...f, attachment_url: url } as any;
+      if (dadosExtraidos) {
+        if (dadosExtraidos.valor && !f.amount) updated.amount = dadosExtraidos.valor;
+        if (dadosExtraidos.vencimento && !f.date) updated.date = dadosExtraidos.vencimento;
+        if (dadosExtraidos.fornecedor && !f.entity_name) updated.entity_name = dadosExtraidos.fornecedor;
+        if (dadosExtraidos.descricao && !f.description) updated.description = dadosExtraidos.descricao;
+      }
+      return updated;
+    });
+    if (dadosExtraidos && (dadosExtraidos.valor || dadosExtraidos.vencimento || dadosExtraidos.fornecedor)) {
+      const campos: string[] = [];
+      if (dadosExtraidos.fornecedor) campos.push("fornecedor");
+      if (dadosExtraidos.valor) campos.push("valor");
+      if (dadosExtraidos.vencimento) campos.push("vencimento");
+      if (dadosExtraidos.descricao) campos.push("descrição");
+      toast({ title: "Dados extraídos do arquivo", description: `Preenchido: ${campos.join(", ")}. Confira os dados.` });
+    } else {
+      toast({ title: "Arquivo anexado com sucesso" });
+    }
+  };
+
+  const cadastrarFornecedorAutomatico = async (cnpj: string) => {
+    setCadastrando(true);
+    try {
+      const digits = cnpj.replace(/\D/g, "");
+      let razaoSocial = alertaCadastro?.fornecedor || "Fornecedor";
+      let dadosBrasil: any = {};
+
+      // Buscar dados completos na BrasilAPI
+      try {
+        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+        if (res.ok) {
+          dadosBrasil = await res.json();
+          razaoSocial = dadosBrasil.razao_social || razaoSocial;
+        }
+      } catch { /* ignora erro da API */ }
+
+      // Inserir no cadastro de pessoas
+      const { error } = await supabase.from("pessoas").insert({
+        company_id: companyId!,
+        tipo: "fornecedor",
+        razao_social: razaoSocial,
+        nome_fantasia: dadosBrasil.nome_fantasia || null,
+        cpf_cnpj: cnpj,
+        telefone: dadosBrasil.ddd_telefone_1 ? `(${dadosBrasil.ddd_telefone_1.slice(0, 2)}) ${dadosBrasil.ddd_telefone_1.slice(2)}` : null,
+        email: dadosBrasil.email || null,
+        responsavel: dadosBrasil.qsa?.[0]?.nome_socio || null,
+        municipio: dadosBrasil.municipio || null,
+        uf: dadosBrasil.uf || null,
+      } as any);
+      if (error) throw error;
+
+      // Invalidar cache para atualizar lista de pessoas
+      queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
+
+      // Preencher formulário com os dados
+      setForm(f => ({ ...f, entity_name: razaoSocial }));
+
+      // Aplicar dados pendentes do PDF
+      if (alertaCadastro?.pendingUrl && alertaCadastro?.pendingDados) {
+        aplicarDadosExtraidos(alertaCadastro.pendingDados, alertaCadastro.pendingUrl);
+      }
+
+      toast({ title: "Fornecedor cadastrado com sucesso", description: razaoSocial });
+      if (companyId) logAudit({ companyId, acao: "criar", modulo: "Contas a Pagar", descricao: `Fornecedor cadastrado automaticamente via boleto: ${razaoSocial} — ${cnpj}` });
+    } catch (err: any) {
+      toast({ title: "Erro ao cadastrar fornecedor", description: err.message, variant: "destructive" });
+    } finally {
+      setCadastrando(false);
+      setAlertaCadastro(null);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: "new" | "edit") => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -369,26 +448,26 @@ const ContasPagar = () => {
     if (!url) return;
 
     if (target === "new") {
-      setForm(f => {
-        const updated = { ...f, attachment_url: url } as any;
-        if (dadosExtraidos) {
-          if (dadosExtraidos.valor && !f.amount) updated.amount = dadosExtraidos.valor;
-          if (dadosExtraidos.vencimento && !f.date) updated.date = dadosExtraidos.vencimento;
-          if (dadosExtraidos.fornecedor && !f.entity_name) updated.entity_name = dadosExtraidos.fornecedor;
-          if (dadosExtraidos.descricao && !f.description) updated.description = dadosExtraidos.descricao;
+      // Verificar se o fornecedor/CNPJ do boleto está cadastrado
+      if (dadosExtraidos?.cnpj && pessoas) {
+        const cnpjBoleto = dadosExtraidos.cnpj.replace(/\D/g, "");
+        const cadastrado = pessoas.find((p: any) =>
+          p.cpf_cnpj && p.cpf_cnpj.replace(/\D/g, "") === cnpjBoleto
+        );
+        if (!cadastrado) {
+          // Fornecedor não cadastrado — mostrar alerta
+          setAlertaCadastro({
+            cnpj: dadosExtraidos.cnpj,
+            fornecedor: dadosExtraidos.fornecedor,
+            pendingFile: file,
+            pendingUrl: url,
+            pendingDados: dadosExtraidos,
+          });
+          return; // Não aplica dados ainda — espera decisão do usuário
         }
-        return updated;
-      });
-      if (dadosExtraidos && (dadosExtraidos.valor || dadosExtraidos.vencimento || dadosExtraidos.fornecedor)) {
-        const campos: string[] = [];
-        if (dadosExtraidos.fornecedor) campos.push("fornecedor");
-        if (dadosExtraidos.valor) campos.push("valor");
-        if (dadosExtraidos.vencimento) campos.push("vencimento");
-        if (dadosExtraidos.descricao) campos.push("descrição");
-        toast({ title: "Dados extraídos do arquivo", description: `Preenchido: ${campos.join(", ")}. Confira os dados.` });
-      } else {
-        toast({ title: "Arquivo anexado com sucesso" });
       }
+
+      aplicarDadosExtraidos(dadosExtraidos, url);
     } else {
       setEditForm((f: any) => ({ ...f, attachment_url: url }));
       toast({ title: "Arquivo anexado com sucesso" });
@@ -1388,6 +1467,44 @@ const ContasPagar = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Dialog: Fornecedor não cadastrado */}
+      <Dialog open={!!alertaCadastro} onOpenChange={o => { if (!o) setAlertaCadastro(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="w-5 h-5" />
+              Fornecedor não cadastrado
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <p className="text-sm text-muted-foreground">
+              O CNPJ <strong>{alertaCadastro?.cnpj}</strong> encontrado no boleto não está cadastrado no sistema.
+            </p>
+            {alertaCadastro?.fornecedor && (
+              <p className="text-sm">Fornecedor identificado: <strong>{alertaCadastro.fornecedor}</strong></p>
+            )}
+            <p className="text-sm">Deseja cadastrar este fornecedor automaticamente?</p>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" size="sm" onClick={() => {
+                // Continuar sem cadastrar — apenas aplica os dados do boleto
+                if (alertaCadastro?.pendingUrl && alertaCadastro?.pendingDados) {
+                  aplicarDadosExtraidos(alertaCadastro.pendingDados, alertaCadastro.pendingUrl);
+                }
+                setAlertaCadastro(null);
+              }}>
+                Não, apenas anexar
+              </Button>
+              <Button size="sm" disabled={cadastrando} onClick={() => {
+                if (alertaCadastro?.cnpj) cadastrarFornecedorAutomatico(alertaCadastro.cnpj);
+              }}>
+                {cadastrando ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                Sim, cadastrar fornecedor
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
