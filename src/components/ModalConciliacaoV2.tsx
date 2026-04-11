@@ -731,11 +731,51 @@ export default function ModalConciliacaoV2({
     setActiveAction(null);
   }
 
+  // ── Recalcular saldo ────────────────────────────────────────────────────────
+
+  async function recalcularSaldoConta(accountId: string) {
+    try {
+      // Buscar saldo inicial da conta
+      const { data: conta } = await supabase
+        .from("bank_accounts")
+        .select("saldo_inicial")
+        .eq("id", accountId)
+        .single();
+      const saldoInicial = Number((conta as any)?.saldo_inicial || 0);
+
+      // Somar todos os lançamentos conciliados do extrato
+      const { data: registros } = await supabase
+        .from("extrato_bancario")
+        .select("valor, tipo")
+        .eq("company_id", companyId)
+        .eq("bank_account_id", accountId)
+        .eq("status", "conciliado");
+
+      let saldo = saldoInicial;
+      for (const r of (registros || [])) {
+        const val = Number(r.valor);
+        if (r.tipo === "credito") {
+          saldo += val;
+        } else {
+          saldo -= val;
+        }
+      }
+
+      await supabase.from("bank_accounts")
+        .update({ current_balance: saldo } as any)
+        .eq("id", accountId);
+    } catch {
+      // Silencioso — não bloqueia a conciliação
+    }
+  }
+
   // ── Confirmar ───────────────────────────────────────────────────────────────
 
   async function handleConfirmar() {
     const aConciliar = itens.filter((i) => i.status === "conciliado" && !i._jaExistente);
     if (aConciliar.length === 0) {
+      // Mesmo sem novos itens, recalcular saldo caso esteja desatualizado
+      if (bankAccountId) await recalcularSaldoConta(bankAccountId);
       toast({ title: "Nenhum item conciliado para salvar" });
       onClose();
       return;
@@ -832,29 +872,9 @@ export default function ModalConciliacaoV2({
           }
         }
       }
-      // Atualizar saldo da conta bancária
+      // Atualizar saldo da conta bancária baseado em TODOS os registros do extrato
       if (bankAccountId) {
-        // Calcular impacto líquido dos itens conciliados
-        let impacto = 0;
-        for (const item of aConciliar) {
-          if (item.tipo === "credito") {
-            impacto += Math.abs(item.valor);
-          } else {
-            impacto -= Math.abs(item.valor);
-          }
-        }
-        // Buscar saldo atual e atualizar
-        const { data: contaAtual } = await supabase
-          .from("bank_accounts")
-          .select("current_balance")
-          .eq("id", bankAccountId)
-          .single();
-        if (contaAtual) {
-          const novoSaldo = Number(contaAtual.current_balance || 0) + impacto;
-          await supabase.from("bank_accounts")
-            .update({ current_balance: novoSaldo })
-            .eq("id", bankAccountId);
-        }
+        await recalcularSaldoConta(bankAccountId);
       }
 
       toast({ title: `${aConciliar.length} lançamento(s) conciliado(s) com sucesso!` });
