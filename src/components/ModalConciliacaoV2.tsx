@@ -832,6 +832,31 @@ export default function ModalConciliacaoV2({
           }
         }
       }
+      // Atualizar saldo da conta bancária
+      if (bankAccountId) {
+        // Calcular impacto líquido dos itens conciliados
+        let impacto = 0;
+        for (const item of aConciliar) {
+          if (item.tipo === "credito") {
+            impacto += Math.abs(item.valor);
+          } else {
+            impacto -= Math.abs(item.valor);
+          }
+        }
+        // Buscar saldo atual e atualizar
+        const { data: contaAtual } = await supabase
+          .from("bank_accounts")
+          .select("current_balance")
+          .eq("id", bankAccountId)
+          .single();
+        if (contaAtual) {
+          const novoSaldo = Number(contaAtual.current_balance || 0) + impacto;
+          await supabase.from("bank_accounts")
+            .update({ current_balance: novoSaldo })
+            .eq("id", bankAccountId);
+        }
+      }
+
       toast({ title: `${aConciliar.length} lançamento(s) conciliado(s) com sucesso!` });
       logAudit({ companyId, acao: "conciliar", modulo: "Conciliação Bancária", descricao: `${aConciliar.length} lançamento(s) conciliados — origem: ${origem}` });
       onClose();
