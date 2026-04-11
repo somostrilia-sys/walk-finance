@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
+import * as pdfjsLib from "pdfjs-dist";
 import { useParams } from "react-router-dom";
 import { useCompanies, useFinancialTransactions, usePessoas, useExpenseCategories } from "@/hooks/useFinancialData";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,7 +22,7 @@ import { formatCurrency } from "@/data/mockData";
 import { logAudit } from "@/lib/auditLog";
 import {
   ArrowUpCircle, Plus, Download, Search, Clock, CheckCircle2, AlertTriangle,
-  Loader2, Check, Trash2, Pencil, Calendar
+  Loader2, Check, Trash2, Pencil, Calendar, Paperclip, Upload, X
 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 
@@ -94,6 +95,28 @@ const ContasReceber = () => {
   const [baixaDataRecebimento, setBaixaDataRecebimento] = useState(new Date().toISOString().slice(0, 10));
   const [baixaValorParcial, setBaixaValorParcial] = useState("");
   const [baixasHistorico, setBaixasHistorico] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Categoria search state
+  const [categoriaBusca, setCategoriaBusca] = useState("");
+  const [showCategorias, setShowCategorias] = useState(false);
+
+  // Alerta cliente não cadastrado
+  const [alertaCadastro, setAlertaCadastro] = useState<{ cnpj: string; cliente?: string; pendingUrl?: string; pendingDados?: any } | null>(null);
+  const [cadastrando, setCadastrando] = useState(false);
+
+  const categoriasFiltradas = useMemo(() => {
+    const receitas = (categorias || []).filter((c: any) => c.type === "receita" || c.type === "ambos");
+    if (!categoriaBusca.trim()) return receitas;
+    const q = categoriaBusca.toLowerCase();
+    return receitas.filter((c: any) => c.name?.toLowerCase().includes(q));
+  }, [categorias, categoriaBusca]);
+
+  const categoriaSelecionada = useMemo(() => {
+    if (!form.category_id) return null;
+    return (categorias || []).find((c: any) => c.id === form.category_id);
+  }, [form.category_id, categorias]);
 
   const clienteSuggestions = useMemo(() => {
     const q = form.entity_name?.toLowerCase().trim();
@@ -246,6 +269,134 @@ const ContasReceber = () => {
     }
   };
 
+  // ── Upload e extração de PDF ──────────────────────────────────────────────
+  const uploadFile = async (file: File): Promise<string | null> => {
+    const ext = file.name.split(".").pop();
+    const path = `contas-receber/${companyId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("attachments").upload(path, file);
+    if (error) { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); return null; }
+    const { data } = supabase.storage.from("attachments").getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  const extrairDadosPDF = useCallback(async (file: File) => {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+      const buffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+      let fullText = "";
+      for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        fullText += content.items.map((item: any) => item.str).join(" ") + "\n";
+      }
+      const dados: { cliente?: string; cnpj?: string; valor?: string; vencimento?: string; descricao?: string } = {};
+      // CNPJ
+      const allCnpjs = [...fullText.matchAll(/(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/g)].map(m => m[1]);
+      if (allCnpjs.length > 0) dados.cnpj = allCnpjs[0];
+      // Valor
+      const valorPatterns = [
+        /(?:\(=\)\s*)?valor\s*(?:do\s*)?documento[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
+        /(?:\(=\)\s*)?valor\s*cobrado[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
+        /(?:valor\s*(?:do\s*)?(?:total|l[íi]quido|nf|nota|fatura))[:\s]*R?\$?\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/i,
+        /R\$\s*(\d{1,3}(?:[.\s]\d{3})*,\d{2})/,
+        /(?:valor|total)[:\s]*(\d+,\d{2})/i,
+      ];
+      for (const pat of valorPatterns) {
+        const m = fullText.match(pat);
+        if (m) {
+          const raw = m[1].replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+          const num = parseFloat(raw);
+          if (!isNaN(num) && num > 0) { dados.valor = num.toFixed(2); break; }
+        }
+      }
+      // Vencimento
+      const vencMatch = fullText.match(/vencimento[:\s]*(\d{2}\/\d{2}\/\d{4})/i);
+      if (vencMatch) {
+        const [d, mo, y] = vencMatch[1].split("/");
+        dados.vencimento = `${y}-${mo}-${d}`;
+      }
+      // Cliente / Razão social
+      const razaoMatch = fullText.match(/(?:raz[ãa]o\s*social|cliente|pagador|sacado|tomador)[:\s]*([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ][A-Za-záéíóúâêîôûãõçÇ\s.&\-/()]+?)(?:\s{2,}|CNPJ|CPF|\d{2}\.\d{3}|$)/i);
+      if (razaoMatch) dados.cliente = razaoMatch[1].replace(/\s+/g, " ").trim();
+      // Descrição
+      const descMatch = fullText.match(/(?:descri[çc][ãa]o|hist[óo]rico|referente)[:\s]*([^\n]{5,80})/i);
+      if (descMatch) dados.descricao = descMatch[1].trim();
+      return dados;
+    } catch { return null; }
+  }, []);
+
+  const aplicarDadosExtraidos = (dadosExtraidos: any, url: string) => {
+    setForm(f => {
+      const updated = { ...f, attachment_url: url } as any;
+      if (dadosExtraidos) {
+        if (dadosExtraidos.valor && !f.amount) updated.amount = dadosExtraidos.valor;
+        if (dadosExtraidos.vencimento && !f.date) updated.date = dadosExtraidos.vencimento;
+        if (dadosExtraidos.cliente && !f.entity_name) updated.entity_name = dadosExtraidos.cliente;
+        if (dadosExtraidos.descricao && !f.description) updated.description = dadosExtraidos.descricao;
+      }
+      return updated;
+    });
+    if (dadosExtraidos && (dadosExtraidos.valor || dadosExtraidos.vencimento || dadosExtraidos.cliente)) {
+      const campos: string[] = [];
+      if (dadosExtraidos.cliente) campos.push("cliente");
+      if (dadosExtraidos.valor) campos.push("valor");
+      if (dadosExtraidos.vencimento) campos.push("vencimento");
+      if (dadosExtraidos.descricao) campos.push("descrição");
+      toast({ title: "Dados extraídos do arquivo", description: `Preenchido: ${campos.join(", ")}. Confira os dados.` });
+    } else {
+      toast({ title: "Arquivo anexado com sucesso" });
+    }
+  };
+
+  const cadastrarClienteAutomatico = async (cnpj: string) => {
+    setCadastrando(true);
+    try {
+      const digits = cnpj.replace(/\D/g, "");
+      let razaoSocial = alertaCadastro?.cliente || "Cliente";
+      let dadosBrasil: any = {};
+      try {
+        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+        if (res.ok) { dadosBrasil = await res.json(); razaoSocial = dadosBrasil.razao_social || razaoSocial; }
+      } catch { /* ignora */ }
+      const { error } = await supabase.from("pessoas").insert({
+        company_id: companyId!, tipo: "cliente", razao_social: razaoSocial,
+        nome_fantasia: dadosBrasil.nome_fantasia || null, cpf_cnpj: cnpj,
+        telefone: dadosBrasil.ddd_telefone_1 ? `(${dadosBrasil.ddd_telefone_1.slice(0, 2)}) ${dadosBrasil.ddd_telefone_1.slice(2)}` : null,
+        email: dadosBrasil.email || null, responsavel: dadosBrasil.qsa?.[0]?.nome_socio || null,
+        municipio: dadosBrasil.municipio || null, uf: dadosBrasil.uf || null,
+      } as any);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["pessoas", companyId] });
+      setForm(f => ({ ...f, entity_name: razaoSocial }));
+      if (alertaCadastro?.pendingUrl && alertaCadastro?.pendingDados) aplicarDadosExtraidos(alertaCadastro.pendingDados, alertaCadastro.pendingUrl);
+      toast({ title: "Cliente cadastrado com sucesso", description: razaoSocial });
+      if (companyId) logAudit({ companyId, acao: "criar", modulo: "Contas a Receber", descricao: `Cliente cadastrado automaticamente: ${razaoSocial} — ${cnpj}` });
+    } catch (err: any) { toast({ title: "Erro ao cadastrar cliente", description: err.message, variant: "destructive" }); }
+    finally { setCadastrando(false); setAlertaCadastro(null); }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const isPdf = file.name.toLowerCase().endsWith(".pdf");
+    let dadosExtraidos: any = null;
+    if (isPdf) dadosExtraidos = await extrairDadosPDF(file);
+    const url = await uploadFile(file);
+    setUploading(false);
+    if (!url) return;
+    if (dadosExtraidos?.cnpj && pessoas) {
+      const cnpjDoc = dadosExtraidos.cnpj.replace(/\D/g, "");
+      const cadastrado = pessoas.find((p: any) => p.cpf_cnpj && p.cpf_cnpj.replace(/\D/g, "") === cnpjDoc);
+      if (!cadastrado) {
+        setAlertaCadastro({ cnpj: dadosExtraidos.cnpj, cliente: dadosExtraidos.cliente, pendingUrl: url, pendingDados: dadosExtraidos });
+        return;
+      }
+    }
+    aplicarDadosExtraidos(dadosExtraidos, url);
+  };
+
   const handleBaixar = async (conta: any) => {
     setBaixaConta(conta);
     setBaixaJuros("");
@@ -384,16 +535,45 @@ const ContasReceber = () => {
                   <div><label className="text-sm font-medium">Valor (R$) *</label><Input className="mt-1" type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
                   <div><label className="text-sm font-medium">Vencimento *</label><Input className="mt-1" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
                 </div>
-                <div>
+                <div className="relative">
                   <label className="text-sm font-medium">Categoria</label>
-                  <Select value={form.category_id} onValueChange={v => setForm(f => ({ ...f, category_id: v }))}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      {categorias?.filter((c: any) => c.type === "receita" || c.type === "ambos").map((cat: any) => (
-                        <SelectItem key={cat.id} value={cat.id}>{cat.icon} {cat.name}</SelectItem>
+                  <Input
+                    className="mt-1"
+                    placeholder="Digite para buscar categoria..."
+                    value={showCategorias ? categoriaBusca : (categoriaSelecionada ? `${categoriaSelecionada.icon || ""} ${categoriaSelecionada.name}`.trim() : "")}
+                    onChange={e => { setCategoriaBusca(e.target.value); setShowCategorias(true); }}
+                    onFocus={() => { setShowCategorias(true); setCategoriaBusca(""); }}
+                    onBlur={() => setTimeout(() => setShowCategorias(false), 200)}
+                  />
+                  {showCategorias && categoriasFiltradas.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {categoriasFiltradas.map((cat: any) => (
+                        <button key={cat.id} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors" onMouseDown={e => e.preventDefault()} onClick={() => { setForm(f => ({ ...f, category_id: cat.id })); setCategoriaBusca(""); setShowCategorias(false); }}>
+                          {cat.icon} {cat.name}
+                        </button>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </div>
+                  )}
+                  {showCategorias && categoriasFiltradas.length === 0 && categoriaBusca && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg p-3 text-sm text-muted-foreground">Nenhuma categoria encontrada</div>
+                  )}
+                </div>
+                {/* Anexo */}
+                <div>
+                  <label className="text-sm font-medium">Anexar Arquivo (NF/Comprovante)</label>
+                  <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFileUpload} />
+                  <div className="mt-1 flex items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                      {uploading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
+                      {uploading ? "Enviando..." : "Selecionar arquivo"}
+                    </Button>
+                    {(form as any).attachment_url && (
+                      <div className="flex items-center gap-1 text-xs text-green-500">
+                        <Paperclip className="w-3 h-3" /><span>Arquivo anexado</span>
+                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setForm(f => ({ ...f, attachment_url: undefined } as any))}><X className="w-3 h-3" /></Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <Button onClick={handleAdd} className="w-full" disabled={submitting}>
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}Cadastrar
@@ -624,6 +804,37 @@ const ContasReceber = () => {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Cliente não cadastrado */}
+      <Dialog open={!!alertaCadastro} onOpenChange={o => { if (!o) setAlertaCadastro(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="w-5 h-5" />
+              Cliente não cadastrado
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <p className="text-sm text-muted-foreground">
+              O CNPJ <strong>{alertaCadastro?.cnpj}</strong> encontrado no documento não está cadastrado no sistema.
+            </p>
+            {alertaCadastro?.cliente && (
+              <p className="text-sm">Cliente identificado: <strong>{alertaCadastro.cliente}</strong></p>
+            )}
+            <p className="text-sm">Deseja cadastrar este cliente automaticamente?</p>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" size="sm" onClick={() => {
+                if (alertaCadastro?.pendingUrl && alertaCadastro?.pendingDados) aplicarDadosExtraidos(alertaCadastro.pendingDados, alertaCadastro.pendingUrl);
+                setAlertaCadastro(null);
+              }}>Não, apenas anexar</Button>
+              <Button size="sm" disabled={cadastrando} onClick={() => { if (alertaCadastro?.cnpj) cadastrarClienteAutomatico(alertaCadastro.cnpj); }}>
+                {cadastrando ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                Sim, cadastrar cliente
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </AppLayout>
