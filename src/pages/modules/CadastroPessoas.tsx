@@ -17,12 +17,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { logAudit } from "@/lib/auditLog";
-import { Users, UserPlus, Building2, Wrench, Search, Download, FileText, Landmark, Loader2, Trash2, Eye, Tag, Plus, Pencil, UserX, Activity } from "lucide-react";
+import { Users, UserPlus, Building2, Wrench, Search, Download, FileText, Landmark, Loader2, Trash2, Eye, Tag, Plus, Pencil, UserX, Activity, Package } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import EmpresaTab from "@/components/EmpresaTab";
 import { formatCurrency } from "@/data/mockData";
 
-type PessoaTipo = "cliente" | "prestador" | "ambos";
+type PessoaTipo = "cliente" | "prestador" | "fornecedor" | "ambos";
 
 const emptyForm = {
   razao_social: "", cpf_cnpj: "", tipo: "cliente" as PessoaTipo, tipo_pf_pj: "PJ",
@@ -82,6 +82,7 @@ const CadastroPessoas = () => {
 
   const clientes = all.filter(p => p.tipo === "cliente" || p.tipo === "ambos");
   const prestadores = all.filter(p => p.tipo === "prestador" || p.tipo === "ambos");
+  const fornecedores = all.filter(p => p.tipo === "fornecedor");
 
   const buscarCNPJ = useCallback(async (cnpj: string) => {
     const digits = cnpj.replace(/\D/g, "");
@@ -232,6 +233,7 @@ const CadastroPessoas = () => {
   const tagBadge = (tipo: string) => {
     if (tipo === "cliente") return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">{isObjetivo ? "Associado" : "Cliente"}</Badge>;
     if (tipo === "prestador") return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Prestador</Badge>;
+    if (tipo === "fornecedor") return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">Fornecedor</Badge>;
     return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Cliente e Prestador</Badge>;
   };
 
@@ -250,8 +252,8 @@ const CadastroPessoas = () => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 module-section">
           <ModuleStatCard label={isObjetivo ? "Associados" : "Clientes"} value={clientes.length} icon={<Building2 className="w-4 h-4" />} />
           <ModuleStatCard label="Prestadores" value={prestadores.length} icon={<Wrench className="w-4 h-4" />} />
+          <ModuleStatCard label="Fornecedores" value={fornecedores.length} icon={<Package className="w-4 h-4" />} />
           <ModuleStatCard label="Total Cadastros" value={all.length} icon={<Users className="w-4 h-4" />} />
-          <ModuleStatCard label="Categorias" value={(categories || []).length} icon={<Tag className="w-4 h-4" />} />
         </div>
 
         <div className="module-toolbar flex-wrap">
@@ -265,6 +267,7 @@ const CadastroPessoas = () => {
               <SelectItem value="todos">Todos</SelectItem>
               <SelectItem value="cliente">{isObjetivo ? "Associados" : "Clientes"}</SelectItem>
               <SelectItem value="prestador">Prestadores</SelectItem>
+              <SelectItem value="fornecedor">Fornecedores</SelectItem>
               {!isObjetivo && <SelectItem value="ambos">Cliente e Prestador</SelectItem>}
             </SelectContent>
           </Select>
@@ -282,6 +285,7 @@ const CadastroPessoas = () => {
                       <SelectContent>
                         <SelectItem value="cliente">{isObjetivo ? "Associado" : "Cliente"}</SelectItem>
                         <SelectItem value="prestador">Prestador</SelectItem>
+                        <SelectItem value="fornecedor">Fornecedor</SelectItem>
                         {!isObjetivo && <SelectItem value="ambos">Cliente e Prestador</SelectItem>}
                       </SelectContent>
                     </Select>
@@ -320,7 +324,7 @@ const CadastroPessoas = () => {
                   <div><label className="text-sm font-medium">Município</label><Input className="mt-1" value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))} /></div>
                   <div><label className="text-sm font-medium">UF</label><Input className="mt-1" value={form.uf} onChange={e => setForm(f => ({ ...f, uf: e.target.value }))} /></div>
                 </div>
-                {(form.tipo === "prestador" || form.tipo === "ambos") && (
+                {(form.tipo === "prestador" || form.tipo === "fornecedor" || form.tipo === "ambos") && (
                   <div className="grid grid-cols-3 gap-3">
                     <div><label className="text-sm font-medium">Banco</label><Input className="mt-1" value={form.banco} onChange={e => setForm(f => ({ ...f, banco: e.target.value }))} /></div>
                     <div><label className="text-sm font-medium">Agência</label><Input className="mt-1" value={form.agencia} onChange={e => setForm(f => ({ ...f, agencia: e.target.value }))} /></div>
