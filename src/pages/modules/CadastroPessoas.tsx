@@ -463,8 +463,7 @@ const CadastroPessoas = () => {
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedPessoa(p)}><Eye className="w-3.5 h-3.5" /></Button>
-                        {!isObjetivo && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                             setEditPessoa(p);
                             setForm({
                               razao_social: p.razao_social || "",
@@ -489,7 +488,6 @@ const CadastroPessoas = () => {
                             });
                             setModalOpen(true);
                           }}><Pencil className="w-3.5 h-3.5" /></Button>
-                        )}
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(p.id)}><Trash2 className="w-3.5 h-3.5 text-destructive" /></Button>
                       </div>
                     </TableCell>
