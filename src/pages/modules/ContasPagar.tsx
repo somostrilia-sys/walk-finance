@@ -286,22 +286,22 @@ const ContasPagar = () => {
         dados.fornecedor = dados.fornecedor.replace(/\s*(Ag[êe]ncia|Código|Número|Local|Data|CNPJ).*$/i, "").trim();
       }
 
-      // CNPJ do beneficiário
+      // CNPJ do beneficiário (fornecedor) — excluir o CNPJ do pagador
       if (allCnpjs.length > 0) {
-        if (allCnpjs.length === 1) {
-          dados.cnpj = allCnpjs[0];
+        // Identificar CNPJ do pagador/sacado para excluir
+        const pagadorCnpjMatch = fullText.match(/(?:pagador|sacado)[^]*?(?:CPF\/CNPJ|CNPJ)[:\s]*(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/i);
+        const cnpjPagador = pagadorCnpjMatch ? pagadorCnpjMatch[1] : null;
+
+        // Filtrar: pegar CNPJs que NÃO sejam do pagador
+        const cnpjsBeneficiario = allCnpjs.filter(c => c !== cnpjPagador);
+
+        if (cnpjsBeneficiario.length > 0) {
+          dados.cnpj = cnpjsBeneficiario[0];
         } else {
-          // Em boletos, o CNPJ do beneficiário geralmente aparece perto de "CNPJ/CPF" + "Endereço Beneficiário"
-          // ou é o CNPJ que NÃO pertence ao pagador
-          // Buscar CNPJ perto de "Endereço Beneficiário" ou "CNPJ/CPF" após o beneficiário
-          const cnpjBenefMatch = fullText.match(/(?:CNPJ\/CPF|CNPJ)\s*(?:Endere[çc]o\s*Benefici[áa]rio)?[:\s]*(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/i);
-          if (cnpjBenefMatch) {
-            dados.cnpj = cnpjBenefMatch[1];
-          } else {
-            // Usar o primeiro CNPJ como fallback
-            dados.cnpj = allCnpjs[0];
-          }
+          // Se todos são iguais ao do pagador, usar o primeiro mesmo
+          dados.cnpj = allCnpjs[0];
         }
+        console.log("[PDF Extract] CNPJ pagador:", cnpjPagador, "| CNPJ beneficiário:", dados.cnpj);
       }
 
       // ── VALOR DO DOCUMENTO ──
