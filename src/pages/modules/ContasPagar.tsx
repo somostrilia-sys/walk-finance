@@ -118,6 +118,9 @@ const ContasPagar = () => {
 
   // Period filter state
   const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodValue>("ultimos-30");
+  const [periodoInicio, setPeriodoInicio] = useState("");
+  const [periodoFim, setPeriodoFim] = useState("");
+  const customRange = filtroPeriodo === "personalizado" && periodoInicio && periodoFim ? { start: periodoInicio, end: periodoFim } : undefined;
 
   // Group expansion state
   const [grupoExpandido, setGrupoExpandido] = useState<string | null>(null);
@@ -205,7 +208,7 @@ const ContasPagar = () => {
     let lista = contas;
 
     // Period filter
-    lista = filterByPeriod(lista, filtroPeriodo, "date");
+    lista = filterByPeriod(lista, filtroPeriodo, "date", customRange);
 
     // Status filter
     if (filtroStatus === "pendente") lista = lista.filter((c: any) => c.status === "pendente");
@@ -222,13 +225,12 @@ const ContasPagar = () => {
     }
 
     return lista.sort((a, b) => a.date.localeCompare(b.date));
-  }, [contas, filtroStatus, search, filtroPeriodo]);
+  }, [contas, filtroStatus, search, filtroPeriodo, customRange]);
 
-  // Cards mostram totais por período (sem filtro de status/busca), exceto Objetivo que mostra tudo
+  // Cards mostram totais por período
   const contasParaCards = useMemo(() => {
-    if (isObjetivo) return contas;
-    return filterByPeriod(contas, filtroPeriodo, "date");
-  }, [contas, filtroPeriodo, isObjetivo]);
+    return filterByPeriod(contas, filtroPeriodo, "date", customRange);
+  }, [contas, filtroPeriodo, customRange]);
 
   const totalPendente = contasParaCards.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount), 0);
   const totalPago = contasParaCards.filter((c: any) => c.status === "confirmado").reduce((s: number, c: any) => s + Number(c.amount), 0);
@@ -785,6 +787,13 @@ const ContasPagar = () => {
               {PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
+          {filtroPeriodo === "personalizado" && (
+            <div className="flex items-center gap-1.5">
+              <Input type="date" className="h-9 w-[140px] text-xs" value={periodoInicio} onChange={e => setPeriodoInicio(e.target.value)} />
+              <span className="text-xs text-muted-foreground">até</span>
+              <Input type="date" className="h-9 w-[140px] text-xs" value={periodoFim} onChange={e => setPeriodoFim(e.target.value)} />
+            </div>
+          )}
 
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Relatório exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
@@ -1297,7 +1306,7 @@ const ContasPagar = () => {
                   </div>
 
                   {/* Conta bancária (se houver) */}
-                  {!isObjetivo && bankAccounts && bankAccounts.length > 0 && (
+                  {bankAccounts && bankAccounts.length > 0 && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1 block">Conta bancária</Label>
                       <Select value={baixaAccountId} onValueChange={setBaixaAccountId}>
@@ -1322,10 +1331,10 @@ const ContasPagar = () => {
                     <Button variant="outline" size="sm" onClick={() => { setBaixaDialogOpen(false); setBaixaConta(null); setBaixaIsBulk(false); }}>Cancelar</Button>
                     <Button
                       size="sm"
-                      disabled={(!isObjetivo && bankAccounts && bankAccounts.length > 0 && !baixaAccountId) || (!baixaIsBulk && valorParcial <= 0)}
+                      disabled={(bankAccounts && bankAccounts.length > 0 && !baixaAccountId) || (!baixaIsBulk && valorParcial <= 0)}
                       onClick={async () => {
                         setBaixaDialogOpen(false);
-                        const accId = (!isObjetivo && bankAccounts?.length > 0) ? baixaAccountId : null;
+                        const accId = bankAccounts?.length > 0 ? baixaAccountId : null;
                         if (baixaIsBulk) {
                           await executeBulkBaixa(accId, j, m, d, baixaDataPagamento);
                         } else if (baixaConta) {

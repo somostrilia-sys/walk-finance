@@ -82,6 +82,9 @@ const ContasReceber = () => {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodValue>("ultimos-30");
+  const [periodoInicio, setPeriodoInicio] = useState("");
+  const [periodoFim, setPeriodoFim] = useState("");
+  const customRange = filtroPeriodo === "personalizado" && periodoInicio && periodoFim ? { start: periodoInicio, end: periodoFim } : undefined;
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [baixaDialogOpen, setBaixaDialogOpen] = useState(false);
   const [baixaConta, setBaixaConta] = useState<any>(null);
@@ -135,7 +138,7 @@ const ContasReceber = () => {
 
   const filtered = useMemo(() => {
     let lista = contas;
-    lista = filterByPeriod(lista, filtroPeriodo, "date");
+    lista = filterByPeriod(lista, filtroPeriodo, "date", customRange);
     if (filtroStatus === "pendente") lista = lista.filter((c: any) => c.status === "pendente");
     else if (filtroStatus === "confirmado") lista = lista.filter((c: any) => c.status === "confirmado");
     else if (filtroStatus === "vencido") lista = lista.filter((c: any) => isVencido(c.date, c.status));
@@ -147,13 +150,12 @@ const ContasReceber = () => {
       );
     }
     return lista.sort((a, b) => a.date.localeCompare(b.date));
-  }, [contas, filtroStatus, search, filtroPeriodo]);
+  }, [contas, filtroStatus, search, filtroPeriodo, customRange]);
 
-  // Cards mostram totais por período (sem filtro de status/busca), exceto Objetivo que mostra tudo
+  // Cards mostram totais por período
   const contasParaCards = useMemo(() => {
-    if (isObjetivo) return contas;
-    return filterByPeriod(contas, filtroPeriodo, "date");
-  }, [contas, filtroPeriodo, isObjetivo]);
+    return filterByPeriod(contas, filtroPeriodo, "date", customRange);
+  }, [contas, filtroPeriodo, customRange]);
 
   const totalPendente = contasParaCards.filter((c: any) => c.status === "pendente").reduce((s: number, c: any) => s + Number(c.amount), 0);
   const totalRecebido = contasParaCards.filter((c: any) => c.status === "confirmado").reduce((s: number, c: any) => s + Number(c.amount), 0);
@@ -350,6 +352,13 @@ const ContasReceber = () => {
               {PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
+          {filtroPeriodo === "personalizado" && (
+            <div className="flex items-center gap-1.5">
+              <Input type="date" className="h-9 w-[140px] text-xs" value={periodoInicio} onChange={e => setPeriodoInicio(e.target.value)} />
+              <span className="text-xs text-muted-foreground">até</span>
+              <Input type="date" className="h-9 w-[140px] text-xs" value={periodoFim} onChange={e => setPeriodoFim(e.target.value)} />
+            </div>
+          )}
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Relatório exportado" })}><Download className="w-4 h-4 mr-1" />Exportar</Button>
           <Dialog open={modalOpen} onOpenChange={o => { setModalOpen(o); if (!o) setForm({ ...emptyForm }); }}>

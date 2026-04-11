@@ -13,6 +13,7 @@ export const PERIOD_OPTIONS = [
   { value: "ultimos-90", label: "Últimos 90 dias" },
   { value: "proximos-30", label: "Próximos 30 dias" },
   { value: "proximos-60", label: "Próximos 60 dias" },
+  { value: "personalizado", label: "Período específico" },
   { value: "todos", label: "Todos" },
 ] as const;
 
@@ -62,13 +63,22 @@ export function getDateRange(period: PeriodValue): { start: string; end: string 
       return { start: fmt(today), end: fmt(addDays(today, 30)) };
     case "proximos-60":
       return { start: fmt(today), end: fmt(addDays(today, 60)) };
+    case "personalizado":
+      return null; // Custom range is handled externally
     default:
       return null;
   }
 }
 
 /** Filter an array of items by date field using period */
-export function filterByPeriod<T>(items: T[], period: PeriodValue, dateField: keyof T): T[] {
+export function filterByPeriod<T>(items: T[], period: PeriodValue, dateField: keyof T, customRange?: { start: string; end: string }): T[] {
+  if (period === "personalizado" && customRange) {
+    return items.filter((item) => {
+      const d = item[dateField] as string;
+      if (!d) return false;
+      return d >= customRange.start && d <= customRange.end;
+    });
+  }
   const range = getDateRange(period);
   if (!range) return items;
   return items.filter((item) => {
