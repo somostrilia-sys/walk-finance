@@ -55,12 +55,35 @@ const Index = () => {
     queryKey: ["all_bank_accounts", companyIds],
     enabled: !!user && companyIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: accounts, error } = await supabase
         .from("bank_accounts")
         .select("*")
         .in("company_id", companyIds);
       if (error) throw error;
-      return data || [];
+      if (!accounts || accounts.length === 0) return [];
+
+      // Calcular saldo real de cada conta: saldo_inicial + créditos - débitos do extrato
+      const accountIds = accounts.map((a: any) => a.id);
+      const { data: extratos } = await supabase
+        .from("extrato_bancario")
+        .select("bank_account_id, valor, tipo")
+        .in("bank_account_id", accountIds)
+        .eq("status", "conciliado");
+
+      // Agrupar totais por conta
+      const saldosPorConta = new Map<string, number>();
+      for (const e of (extratos || [])) {
+        const val = Number(e.valor);
+        const atual = saldosPorConta.get(e.bank_account_id) || 0;
+        saldosPorConta.set(e.bank_account_id, atual + (e.tipo === "credito" ? val : -val));
+      }
+
+      // Atualizar current_balance de cada conta
+      return accounts.map((a: any) => {
+        const saldoInicial = Number((a as any).saldo_inicial || 0);
+        const movimentacao = saldosPorConta.get(a.id) || 0;
+        return { ...a, current_balance: saldoInicial + movimentacao };
+      });
     },
   });
 
