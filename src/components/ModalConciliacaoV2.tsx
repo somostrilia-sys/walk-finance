@@ -794,7 +794,11 @@ export default function ModalConciliacaoV2({
     setSaving(true);
     try {
       for (const item of aConciliar) {
-        const { error: extratoErr } = await supabase.from("extrato_bancario").insert({
+        let fitidFinal = item.fitid || null;
+        let extratoErr: any = null;
+
+        // Tentar inserir; se fitid duplicado, adicionar sufixo único
+        const insertPayload = {
           company_id: companyId,
           data_lancamento: item.data,
           descricao: item.descricao,
@@ -802,9 +806,23 @@ export default function ModalConciliacaoV2({
           tipo: item.tipo === "credito" ? "credito" : "debito",
           status: "conciliado",
           arquivo_origem: origem,
-          fitid: item.fitid || null,
+          fitid: fitidFinal,
           bank_account_id: bankAccountId || null,
-        });
+        };
+
+        const { error: err1 } = await supabase.from("extrato_bancario").insert(insertPayload);
+        if (err1 && err1.message?.includes("duplicate key") && fitidFinal) {
+          // FITID duplicado (ex: Caixa reutiliza FITID para transação + tarifa)
+          fitidFinal = `${fitidFinal}_${Math.abs(item.valor).toFixed(2)}`;
+          const { error: err2 } = await supabase.from("extrato_bancario").insert({
+            ...insertPayload,
+            fitid: fitidFinal,
+          });
+          extratoErr = err2;
+        } else {
+          extratoErr = err1;
+        }
+
         if (extratoErr) {
           toast({
             title: `Erro ao salvar "${item.descricao}"`,
