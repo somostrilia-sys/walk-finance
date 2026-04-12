@@ -129,7 +129,7 @@ const ContasReceber = () => {
 
   const contas = useMemo(() => {
     const entradasFinanceiras = (transactions || [])
-      .filter((t: any) => t.type === "entrada")
+      .filter((t: any) => t.type === "entrada" && t.status !== "conciliado")
       .map((t: any) => ({
         id: t.id,
         source: "financial_transactions" as const,

@@ -163,7 +163,7 @@ const ContasPagar = () => {
 
   const contas = useMemo(() => {
     const saidasFinanceiras = (transactions || [])
-      .filter((t: any) => t.type === "saida")
+      .filter((t: any) => t.type === "saida" && t.status !== "conciliado")
       .map((t: any) => {
         const juros = Number(t.juros || 0);
         const multa = Number(t.multa || 0);
