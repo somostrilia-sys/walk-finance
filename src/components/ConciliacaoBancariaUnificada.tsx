@@ -452,6 +452,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
 
   // ── Period filter ────────────────────────────────────────────────────────────
   const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodValue>("ultimos-30");
+  const [customRange, setCustomRange] = useState({ start: "", end: "" });
 
   // ── Seleção múltipla ─────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -499,8 +500,9 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   });
 
   // ── Filtered data ───────────────────────────────────────────────────────────
-  const filteredExtrato = useMemo(() => filterByPeriod(extrato, filtroPeriodo, "data_lancamento"), [extrato, filtroPeriodo]);
-  const filteredManuais = useMemo(() => filterByPeriod(manuais, filtroPeriodo, "date"), [manuais, filtroPeriodo]);
+  const activeCustomRange = filtroPeriodo === "personalizado" && customRange.start && customRange.end ? customRange : undefined;
+  const filteredExtrato = useMemo(() => filterByPeriod(extrato, filtroPeriodo, "data_lancamento", activeCustomRange), [extrato, filtroPeriodo, activeCustomRange]);
+  const filteredManuais = useMemo(() => filterByPeriod(manuais, filtroPeriodo, "date", activeCustomRange), [manuais, filtroPeriodo, activeCustomRange]);
 
   // ── Agrupamento por conta bancária com saldo acumulado ─────────────────────
   const extratoAgrupado = useMemo(() => {
@@ -807,6 +809,24 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
                   {PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {filtroPeriodo === "personalizado" && (
+                <>
+                  <Input
+                    type="date"
+                    className="w-[140px] h-8 text-xs"
+                    value={customRange.start}
+                    onChange={(e) => setCustomRange(p => ({ ...p, start: e.target.value }))}
+                    placeholder="Data inicial"
+                  />
+                  <Input
+                    type="date"
+                    className="w-[140px] h-8 text-xs"
+                    value={customRange.end}
+                    onChange={(e) => setCustomRange(p => ({ ...p, end: e.target.value }))}
+                    placeholder="Data final"
+                  />
+                </>
+              )}
               <Button size="sm" onClick={openManualCreate} className="gap-2">
                 <Plus className="h-4 w-4" />
                 Novo Lançamento Manual
