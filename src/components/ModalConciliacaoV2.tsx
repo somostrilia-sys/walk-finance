@@ -799,10 +799,14 @@ export default function ModalConciliacaoV2({
         let extratoErr: any = null;
 
         // Tentar inserir; se fitid duplicado, adicionar sufixo único
+        // Usar descrição da conciliação quando disponível (ex: "Retirada de Lucro - Rayanne")
+        const descricaoFinal = item.match?.descricao && item.match.descricao !== "Já conciliado anteriormente" && item.match.descricao !== "Baixa parcial encontrada" && item.match.descricao !== "Conta encontrada"
+          ? `${item.match.descricao} | ${item.descricao}`
+          : item.descricao;
         const insertPayload = {
           company_id: companyId,
           data_lancamento: item.data,
-          descricao: item.descricao,
+          descricao: descricaoFinal,
           valor: Math.abs(item.valor),
           tipo: item.tipo === "credito" ? "credito" : "debito",
           status: "conciliado",
