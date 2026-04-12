@@ -202,6 +202,7 @@ interface ExtratoRow {
   status: string;
   arquivo_origem: string | null;
   bank_account_id: string | null;
+  fitid?: string | null;
 }
 
 interface TransacaoManual {
@@ -467,7 +468,7 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
     queryFn: async () => {
       let q = supabase
         .from("extrato_bancario")
-        .select("id, data_lancamento, descricao, valor, tipo, status, arquivo_origem, bank_account_id")
+        .select("id, data_lancamento, descricao, valor, tipo, status, arquivo_origem, bank_account_id, fitid")
         .eq("company_id", companyId)
         .eq("status", "conciliado")
         .order("data_lancamento", { ascending: true });
@@ -507,7 +508,17 @@ export default function ConciliacaoBancariaUnificada({ companyId, branchId, bank
   // ── Agrupamento por conta bancária com saldo acumulado ─────────────────────
   const extratoAgrupado = useMemo(() => {
     // Usar TODOS os lançamentos (não filtrados) para calcular saldo correto
-    const todosOrdenados = [...extrato].sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento));
+    const todosOrdenados = [...extrato].sort((a, b) => {
+      const dateComp = a.data_lancamento.localeCompare(b.data_lancamento);
+      if (dateComp !== 0) return dateComp;
+      // Dentro do mesmo dia, ordenar por fitid (documento bancário) para manter a sequência real
+      const fitA = a.fitid || "";
+      const fitB = b.fitid || "";
+      // Extrair parte numérica do fitid para ordenação correta
+      const numA = parseInt(fitA.replace(/[^0-9]/g, "")) || 0;
+      const numB = parseInt(fitB.replace(/[^0-9]/g, "")) || 0;
+      return numA - numB;
+    });
     const filteredIds = new Set(filteredExtrato.map(i => i.id));
 
     // Agrupar todos os lançamentos por conta
