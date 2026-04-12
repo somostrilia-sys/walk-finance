@@ -394,7 +394,8 @@ export default function ModalConciliacaoV2({
         const idxConciliado = extratosConciliados.findIndex((ec, idx) => {
           if (usedExtratoIndices.has(idx)) return false;
           // Match exato por fitid + valor (evita confusão com FITIDs duplicados)
-          if (e.fitid && ec.fitid === e.fitid && Math.abs(ec.valor - valorAbs) <= 0.01) return true;
+          // Também reconhece fitids com sufixo (_8.50) criados para evitar duplicidade
+          if (e.fitid && ec.fitid && (ec.fitid === e.fitid || ec.fitid.startsWith(e.fitid + "_")) && Math.abs(ec.valor - valorAbs) <= 0.01) return true;
           // Match por valor + data + tipo (para transferências espelho sem fitid)
           if (!ec.fitid && Math.abs(ec.valor - valorAbs) <= 0.01 && ec.data_lancamento === e.data && ec.tipo === tipoExtrato) return true;
           return false;
