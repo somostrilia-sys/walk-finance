@@ -82,18 +82,23 @@ function autoMatch(
   const valorAbs = Math.abs(item.valor);
   const dataItem = new Date(item.data);
 
+  // Filtrar por tipo: débito → conta_pagar, crédito → conta_receber
+  const tipoEsperado = item.tipo === "debito" ? "conta_pagar" : "conta_receber";
+
   // 1. Tentar match com valores individuais de baixas parciais (cada baixa usada apenas 1 vez)
   for (const baixa of baixasParciais) {
     if (usedBaixaIds.has(baixa.id)) continue;
+    // Verificar tipo compatível
+    const tipoBaixa = baixa.conta_tipo === "contas_pagar" ? "conta_pagar" : "conta_receber";
+    if (tipoBaixa !== tipoEsperado) continue;
     if (Math.abs(valorAbs - baixa.valor) > 0.01) continue;
     const dataBaixa = new Date(baixa.data_pagamento);
     const diffDias = Math.abs((dataItem.getTime() - dataBaixa.getTime()) / 86400000);
     if (diffDias <= 5) {
       const conta = contas.find(c => c.id === baixa.conta_id);
-      const tipo = conta?._tipo || (baixa.conta_tipo === "contas_pagar" ? "conta_pagar" : "conta_receber") as "conta_pagar" | "conta_receber";
       usedBaixaIds.add(baixa.id);
       return {
-        tipo,
+        tipo: tipoEsperado,
         id: baixa.conta_id,
         descricao: conta?.descricao || conta?.fornecedor || conta?.cliente || "Baixa parcial encontrada",
         alreadySettled: true,
@@ -104,6 +109,8 @@ function autoMatch(
   // 2. Tentar match com valor original ou valor total pago da conta (cada conta usada apenas 1 vez)
   for (const conta of contas) {
     if (usedContaIds.has(conta.id)) continue;
+    // Verificar tipo compatível: débito → conta_pagar, crédito → conta_receber
+    if (conta._tipo !== tipoEsperado) continue;
     const valorConta = Number(conta.valor || 0);
     const valorPago = conta.valor_pago ? Number(conta.valor_pago) : undefined;
 
@@ -142,7 +149,11 @@ function findBestSuggestion(
   let bestScore = 0;
   let bestConta: ContaRow | null = null;
 
+  // Filtrar por tipo: débito → conta_pagar, crédito → conta_receber
+  const tipoEsperado = item.tipo === "debito" ? "conta_pagar" : "conta_receber";
+
   for (const conta of settled) {
+    if (conta._tipo !== tipoEsperado) continue;
     let score = 0;
     const valorConta = Number(conta.valor || 0);
 
